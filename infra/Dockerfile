@@ -9,7 +9,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg aiosqlite \
-    pydantic pydantic-settings cryptography pyjwt pyotp httpx qrcode pillow
+    pydantic pydantic-settings cryptography pyjwt pyotp httpx qrcode pillow openpyxl python-multipart
 
 COPY shared_kernel ./shared_kernel
 COPY services ./services

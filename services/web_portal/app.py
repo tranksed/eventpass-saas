@@ -72,9 +72,17 @@ def create_portal_app() -> FastAPI:
     async def admin() -> HTMLResponse:
         return _html_page("admin.html")
 
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard() -> HTMLResponse:
+        return _html_page("admin.html")
+
     @app.get("/acreditacion", response_class=HTMLResponse)
     async def acreditacion() -> HTMLResponse:
         return _html_page("acreditacion.html")
+
+    @app.get("/reclamos", response_class=HTMLResponse)
+    async def reclamos() -> HTMLResponse:
+        return _html_page("reclamos.html")
 
     @app.get("/health")
     async def health() -> dict[str, str]:

@@ -1,298 +1,790 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panel General SaaS — EventPass</title>
-  <link rel="stylesheet" href="/static/shared.css" />
+  <title>EventPass SaaS — Dashboard & Panel Organizador</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --ep-bg: #0b0d14;
+      --ep-surface: #131724;
+      --ep-card: #171c2c;
+      --ep-border: rgba(255, 255, 255, 0.08);
+      --ep-accent: #8b5cf6;
+      --ep-cyan: #22d3ee;
+    }
+    body {
+      background-color: var(--ep-bg);
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .ep-sidebar {
+      width: 270px;
+      min-height: 100vh;
+      background: var(--ep-surface);
+      border-right: 1px solid var(--ep-border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    @media (max-width: 991.98px) {
+      .ep-sidebar {
+        width: 100%;
+        height: auto;
+        min-height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--ep-border);
+      }
+    }
+    .ep-nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: left;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #cbd5e1;
+      font-weight: 500;
+      font-size: 0.92rem;
+      transition: all 0.15s ease;
+    }
+    .ep-nav-btn:hover {
+      background: rgba(139, 92, 246, 0.12);
+      color: #fff;
+    }
+    .ep-nav-btn.active {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(34, 211, 238, 0.16));
+      border-color: rgba(139, 92, 246, 0.45);
+      color: #fff;
+      font-weight: 600;
+    }
+    .ep-card {
+      background: var(--ep-card);
+      border: 1px solid var(--ep-border);
+      border-radius: 14px;
+    }
+    .ep-kpi {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid var(--ep-border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      height: 100%;
+    }
+    .ep-kpi-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+    }
+    .ep-kpi-val {
+      font-size: 1.65rem;
+      font-weight: 700;
+      margin-top: 4px;
+      color: #f8fafc;
+    }
+    .ep-kpi-sub {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    .chart-box {
+      position: relative;
+      height: 260px;
+      width: 100%;
+    }
+    .ep-section-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      padding: 10px 14px 4px;
+      font-weight: 700;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-logo">⚡</div>
-      <span>EVENTPASS · PANEL GENERAL</span>
-    </div>
-    <nav class="nav-links">
-      <a class="nav-link" href="/">Descubrir</a>
-      <a class="nav-link" href="/comprar">Taquilla Compras</a>
-      <a class="nav-link" href="/validar">Puerta / Validación</a>
-      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
-    </nav>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span id="sessionBadge" class="badge warn">Sin sesión</span>
-      <button class="btn sec sm" onclick="logout()">Cerrar Sesión</button>
-    </div>
-  </header>
-
-  <main class="container">
-    <div class="grid-3" style="margin-bottom:20px;">
-      <div class="card" style="padding:16px;">
-        <div class="muted">Perfil Activo</div>
-        <div id="kpiRole" style="font-size:1.35rem; font-weight:800; margin-top:4px;">Invitado</div>
-      </div>
-      <div class="card" style="padding:16px;">
-        <div class="muted">Eventos de la Empresa</div>
-        <div id="kpiEvents" style="font-size:1.55rem; font-weight:800; margin-top:4px;">0</div>
-      </div>
-      <div class="card" style="padding:16px;">
-        <div class="muted">Empresas Acreditadas</div>
-        <div id="kpiCompanies" style="font-size:1.55rem; font-weight:800; margin-top:4px;">0</div>
+  <!-- Top Navbar -->
+  <nav class="navbar navbar-expand-lg border-bottom px-3 py-2" style="background:#0f1320; border-color:var(--ep-border)!important;">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
+        <span class="badge bg-primary rounded-3 px-2 py-1"><i class="bi bi-lightning-charge-fill"></i></span>
+        <span>EVENTPASS <span class="text-info fw-normal fs-6">SaaS</span></span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="topNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-1">
+          <li class="nav-item"><a class="nav-link" href="/">Inicio</a></li>
+          <li class="nav-item"><a class="nav-link" href="/comprar">Taquilla / Cortesías / Guest List</a></li>
+          <li class="nav-item"><a class="nav-link" href="/validar">Puerta (Online/Offline)</a></li>
+          <li class="nav-item"><a class="nav-link" href="/acreditacion">Acreditación Staff</a></li>
+          <li class="nav-item"><a class="nav-link active fw-semibold text-info" href="/admin">Dashboard Admin</a></li>
+          <li class="nav-item"><a class="nav-link" href="/reclamos">Libro Reclamaciones</a></li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+          <span id="sessionBadge" class="badge text-bg-secondary py-2 px-3">Sin sesión</span>
+          <button id="btnLogout" class="btn btn-outline-danger btn-sm d-none" onclick="logout()">
+            <i class="bi bi-box-arrow-right"></i> Salir
+          </button>
+        </div>
       </div>
     </div>
+  </nav>
 
-    <div class="admin-layout">
-      <aside class="sidebar">
-        <button class="side-btn active" onclick="showPane('auth', this)">1. Empresa y Sesión</button>
-        <button class="side-btn" onclick="showPane('events', this)">2. Eventos y Entradas</button>
-        <button class="side-btn" onclick="showPane('companies', this)">3. Empresas y Cupos Staff</button>
-        <button class="side-btn" onclick="showPane('team', this)">4. Equipo (3 Perfiles)</button>
-        <button class="side-btn" onclick="showPane('audit', this)">5. Auditoría SHA-256</button>
-      </aside>
-
+  <div class="d-lg-flex">
+    <!-- Sidebar -->
+    <aside class="ep-sidebar p-3 d-flex flex-column justify-content-between">
       <div>
-        <!-- PANE 1: AUTH -->
-        <section id="pane-auth" class="section-pane active">
-          <div class="grid-2">
-            <div class="card card-glow">
-              <h2>Registrar Empresa SaaS (Tenant)</h2>
-              <div class="row">
-                <div>
-                  <label>Nombre Empresa</label>
-                  <input id="regCompanyName" value="Eventos Globales SAC" />
-                </div>
-                <div>
-                  <label>Slug único</label>
-                  <input id="regCompanySlug" />
-                </div>
-              </div>
-              <div class="row">
-                <div>
-                  <label>Nombre Admin</label>
-                  <input id="regAdminName" value="Carlos Admin" />
-                </div>
-                <div>
-                  <label>Email Admin</label>
-                  <input id="regAdminEmail" value="admin@eventos.com" />
-                </div>
-              </div>
-              <label>Contraseña (mín. 8 caracteres)</label>
-              <input id="regAdminPass" type="password" value="UltraSecure!2026" />
-              <button class="btn block" onclick="registerTenant()">Crear Empresa e Iniciar Sesión (ADMIN)</button>
-              <div id="regMsg"></div>
-            </div>
+        <div class="mb-3">
+          <label class="form-label small text-secondary mb-1">Evento activo</label>
+          <select id="globalEventSelect" class="form-select form-select-sm bg-dark border-secondary text-light" onchange="onEventChange()">
+            <option value="">-- Sin eventos --</option>
+          </select>
+        </div>
 
-            <div class="card">
-              <h2>Iniciar Sesión Existente</h2>
-              <label>Slug Empresa</label>
-              <input id="loginSlug" placeholder="ej. empresa-..." />
-              <label>Email</label>
-              <input id="loginEmail" placeholder="admin@eventos.com" />
-              <div class="row">
-                <div>
-                  <label>Contraseña</label>
-                  <input id="loginPass" type="password" value="UltraSecure!2026" />
-                </div>
-                <div>
-                  <label>Código MFA (si aplica)</label>
-                  <input id="loginMfa" placeholder="Opcional" />
-                </div>
-              </div>
-              <button class="btn sec block" onclick="loginUser()">Iniciar Sesión</button>
-              <div id="loginMsg"></div>
+        <div class="ep-section-title">Principal</div>
+        <div class="d-grid gap-1 mb-2">
+          <button class="ep-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+            <i class="bi bi-speedometer2 text-info"></i> 1. Dashboard & Métricas
+          </button>
+          <button class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
+            <i class="bi bi-calendar-event text-primary"></i> 2. Eventos y Entradas
+          </button>
+        </div>
+
+        <div class="ep-section-title">Operación Comercial</div>
+        <div class="d-grid gap-1 mb-2">
+          <button class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
+            <i class="bi bi-ticket-perforated text-warning"></i> 3. Códigos, Cortesías y RR.PP.
+          </button>
+          <button class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
+            <i class="bi bi-person-check text-success"></i> 4. Guest List
+          </button>
+          <button class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
+            <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos (Excel/CSV)
+          </button>
+        </div>
+
+        <div class="ep-section-title">Acreditaciones & Seguridad</div>
+        <div class="d-grid gap-1 mb-2">
+          <button class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
+            <i class="bi bi-building-check text-primary"></i> 6. Acreditaciones Staff
+          </button>
+          <button class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
+            <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
+          </button>
+        </div>
+
+        <div class="ep-section-title">Cuenta SaaS</div>
+        <div class="d-grid gap-1">
+          <button class="ep-nav-btn" data-tab="auth" onclick="switchTab('auth', this)">
+            <i class="bi bi-key"></i> Acceso / Nueva Empresa
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-top border-secondary-subtle small text-secondary">
+        <div><i class="bi bi-clock"></i> Zona horaria: <strong>America/Lima</strong></div>
+        <div><i class="bi bi-shield-check text-success"></i> Ed25519 + AES-256-GCM + SHA-256</div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-grow-1 p-3 p-lg-4">
+      <div id="globalAlert" class="mb-3"></div>
+
+      <!-- TAB 1: DASHBOARD & METRICAS -->
+      <section id="tab-dashboard" class="ep-tab">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <h2 class="h4 fw-bold mb-0"><i class="bi bi-graph-up-arrow text-info me-2"></i>Dashboard Analítico del Evento</h2>
+            <small class="text-secondary" id="dashEventSubtitle">Selecciona o crea un evento para visualizar métricas en tiempo real.</small>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-info btn-sm" onclick="loadDashboardMetrics()">
+              <i class="bi bi-arrow-clockwise"></i> Actualizar Métricas
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadExcelExport()">
+              <i class="bi bi-file-earmark-excel"></i> Exportar Excel (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <!-- 8 KPI Cards -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-cash-stack text-success me-1"></i> Ingresos Totales</div>
+              <div class="ep-kpi-val" id="kpiRevenue">S/ 0.00</div>
+              <div class="ep-kpi-sub" id="kpiOrdersSummary">0 pagadas · 0 pendientes</div>
             </div>
           </div>
-        </section>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-ticket-detailed text-primary me-1"></i> Aforo Vendido</div>
+              <div class="ep-kpi-val" id="kpiSold">0 / 0</div>
+              <div class="progress mt-2" style="height:6px;"><div id="kpiSoldBar" class="progress-bar bg-primary" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-door-open text-info me-1"></i> Ocupación en Puerta</div>
+              <div class="ep-kpi-val" id="kpiDoor">0 / 0</div>
+              <div class="ep-kpi-sub" id="kpiDoorPct">0% ingresados (Participantes + Staff)</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-building-check text-warning me-1"></i> Acreditación Staff</div>
+              <div class="ep-kpi-val" id="kpiStaff">0 / 0</div>
+              <div class="ep-kpi-sub" id="kpiStaffCompanies">0 empresas aliadas</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-qr-code text-warning me-1"></i> Cortesías / Códigos</div>
+              <div class="ep-kpi-val" id="kpiCodes">0 / 0</div>
+              <div class="ep-kpi-sub">Canjeados vs generados</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-person-lines-fill text-success me-1"></i> Guest List</div>
+              <div class="ep-kpi-val" id="kpiGuest">0 aprob.</div>
+              <div class="ep-kpi-sub" id="kpiGuestSub">0 pendientes · 0 rechazados</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-upc-scan text-info me-1"></i> Escaneos Totales</div>
+              <div class="ep-kpi-val" id="kpiScans">0</div>
+              <div class="ep-kpi-sub" id="kpiScanMode">Online + Sync Offline</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="ep-kpi">
+              <div class="ep-kpi-label"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Conflictos Offline</div>
+              <div class="ep-kpi-val" id="kpiConflicts">0</div>
+              <div class="ep-kpi-sub">Duplicados o revocados detectados</div>
+            </div>
+          </div>
+        </div>
 
-        <!-- PANE 2: EVENTS -->
-        <section id="pane-events" class="section-pane">
-          <div class="grid-2">
-            <div class="card">
-              <h2>Crear Evento (Solo ADMIN)</h2>
-              <div class="row">
-                <div>
-                  <label>Nombre del Evento</label>
-                  <input id="evName" value="Ritmo Fest 2026" />
+        <!-- 4 Chart.js Charts -->
+        <div class="row g-3 mb-4">
+          <div class="col-lg-7">
+            <div class="ep-card p-3 h-100">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-activity text-info me-1"></i> Ventas por Hora (Órdenes e Ingresos)</h6>
+              <div class="chart-box"><canvas id="chartTimeline"></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="ep-card p-3 h-100">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-pie-chart text-warning me-1"></i> Órdenes por Canal (Web / Códigos / Guest / Excel)</h6>
+              <div class="chart-box"><canvas id="chartSources"></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="ep-card p-3 h-100">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart text-primary me-1"></i> Rendimiento por Ítem / Categoría</h6>
+              <div class="chart-box"><canvas id="chartItems"></canvas></div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="ep-card p-3 h-100">
+              <h6 class="fw-semibold mb-3"><i class="bi bi-shield-check text-success me-1"></i> Accesos en Puerta (Puertas & Tipo de Titular)</h6>
+              <div class="chart-box"><canvas id="chartDoor"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Tables -->
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="ep-card p-3">
+              <h6 class="fw-semibold mb-2"><i class="bi bi-tags me-1 text-primary"></i> Detalle de Stock & Recaudación por Ítem</h6>
+              <div class="table-responsive">
+                <table class="table table-dark table-sm align-middle mb-0">
+                  <thead><tr><th>Código</th><th>Tipo</th><th>Precio</th><th>Vendidos</th><th>Disp.</th><th>Ingreso</th></tr></thead>
+                  <tbody id="dashItemsTable"><tr><td colspan="6" class="text-secondary">Sin datos</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="ep-card p-3">
+              <h6 class="fw-semibold mb-2"><i class="bi bi-megaphone me-1 text-warning"></i> Ranking Promotores RR.PP.</h6>
+              <div class="table-responsive">
+                <table class="table table-dark table-sm align-middle mb-0">
+                  <thead><tr><th>Promotor</th><th>Prefijo</th><th>Códigos</th><th>Órdenes</th><th>Ingreso</th></tr></thead>
+                  <tbody id="dashPromotersTable"><tr><td colspan="5" class="text-secondary">Sin datos</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: EVENTOS Y CATALOGO -->
+      <section id="tab-events" class="ep-tab d-none">
+        <h2 class="h4 fw-bold mb-3"><i class="bi bi-calendar-event text-primary me-2"></i>Eventos, Branding y Catálogo de Entradas</h2>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="ep-card p-3">
+              <h5 class="h6 fw-bold mb-3">Crear Nuevo Evento</h5>
+              <div class="row g-2">
+                <div class="col-md-7">
+                  <label class="form-label small">Nombre del Evento</label>
+                  <input id="evName" class="form-control form-control-sm" value="Festival Lima Tech 2026" />
                 </div>
-                <div>
-                  <label>Slug del Evento</label>
-                  <input id="evSlug" />
+                <div class="col-md-5">
+                  <label class="form-label small">Slug URL</label>
+                  <input id="evSlug" class="form-control form-control-sm" value="lima-tech-2026" />
+                </div>
+                <div class="col-md-7">
+                  <label class="form-label small">Lugar / Venue</label>
+                  <input id="evVenue" class="form-control form-control-sm" value="Centro de Convenciones de Lima" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Color Marca</label>
+                  <input id="evBrandColor" type="color" class="form-control form-control-color form-control-sm w-100" value="#8b5cf6" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small">Lím. DNI</label>
+                  <input id="evMaxDni" type="number" min="1" max="10" class="form-control form-control-sm" value="4" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Zona Horaria</label>
+                  <input id="evTz" class="form-control form-control-sm" value="America/Lima" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Descripción corta</label>
+                  <input id="evDesc" class="form-control form-control-sm" value="Acceso general, interacciones y acreditación corporativa" />
                 </div>
               </div>
-              <label>Máximo de compras por DNI (1 a 10)</label>
-              <input id="evMaxDni" type="number" min="1" max="10" value="3" />
-              <button class="btn block" onclick="createEvent()">Crear Evento</button>
-              <div id="evMsg"></div>
+              <button class="btn btn-primary btn-sm mt-3" onclick="createEvent()">
+                <i class="bi bi-plus-circle"></i> Crear Evento
+              </button>
+              <div id="evMsg" class="mt-2"></div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="ep-card p-3 mb-3">
+              <h5 class="h6 fw-bold mb-2">Regla de Límite por DNI (1 a 10)</h5>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">Máximo compras por DNI</span>
+                <input id="editMaxDni" type="number" min="1" max="10" class="form-control" value="4" />
+                <button class="btn btn-outline-warning" onclick="updateEventDniLimit()">Actualizar Límite</button>
+              </div>
             </div>
 
-            <div class="card">
-              <h2>Agregar Entradas / Interacciones</h2>
-              <label>Evento</label>
-              <select id="adminEventSelect" onchange="loadCompanies()"></select>
-              <div class="row">
-                <div>
-                  <label>Código</label>
-                  <select id="itemCode">
-                    <option value="ENTRY">ENTRY (Entrada)</option>
-                    <option value="PHOTO">PHOTO (Foto)</option>
-                    <option value="SIGNATURE">SIGNATURE (Firma)</option>
-                    <option value="VIP_LOUNGE">VIP_LOUNGE</option>
+            <div class="ep-card p-3">
+              <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción al Evento Activo</h5>
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label small">Código (MAYÚS)</label>
+                  <input id="itemCode" class="form-control form-control-sm" value="ENTRY" />
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label small">Nombre visible</label>
+                  <input id="itemName" class="form-control form-control-sm" value="Entrada General VIP" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Tipo</label>
+                  <select id="itemType" class="form-select form-select-sm">
+                    <option value="ENTRY">ENTRY (Ingreso)</option>
+                    <option value="INTERACTION">INTERACTION (Foto/Firma)</option>
                   </select>
                 </div>
-                <div>
-                  <label>Tipo</label>
-                  <select id="itemType">
-                    <option value="ENTRY">ENTRY</option>
-                    <option value="INTERACTION">INTERACTION</option>
-                  </select>
+                <div class="col-md-6">
+                  <label class="form-label small">Precio (centavos, ej 8000 = 80.00)</label>
+                  <input id="itemPrice" type="number" min="0" class="form-control form-control-sm" value="8000" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Stock total</label>
+                  <input id="itemStock" type="number" min="1" class="form-control form-control-sm" value="500" />
                 </div>
               </div>
-              <div class="row">
-                <div>
-                  <label>Nombre Comercial</label>
-                  <input id="itemName" value="Entrada General" />
-                </div>
-                <div>
-                  <label>Precio (centavos)</label>
-                  <input id="itemPrice" type="number" value="4500" />
-                </div>
-                <div>
-                  <label>Stock</label>
-                  <input id="itemStock" type="number" value="500" />
-                </div>
-              </div>
-              <button class="btn ok block" onclick="createCatalogItem()">Agregar al Catálogo</button>
-              <div id="itemMsg"></div>
+              <button class="btn btn-success btn-sm mt-3" onclick="createCatalogItem()">
+                <i class="bi bi-bag-plus"></i> Publicar en Taquilla
+              </button>
+              <div id="itemMsg" class="mt-2"></div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <!-- PANE 3: ACCREDITED COMPANIES -->
-        <section id="pane-companies" class="section-pane">
-          <div class="card" style="margin-bottom:20px;">
-            <h2>Generar Link Privado de Acreditación de Staff</h2>
-            <p class="muted">Cupo inicial <strong>6</strong> · Supervisor amplía hasta <strong>10</strong> · Admin asigna cupo personalizado.</p>
-            <div class="row">
-              <div>
-                <label>Evento</label>
-                <select id="compEventSelect"></select>
+      <!-- TAB 3: CODIGOS, CORTESIAS Y RRPP -->
+      <section id="tab-codes" class="ep-tab d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h4 fw-bold mb-0"><i class="bi bi-ticket-perforated text-warning me-2"></i>Códigos Nominativos, Cortesías y Promotores RR.PP.</h2>
+          <button class="btn btn-outline-light btn-sm" onclick="loadCodesModule()"><i class="bi bi-arrow-clockwise"></i> Recargar</button>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">1. Registrar Promotor RR.PP.</h5>
+              <div class="mb-2">
+                <label class="form-label small">Nombre del Promotor</label>
+                <input id="promName" class="form-control form-control-sm" placeholder="Ej. Agencia Vibe / Carlos R." />
               </div>
-              <div>
-                <label>Empresa Representada</label>
-                <input id="accCompName" value="Sony Pictures Partners" />
+              <div class="row g-2 mb-2">
+                <div class="col-5">
+                  <label class="form-label small">Prefijo Código</label>
+                  <input id="promPrefix" class="form-control form-control-sm" placeholder="VIBE" />
+                </div>
+                <div class="col-7">
+                  <label class="form-label small">Email</label>
+                  <input id="promEmail" type="email" class="form-control form-control-sm" placeholder="carlos@rrpp.pe" />
+                </div>
               </div>
-              <div>
-                <label>Email Contacto</label>
-                <input id="accCompEmail" value="ops@partner.com" />
-              </div>
+              <button class="btn btn-warning btn-sm" onclick="createPromoter()">Crear Promotor RR.PP.</button>
+              <div id="promMsg" class="mt-2"></div>
             </div>
-            <button class="btn" onclick="createAccreditedCompany()">Crear Empresa y Generar Link Privado</button>
-            <div id="compMsg"></div>
           </div>
 
-          <div class="card">
-            <h2>Empresas Acreditadas y Cupos</h2>
-            <table>
-              <thead><tr><th>Empresa</th><th>Usado / Cupo</th><th>Modificar Cupo</th></tr></thead>
-              <tbody id="companiesTable"></tbody>
+          <div class="col-lg-7">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">2. Generar Lote de Códigos / Cortesías</h5>
+              <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                  <label class="form-label small">Ítem del Catálogo</label>
+                  <select id="codeItemSelect" class="form-select form-select-sm"></select>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label small">Promotor RR.PP. (opcional)</label>
+                  <select id="codePromoterSelect" class="form-select form-select-sm"><option value="">-- Cortesía Directa --</option></select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Cantidad (1..500)</label>
+                  <input id="codeQty" type="number" min="1" max="500" class="form-control form-control-sm" value="10" />
+                </div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="generateCodeBatch()">
+                <i class="bi bi-magic"></i> Generar Lote de Códigos
+              </button>
+              <div id="codeBatchMsg" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ep-card p-3">
+          <h6 class="fw-semibold mb-2">Códigos Generados (Se enlazan al DNI al canjear en /comprar)</h6>
+          <div class="table-responsive" style="max-height:340px;">
+            <table class="table table-dark table-sm align-middle mb-0">
+              <thead><tr><th>Código</th><th>Estado</th><th>Canjeado</th><th>Acción</th></tr></thead>
+              <tbody id="codesTable"><tr><td colspan="4" class="text-secondary">Sin códigos aún</td></tr></tbody>
             </table>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <!-- PANE 4: TEAM -->
-        <section id="pane-team" class="section-pane">
-          <div class="grid-2">
-            <div class="card">
-              <h2>Crear Usuario del Equipo (Solo ADMIN)</h2>
-              <label>Nombre Completo</label>
-              <input id="newUserName" value="Sofía Supervisora" />
-              <label>Email</label>
-              <input id="newUserEmail" value="supervisor@eventos.com" />
-              <div class="row">
-                <div>
-                  <label>Contraseña</label>
-                  <input id="newUserPass" type="password" value="TeamPass!2026" />
+      <!-- TAB 4: GUEST LIST -->
+      <section id="tab-guestlist" class="ep-tab d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <h2 class="h4 fw-bold mb-0"><i class="bi bi-person-check text-success me-2"></i>Guest List & Aprobación en 1 Clic</h2>
+            <small class="text-secondary">Los invitados solicitan desde <code>/comprar</code> y al aprobar se emite automáticamente su credencial QR Ed25519.</small>
+          </div>
+          <button class="btn btn-outline-light btn-sm" onclick="loadGuestList()"><i class="bi bi-arrow-clockwise"></i> Actualizar Lista</button>
+        </div>
+        <div id="guestMsg" class="mb-2"></div>
+        <div class="ep-card p-3">
+          <div class="table-responsive">
+            <table class="table table-dark table-sm align-middle mb-0">
+              <thead><tr><th>Invitado</th><th>DNI (últ. 4)</th><th>Nota</th><th>Estado</th><th>Acciones / QR</th></tr></thead>
+              <tbody id="guestListTable"><tr><td colspan="5" class="text-secondary">Sin solicitudes</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: ENVIOS MASIVOS (EXCEL/CSV) -->
+      <section id="tab-bulk" class="ep-tab d-none">
+        <h2 class="h4 fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet text-info me-2"></i>Envíos Masivos de Cortesías / Invitados (Excel & CSV)</h2>
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-2">Paso 1: Descargar Plantilla Oficial</h5>
+              <p class="small text-secondary">Columnas requeridas: <code>dni</code>, <code>full_name</code>, <code>email</code>, <code>item_code</code> (ej. ENTRY).</p>
+              <button class="btn btn-outline-info btn-sm" onclick="downloadBulkTemplate()">
+                <i class="bi bi-download"></i> Descargar plantilla .xlsx
+              </button>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-2">Paso 2: Subir Excel (.xlsx) o CSV (.csv) en Background</h5>
+              <div class="input-group input-group-sm">
+                <input id="bulkFileInput" type="file" accept=".xlsx,.csv" class="form-control" />
+                <button class="btn btn-primary" onclick="uploadBulkFile()">
+                  <i class="bi bi-cloud-upload"></i> Iniciar Envío Masivo
+                </button>
+              </div>
+              <div id="bulkMsg" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ep-card p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-semibold mb-0">Historial y Reporte Final de Procesamiento</h6>
+            <button class="btn btn-outline-light btn-sm" onclick="loadBulkJobs()"><i class="bi bi-arrow-clockwise"></i> Actualizar Jobs</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-dark table-sm align-middle mb-0">
+              <thead><tr><th>Archivo</th><th>Estado</th><th>Progreso</th><th>Éxitos</th><th>Errores</th><th>Reporte</th></tr></thead>
+              <tbody id="bulkJobsTable"><tr><td colspan="6" class="text-secondary">Sin envíos masivos</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: ACREDITACIONES STAFF (ORDENADO E INTACTO) -->
+      <section id="tab-staff" class="ep-tab d-none">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <h2 class="h4 fw-bold mb-0"><i class="bi bi-building-check text-primary me-2"></i>Acreditaciones Corporativas de Staff</h2>
+            <small class="text-secondary">Cupo default: <strong>6</strong> · Supervisor expande hasta <strong>10</strong> · Administrador personalizado (1..500). Cada empresa recibe su link privado.</small>
+          </div>
+          <button class="btn btn-outline-light btn-sm" onclick="loadCompanies()"><i class="bi bi-arrow-clockwise"></i> Actualizar Empresas</button>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <div class="ep-card p-3">
+              <h5 class="h6 fw-bold mb-3">Registrar Empresa Representada</h5>
+              <div class="mb-2">
+                <label class="form-label small">Empresa / Marca Expositora</label>
+                <input id="accCompName" class="form-control form-control-sm" value="Sponsor Tech Perú SAC" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">Email Responsable</label>
+                <input id="accCompEmail" type="email" class="form-control form-control-sm" value="rrhh@sponsortech.pe" />
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="createAccreditedCompany()">
+                <i class="bi bi-link-45deg"></i> Crear Link Privado de Staff
+              </button>
+              <div id="compMsg" class="mt-2"></div>
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="ep-card p-3">
+              <h5 class="h6 fw-bold mb-3">Empresas Acreditadas y Control de Cupos</h5>
+              <div class="table-responsive">
+                <table class="table table-dark table-sm align-middle mb-0">
+                  <thead><tr><th>Empresa</th><th>Uso / Cupo</th><th>Ajustar Cupo</th></tr></thead>
+                  <tbody id="companiesTable"><tr><td colspan="3" class="text-secondary">Sin empresas acreditadas aún</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: EQUIPO, AUDITORIA Y RECLAMOS -->
+      <section id="tab-team" class="ep-tab d-none">
+        <h2 class="h4 fw-bold mb-3"><i class="bi bi-shield-lock text-danger me-2"></i>Equipo RBAC, Auditoría SHA-256 y Libro de Reclamaciones</h2>
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">Crear Usuario de Equipo (3 Perfiles)</h5>
+              <div class="mb-2">
+                <label class="form-label small">Nombre completo</label>
+                <input id="newUserName" class="form-control form-control-sm" value="Supervisor Puerta Norte" />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">Correo</label>
+                <input id="newUserEmail" type="email" class="form-control form-control-sm" value="sup@miempresa.com" />
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label small">Contraseña (10+)</label>
+                  <input id="newUserPass" type="password" class="form-control form-control-sm" value="SupPass!98765" />
                 </div>
-                <div>
-                  <label>Perfil</label>
-                  <select id="newUserRole">
-                    <option value="SUPERVISOR">SUPERVISOR (hasta 10 staff)</option>
-                    <option value="VALIDATOR">VALIDATOR (puerta online/offline)</option>
-                    <option value="ADMIN">ADMIN (acceso total)</option>
+                <div class="col-6">
+                  <label class="form-label small">Rol</label>
+                  <select id="newUserRole" class="form-select form-select-sm">
+                    <option value="SUPERVISOR">SUPERVISOR</option>
+                    <option value="VALIDATOR">VALIDATOR</option>
+                    <option value="ADMIN">ADMIN</option>
                   </select>
                 </div>
               </div>
-              <button class="btn block" onclick="createTeamUser()">Crear Usuario</button>
-              <div id="teamMsg"></div>
-            </div>
-
-            <div class="card">
-              <div class="section-title">
-                <span>Usuarios de la Empresa</span>
-                <button class="btn sec sm" onclick="loadTeamUsers()">↻ Actualizar</button>
-              </div>
-              <table>
-                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th></tr></thead>
-                <tbody id="usersTable"></tbody>
-              </table>
+              <button class="btn btn-primary btn-sm" onclick="createTeamUser()">Crear Usuario</button>
+              <div id="teamMsg" class="mt-2"></div>
             </div>
           </div>
-        </section>
 
-        <!-- PANE 5: AUDIT -->
-        <section id="pane-audit" class="section-pane">
-          <div class="card">
-            <div class="section-title">
-              <span>Auditoría Inmutable (Hash-Chain SHA-256)</span>
-              <div style="display:flex; gap:8px;">
-                <button class="btn sec sm" onclick="loadAuditLogs()">↻ Cargar</button>
-                <button class="btn ok sm" onclick="verifyAuditChain()">✓ Verificar SHA-256</button>
+          <div class="col-lg-7">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">Miembros de la Organización</h5>
+              <div class="table-responsive" style="max-height:240px;">
+                <table class="table table-dark table-sm align-middle mb-0">
+                  <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead>
+                  <tbody id="usersTable"><tr><td colspan="3" class="text-secondary">Inicia sesión como Admin/Supervisor</td></tr></tbody>
+                </table>
               </div>
             </div>
-            <div id="auditStatus"></div>
-            <table>
-              <thead><tr><th>Seq</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Detalle</th><th>Hash</th></tr></thead>
+          </div>
+        </div>
+
+        <div class="ep-card p-3 mb-3">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h5 class="h6 fw-bold mb-0">Registro de Auditoría Inmutable (Hash-Chained)</h5>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-light btn-sm" onclick="loadAuditLogs()">Recargar Logs</button>
+              <button class="btn btn-outline-success btn-sm" onclick="verifyAuditChain()">Verificar Cadena SHA-256</button>
+            </div>
+          </div>
+          <div id="auditStatus" class="mb-2"></div>
+          <div class="table-responsive" style="max-height:260px;">
+            <table class="table table-dark table-sm align-middle mb-0">
+              <thead><tr><th>#</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Metadata</th><th>Hash</th></tr></thead>
               <tbody id="auditTable"></tbody>
             </table>
           </div>
-        </section>
+        </div>
+
+        <div class="ep-card p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="h6 fw-bold mb-0"><i class="bi bi-journal-text text-warning me-1"></i> Libro de Reclamaciones Virtual (Perú)</h5>
+            <button class="btn btn-outline-light btn-sm" onclick="loadComplaints()">Actualizar Reclamos</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-dark table-sm align-middle mb-0">
+              <thead><tr><th>Código</th><th>Tipo</th><th>Ciudadano</th><th>DNI</th><th>Detalle</th><th>Fecha</th></tr></thead>
+              <tbody id="complaintsTable"><tr><td colspan="6" class="text-secondary">Sin reclamos registrados</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 0: AUTH / NUEVA EMPRESA -->
+      <section id="tab-auth" class="ep-tab d-none">
+        <h2 class="h4 fw-bold mb-3"><i class="bi bi-key text-info me-2"></i>Acceso Organizador o Registro de Nueva Empresa</h2>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">Registrar Empresa Tenant</h5>
+              <div class="row g-2">
+                <div class="col-md-6"><label class="form-label small">Empresa</label><input id="regCompanyName" class="form-control form-control-sm" value="Productora Andina SAC" /></div>
+                <div class="col-md-6"><label class="form-label small">Slug Tenant</label><input id="regCompanySlug" class="form-control form-control-sm" value="andina-live" /></div>
+                <div class="col-md-6"><label class="form-label small">Admin</label><input id="regAdminName" class="form-control form-control-sm" value="Lucía Mendoza" /></div>
+                <div class="col-md-6"><label class="form-label small">Correo Admin</label><input id="regAdminEmail" type="email" class="form-control form-control-sm" value="admin@andinalive.pe" /></div>
+                <div class="col-12"><label class="form-label small">Contraseña (10+ caracteres)</label><input id="regAdminPass" type="password" class="form-control form-control-sm" value="StrongPass!98765" /></div>
+              </div>
+              <button class="btn btn-primary btn-sm mt-3" onclick="registerTenant()">Crear Tenant y Entrar</button>
+              <div id="regMsg" class="mt-2"></div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="ep-card p-3 h-100">
+              <h5 class="h6 fw-bold mb-3">Iniciar Sesión (Admin / Supervisor)</h5>
+              <div class="mb-2"><label class="form-label small">Slug Tenant</label><input id="loginSlug" class="form-control form-control-sm" placeholder="andina-live" /></div>
+              <div class="mb-2"><label class="form-label small">Correo</label><input id="loginEmail" type="email" class="form-control form-control-sm" placeholder="admin@andinalive.pe" /></div>
+              <div class="row g-2">
+                <div class="col-8"><label class="form-label small">Contraseña</label><input id="loginPass" type="password" class="form-control form-control-sm" /></div>
+                <div class="col-4"><label class="form-label small">MFA (opc.)</label><input id="loginMfa" class="form-control form-control-sm" placeholder="123456" /></div>
+              </div>
+              <button class="btn btn-success btn-sm mt-3" onclick="loginUser()">Entrar al Dashboard</button>
+              <div id="loginMsg" class="mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Guest List QR Modal -->
+  <div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-secondary">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">Credencial QR Emitida</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img id="qrModalImg" class="bg-white p-2 rounded-3 mb-2" style="width:200px;height:200px;" alt="QR" />
+          <p class="small text-secondary mb-1" id="qrModalInfo"></p>
+          <textarea id="qrModalToken" class="form-control form-control-sm mono" rows="3" readonly></textarea>
+        </div>
       </div>
     </div>
-  </main>
+  </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/static/shared.js"></script>
   <script>
-    function init() {
-      const rnd = Math.random().toString(36).slice(2, 7);
-      document.getElementById("regCompanySlug").value = `empresa-${rnd}`;
-      document.getElementById("evSlug").value = `ritmo-${rnd}`;
-      refreshSession();
+    const charts = {};
+
+    function bsMsg(elId, type, text) {
+      const cls = type === "ok" ? "alert-success" : type === "warn" ? "alert-warning" : "alert-danger";
+      const el = document.getElementById(elId);
+      if (el) el.innerHTML = `<div class="alert ${cls} py-2 px-3 small mb-0">${EP.escapeHtml(text)}</div>`;
     }
 
-    function showPane(name, btn) {
-      document.querySelectorAll(".section-pane").forEach(p => p.classList.remove("active"));
-      document.querySelectorAll(".side-btn").forEach(b => b.classList.remove("active"));
-      document.getElementById(`pane-${name}`).classList.add("active");
-      btn.classList.add("active");
-      if (name === "events" || name === "companies") loadEvents();
-      if (name === "companies") loadCompanies();
-      if (name === "team") loadTeamUsers();
-      if (name === "audit") loadAuditLogs();
+    function switchTab(tabName, btn) {
+      document.querySelectorAll(".ep-tab").forEach(s => s.classList.add("d-none"));
+      document.getElementById(`tab-${tabName}`).classList.remove("d-none");
+      document.querySelectorAll(".ep-nav-btn").forEach(b => b.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+      else {
+        const match = document.querySelector(`.ep-nav-btn[data-tab="${tabName}"]`);
+        if (match) match.classList.add("active");
+      }
+      if (tabName === "dashboard") loadDashboardMetrics();
+      if (tabName === "codes") loadCodesModule();
+      if (tabName === "guestlist") loadGuestList();
+      if (tabName === "bulk") loadBulkJobs();
+      if (tabName === "staff") loadCompanies();
+      if (tabName === "team") { loadTeamUsers(); loadAuditLogs(); loadComplaints(); }
+    }
+
+    function currentEventId() {
+      return document.getElementById("globalEventSelect").value;
+    }
+
+    async function onEventChange() {
+      await loadDashboardMetrics();
+      const activeBtn = document.querySelector(".ep-nav-btn.active");
+      const tab = activeBtn ? activeBtn.dataset.tab : "dashboard";
+      if (tab === "codes") loadCodesModule();
+      if (tab === "guestlist") loadGuestList();
+      if (tab === "bulk") loadBulkJobs();
     }
 
     function refreshSession() {
       const s = EP.getSession();
-      const b = document.getElementById("sessionBadge");
+      const badge = document.getElementById("sessionBadge");
+      const btnOut = document.getElementById("btnLogout");
       if (s.token) {
-        b.className = "badge ok";
-        b.textContent = `${s.role} · ${s.slug || s.tenantId.slice(0, 8)}`;
-        document.getElementById("kpiRole").textContent = s.role;
-        if (s.slug) document.getElementById("loginSlug").value = s.slug;
-        loadEvents();
+        badge.className = "badge text-bg-success py-2 px-3";
+        badge.textContent = `${s.slug || "tenant"} · ${s.role}`;
+        btnOut.classList.remove("d-none");
+        loadEvents().then(() => loadDashboardMetrics());
         loadCompanies();
       } else {
-        b.className = "badge warn";
-        b.textContent = "Sin sesión";
-        document.getElementById("kpiRole").textContent = "Invitado";
+        badge.className = "badge text-bg-secondary py-2 px-3";
+        badge.textContent = "Sin sesión (Inicia en Acceso)";
+        btnOut.classList.add("d-none");
+        switchTab("auth");
       }
     }
 
@@ -315,11 +807,10 @@
           }),
         });
         EP.saveSession(res.tokens.access_token, res.tokens.role, res.tenant_id, res.company_slug);
-        document.getElementById("loginSlug").value = res.company_slug;
-        document.getElementById("loginEmail").value = res.user.email;
-        EP.showMsg("regMsg", "ok", `Empresa '${res.company_name}' creada. Continúa en '2. Eventos y Entradas'.`);
+        bsMsg("regMsg", "ok", `Empresa '${res.company_name}' creada. Redirigiendo a Eventos...`);
         refreshSession();
-      } catch (e) { EP.showMsg("regMsg", "err", e.message); }
+        switchTab("events");
+      } catch (e) { bsMsg("regMsg", "err", e.message); }
     }
 
     async function loginUser() {
@@ -334,19 +825,24 @@
         if (mfa) body.mfa_code = mfa;
         const res = await EP.api("/api/v1/auth/login", { method: "POST", auth: false, body: JSON.stringify(body) });
         EP.saveSession(res.access_token, res.role, res.tenant_id, slug);
-        EP.showMsg("loginMsg", "ok", `Sesión iniciada como ${res.role}.`);
+        bsMsg("loginMsg", "ok", `Sesión iniciada (${res.role}).`);
         refreshSession();
-      } catch (e) { EP.showMsg("loginMsg", "err", e.message); }
+        switchTab("dashboard");
+      } catch (e) { bsMsg("loginMsg", "err", e.message); }
     }
 
     async function loadEvents() {
       if (!EP.getSession().token) return;
       try {
         const events = await EP.api("/api/v1/registration/events");
-        document.getElementById("kpiEvents").textContent = String(events.length);
-        const opts = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)} (DNI max ${e.max_purchases_per_dni})</option>`).join("");
-        document.getElementById("adminEventSelect").innerHTML = opts;
-        document.getElementById("compEventSelect").innerHTML = opts;
+        const sel = document.getElementById("globalEventSelect");
+        const prev = sel.value;
+        if (!events.length) {
+          sel.innerHTML = `<option value="">-- Crea tu primer evento --</option>`;
+          return;
+        }
+        sel.innerHTML = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)} (DNI ${e.max_purchases_per_dni})</option>`).join("");
+        if (prev && events.some(e => e.id === prev)) sel.value = prev;
       } catch {}
     }
 
@@ -358,37 +854,348 @@
           body: JSON.stringify({
             name: document.getElementById("evName").value,
             slug: document.getElementById("evSlug").value,
-            starts_at: new Date(now.getTime() + 3600 * 1000).toISOString(),
-            ends_at: new Date(now.getTime() + 72 * 3600 * 1000).toISOString(),
+            venue: document.getElementById("evVenue").value,
+            description: document.getElementById("evDesc").value,
+            brand_color: document.getElementById("evBrandColor").value,
+            timezone_name: document.getElementById("evTz").value,
+            starts_at: new Date(now.getTime() + 1800 * 1000).toISOString(),
+            ends_at: new Date(now.getTime() + 96 * 3600 * 1000).toISOString(),
             max_purchases_per_dni: Number(document.getElementById("evMaxDni").value),
           }),
         });
-        EP.showMsg("evMsg", "ok", `Evento '${res.name}' creado (Límite DNI: ${res.max_purchases_per_dni}).`);
+        bsMsg("evMsg", "ok", `Evento '${res.name}' creado en ${res.venue}.`);
         await loadEvents();
-      } catch (e) { EP.showMsg("evMsg", "err", e.message); }
+        document.getElementById("globalEventSelect").value = res.id;
+        await loadDashboardMetrics();
+      } catch (e) { bsMsg("evMsg", "err", e.message); }
+    }
+
+    async function updateEventDniLimit() {
+      const eventId = currentEventId();
+      if (!eventId) return bsMsg("evMsg", "err", "Selecciona un evento primero.");
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/dni-limit`, {
+          method: "PATCH",
+          body: JSON.stringify({ max_purchases_per_dni: Number(document.getElementById("editMaxDni").value) }),
+        });
+        bsMsg("evMsg", "ok", `Límite DNI actualizado a ${res.max_purchases_per_dni}.`);
+        await loadEvents();
+      } catch (e) { bsMsg("evMsg", "err", e.message); }
     }
 
     async function createCatalogItem() {
-      const eventId = document.getElementById("adminEventSelect").value;
-      if (!eventId) return EP.showMsg("itemMsg", "err", "Crea o selecciona un evento primero.");
+      const eventId = currentEventId();
+      if (!eventId) return bsMsg("itemMsg", "err", "Selecciona o crea un evento primero.");
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/items`, {
           method: "POST",
           body: JSON.stringify({
-            code: document.getElementById("itemCode").value,
+            code: document.getElementById("itemCode").value.trim().toUpperCase(),
             name: document.getElementById("itemName").value,
             item_type: document.getElementById("itemType").value,
             price_cents: Number(document.getElementById("itemPrice").value),
             stock_total: Number(document.getElementById("itemStock").value),
           }),
         });
-        EP.showMsg("itemMsg", "ok", `Ítem '${res.code}' agregado (Stock: ${res.stock_available}). Ya disponible en /comprar.`);
-      } catch (e) { EP.showMsg("itemMsg", "err", e.message); }
+        bsMsg("itemMsg", "ok", `Ítem '${res.code}' publicado (${res.stock_available} disponibles).`);
+        await loadDashboardMetrics();
+      } catch (e) { bsMsg("itemMsg", "err", e.message); }
     }
 
+    function upsertChart(id, cfg) {
+      if (charts[id]) charts[id].destroy();
+      const ctx = document.getElementById(id).getContext("2d");
+      charts[id] = new Chart(ctx, cfg);
+    }
+
+    async function loadDashboardMetrics() {
+      const eventId = currentEventId();
+      if (!eventId || !EP.getSession().token) return;
+      try {
+        const [reg, acc] = await Promise.all([
+          EP.api(`/api/v1/registration/events/${eventId}/metrics`),
+          EP.api(`/api/v1/accreditation/events/${eventId}/metrics`).catch(() => null),
+        ]);
+        document.getElementById("dashEventSubtitle").textContent = `Evento: ${reg.event_name} · Métricas en vivo`;
+
+        document.getElementById("kpiRevenue").textContent = `S/ ${(reg.total_revenue_cents / 100).toFixed(2)}`;
+        document.getElementById("kpiOrdersSummary").textContent = `${reg.orders_paid} pagadas · ${reg.orders_pending} pendientes`;
+
+        document.getElementById("kpiSold").textContent = `${reg.tickets_sold} / ${reg.tickets_capacity}`;
+        const soldPct = reg.tickets_capacity ? Math.round((reg.tickets_sold / reg.tickets_capacity) * 100) : 0;
+        document.getElementById("kpiSoldBar").style.width = `${soldPct}%`;
+
+        document.getElementById("kpiCodes").textContent = `${reg.courtesy_codes.redeemed} / ${reg.courtesy_codes.total}`;
+        document.getElementById("kpiGuest").textContent = `${reg.guest_list.approved} aprob.`;
+        document.getElementById("kpiGuestSub").textContent = `${reg.guest_list.pending} pendientes · ${reg.guest_list.rejected} rechazados`;
+
+        if (acc) {
+          document.getElementById("kpiDoor").textContent = `${acc.checked_in_entry} / ${acc.total_active_credentials}`;
+          document.getElementById("kpiDoorPct").textContent = `${acc.occupancy_pct}% aforo ingresado en puerta`;
+          document.getElementById("kpiStaff").textContent = `${acc.staff_companies_summary.total_used} / ${acc.staff_companies_summary.total_quota}`;
+          document.getElementById("kpiStaffCompanies").textContent = `${acc.staff_companies_summary.companies_count} empresas acreditadas`;
+          document.getElementById("kpiScans").textContent = String(acc.total_scan_events);
+          document.getElementById("kpiScanMode").textContent = `Online: ${acc.by_mode.ONLINE || 0} · Offline Sync: ${acc.by_mode.OFFLINE_SYNC || 0}`;
+          document.getElementById("kpiConflicts").textContent = String(acc.offline_conflicts);
+        }
+
+        // Tables
+        document.getElementById("dashItemsTable").innerHTML = reg.items.length
+          ? reg.items.map(i => `
+            <tr>
+              <td><span class="badge text-bg-secondary">${EP.escapeHtml(i.code)}</span></td>
+              <td class="small">${EP.escapeHtml(i.item_type)}</td>
+              <td>S/ ${(i.price_cents / 100).toFixed(2)}</td>
+              <td>${i.stock_sold}</td>
+              <td>${i.stock_available}</td>
+              <td class="text-success fw-semibold">S/ ${(i.revenue_cents / 100).toFixed(2)}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="6" class="text-secondary">Sin ítems configurados</td></tr>`;
+
+        document.getElementById("dashPromotersTable").innerHTML = reg.promoters.length
+          ? reg.promoters.map(p => `
+            <tr>
+              <td><strong>${EP.escapeHtml(p.name)}</strong></td>
+              <td><span class="badge text-bg-warning">${EP.escapeHtml(p.code_prefix)}</span></td>
+              <td>${p.codes_redeemed} / ${p.codes_total}</td>
+              <td>${p.orders_paid}</td>
+              <td class="text-info fw-semibold">S/ ${(p.revenue_cents / 100).toFixed(2)}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="5" class="text-secondary">Sin promotores RR.PP.</td></tr>`;
+
+        // Chart 1: Sales Timeline
+        const tLabels = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.hour) : ["Sin ventas"];
+        const tOrders = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.orders) : [0];
+        const tRev = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.revenue_cents / 100) : [0];
+        upsertChart("chartTimeline", {
+          type: "line",
+          data: {
+            labels: tLabels,
+            datasets: [
+              { label: "Órdenes Pagadas", data: tOrders, borderColor: "#22d3ee", backgroundColor: "rgba(34,211,238,0.18)", fill: true, tension: 0.3 },
+              { label: "Ingresos (S/)", data: tRev, borderColor: "#8b5cf6", backgroundColor: "rgba(139,92,246,0.12)", fill: false, tension: 0.3 },
+            ],
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
+        });
+
+        // Chart 2: Orders by source
+        const srcKeys = Object.keys(reg.orders_by_source);
+        upsertChart("chartSources", {
+          type: "doughnut",
+          data: {
+            labels: srcKeys.length ? srcKeys : ["Sin órdenes"],
+            datasets: [{
+              data: srcKeys.length ? srcKeys.map(k => reg.orders_by_source[k]) : [1],
+              backgroundColor: ["#8b5cf6", "#22d3ee", "#10b981", "#f59e0b", "#ec4899"],
+            }],
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } },
+        });
+
+        // Chart 3: Items Breakdown
+        upsertChart("chartItems", {
+          type: "bar",
+          data: {
+            labels: reg.items.length ? reg.items.map(i => i.code) : ["Sin ítems"],
+            datasets: [
+              { label: "Vendidos", data: reg.items.length ? reg.items.map(i => i.stock_sold) : [0], backgroundColor: "#8b5cf6" },
+              { label: "Disponibles", data: reg.items.length ? reg.items.map(i => i.stock_available) : [0], backgroundColor: "rgba(148,163,184,0.3)" },
+            ],
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
+        });
+
+        // Chart 4: Door Occupancy by Holder Type + Gates
+        const doorLabels = ["Participantes Emitidos", "Participantes Ingresados", "Staff Emitidos", "Staff Ingresados"];
+        const doorVals = acc
+          ? [acc.by_holder_type.PARTICIPANT.total, acc.by_holder_type.PARTICIPANT.checked_in, acc.by_holder_type.STAFF.total, acc.by_holder_type.STAFF.checked_in]
+          : [0, 0, 0, 0];
+        upsertChart("chartDoor", {
+          type: "bar",
+          data: {
+            labels: doorLabels,
+            datasets: [{ label: "Credenciales", data: doorVals, backgroundColor: ["#6366f1", "#22d3ee", "#f59e0b", "#10b981"] }],
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
+        });
+      } catch (e) { bsMsg("globalAlert", "err", e.message); }
+    }
+
+    async function downloadAuthFile(url, filename) {
+      const s = EP.getSession();
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${s.token}` } });
+      if (!res.ok) throw new Error(await res.text());
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    async function downloadExcelExport() {
+      const eventId = currentEventId();
+      if (!eventId) return;
+      try { await downloadAuthFile(`/api/v1/registration/events/${eventId}/metrics/export.xlsx`, `eventpass_metrics_${eventId}.xlsx`); }
+      catch (e) { bsMsg("globalAlert", "err", e.message); }
+    }
+
+    // --- TAB 3: CODES & RRPP ---
+    async function loadCodesModule() {
+      const eventId = currentEventId();
+      if (!eventId || !EP.getSession().token) return;
+      try {
+        const [items, promoters, codes] = await Promise.all([
+          EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false }),
+          EP.api(`/api/v1/registration/events/${eventId}/promoters`),
+          EP.api(`/api/v1/registration/events/${eventId}/codes`),
+        ]);
+        document.getElementById("codeItemSelect").innerHTML = items.map(i => `<option value="${i.id}">${EP.escapeHtml(i.code)} (${EP.escapeHtml(i.name)})</option>`).join("");
+        document.getElementById("codePromoterSelect").innerHTML = `<option value="">-- Cortesía Directa --</option>` + promoters.map(p => `<option value="${p.id}">${EP.escapeHtml(p.name)} (${EP.escapeHtml(p.code_prefix)})</option>`).join("");
+        document.getElementById("codesTable").innerHTML = codes.length
+          ? codes.map(c => `
+            <tr>
+              <td class="mono fw-bold">${EP.escapeHtml(c.code)}</td>
+              <td><span class="badge ${c.status === "AVAILABLE" ? "text-bg-success" : "text-bg-secondary"}">${c.status}</span></td>
+              <td class="small">${c.redeemed_at ? new Date(c.redeemed_at).toLocaleString() : "-"}</td>
+              <td><button class="btn btn-outline-light btn-sm py-0" onclick="navigator.clipboard.writeText('${c.code}')">Copiar</button></td>
+            </tr>`).join("")
+          : `<tr><td colspan="4" class="text-secondary">Sin códigos generados</td></tr>`;
+      } catch (e) { bsMsg("codeBatchMsg", "err", e.message); }
+    }
+
+    async function createPromoter() {
+      const eventId = currentEventId();
+      if (!eventId) return;
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/promoters`, {
+          method: "POST",
+          body: JSON.stringify({
+            name: document.getElementById("promName").value,
+            code_prefix: document.getElementById("promPrefix").value.trim().toUpperCase(),
+            email: document.getElementById("promEmail").value,
+          }),
+        });
+        bsMsg("promMsg", "ok", `Promotor '${res.name}' (${res.code_prefix}) registrado.`);
+        loadCodesModule();
+      } catch (e) { bsMsg("promMsg", "err", e.message); }
+    }
+
+    async function generateCodeBatch() {
+      const eventId = currentEventId();
+      if (!eventId) return;
+      try {
+        const promId = document.getElementById("codePromoterSelect").value || null;
+        const rows = await EP.api(`/api/v1/registration/events/${eventId}/codes/batch`, {
+          method: "POST",
+          body: JSON.stringify({
+            catalog_item_id: document.getElementById("codeItemSelect").value,
+            promoter_id: promId,
+            quantity: Number(document.getElementById("codeQty").value),
+          }),
+        });
+        bsMsg("codeBatchMsg", "ok", `${rows.length} códigos únicos generados correctamente.`);
+        loadCodesModule();
+      } catch (e) { bsMsg("codeBatchMsg", "err", e.message); }
+    }
+
+    // --- TAB 4: GUEST LIST ---
+    async function loadGuestList() {
+      const eventId = currentEventId();
+      if (!eventId || !EP.getSession().token) return;
+      try {
+        const rows = await EP.api(`/api/v1/registration/events/${eventId}/guest-list`);
+        document.getElementById("guestListTable").innerHTML = rows.length
+          ? rows.map(g => {
+            const cls = g.status === "APPROVED" ? "text-bg-success" : g.status === "REJECTED" ? "text-bg-danger" : "text-bg-warning";
+            const actions = g.status === "PENDING"
+              ? `<button class="btn btn-success btn-sm py-0 me-1" onclick="decideGuest('${g.id}','APPROVE')">Aprobar QR</button>
+                 <button class="btn btn-outline-danger btn-sm py-0" onclick="decideGuest('${g.id}','REJECT')">Rechazar</button>`
+              : g.qr_token
+                ? `<button class="btn btn-outline-info btn-sm py-0" onclick='showQrModal(${JSON.stringify(g.display_name)}, ${JSON.stringify(g.qr_token)})'>Ver QR</button>`
+                : "-";
+            return `
+              <tr>
+                <td><strong>${EP.escapeHtml(g.display_name)}</strong></td>
+                <td class="mono">****${EP.escapeHtml(g.dni_last4)}</td>
+                <td class="small text-secondary">${EP.escapeHtml(g.note || "-")}</td>
+                <td><span class="badge ${cls}">${g.status}</span></td>
+                <td>${actions}</td>
+              </tr>`;
+          }).join("")
+          : `<tr><td colspan="5" class="text-secondary">Sin solicitudes en Guest List</td></tr>`;
+      } catch (e) { bsMsg("guestMsg", "err", e.message); }
+    }
+
+    async function decideGuest(entryId, decision) {
+      try {
+        const res = await EP.api(`/api/v1/registration/guest-list/${entryId}/decision`, {
+          method: "POST",
+          body: JSON.stringify({ decision }),
+        });
+        bsMsg("guestMsg", "ok", `Invitado ${res.display_name}: ${res.status}.`);
+        await loadGuestList();
+        if (res.qr_token) await showQrModal(res.display_name, res.qr_token);
+      } catch (e) { bsMsg("guestMsg", "err", e.message); }
+    }
+
+    async function showQrModal(name, token) {
+      document.getElementById("qrModalInfo").textContent = `Titular: ${name}`;
+      document.getElementById("qrModalToken").value = token;
+      document.getElementById("qrModalImg").src = await EP.renderQrDataUrl(token);
+      new bootstrap.Modal(document.getElementById("qrModal")).show();
+    }
+
+    // --- TAB 5: BULK IMPORT ---
+    async function downloadBulkTemplate() {
+      try { await downloadAuthFile("/api/v1/registration/bulk-template.xlsx", "eventpass_plantilla_masiva.xlsx"); }
+      catch (e) { bsMsg("bulkMsg", "err", e.message); }
+    }
+
+    async function uploadBulkFile() {
+      const eventId = currentEventId();
+      const input = document.getElementById("bulkFileInput");
+      if (!eventId || !input.files.length) return bsMsg("bulkMsg", "err", "Selecciona un evento y un archivo .xlsx/.csv.");
+      const form = new FormData();
+      form.append("file", input.files[0]);
+      try {
+        const s = EP.getSession();
+        const res = await fetch(`/api/v1/registration/events/${eventId}/bulk-import`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${s.token}` },
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+        bsMsg("bulkMsg", "ok", `Job ${data.job_id} encolado (${data.total_rows} filas). Procesando en background...`);
+        setTimeout(loadBulkJobs, 1200);
+      } catch (e) { bsMsg("bulkMsg", "err", e.message); }
+    }
+
+    async function loadBulkJobs() {
+      const eventId = currentEventId();
+      if (!eventId || !EP.getSession().token) return;
+      try {
+        const rows = await EP.api(`/api/v1/registration/events/${eventId}/bulk-jobs`);
+        document.getElementById("bulkJobsTable").innerHTML = rows.length
+          ? rows.map(j => `
+            <tr>
+              <td>${EP.escapeHtml(j.filename)}</td>
+              <td><span class="badge ${j.status === "COMPLETED" ? "text-bg-success" : "text-bg-warning"}">${j.status}</span></td>
+              <td>${j.processed_rows} / ${j.total_rows}</td>
+              <td class="text-success fw-bold">${j.succeeded_rows}</td>
+              <td class="text-danger">${j.failed_rows}</td>
+              <td class="mono small">${EP.escapeHtml(JSON.stringify(j.report || {}))}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="6" class="text-secondary">Sin envíos masivos</td></tr>`;
+      } catch {}
+    }
+
+    // --- TAB 6: STAFF ACCREDITATION (INTACT & ORDERED) ---
     async function createAccreditedCompany() {
-      const eventId = document.getElementById("compEventSelect").value;
-      if (!eventId) return EP.showMsg("compMsg", "err", "Crea o selecciona un evento primero.");
+      const eventId = currentEventId();
+      if (!eventId) return bsMsg("compMsg", "err", "Crea o selecciona un evento primero.");
       try {
         const res = await EP.api("/api/v1/accreditation/companies", {
           method: "POST",
@@ -400,50 +1207,49 @@
         });
         const inviteLink = `${location.origin}/acreditacion?token=${encodeURIComponent(res.invite_token)}`;
         document.getElementById("compMsg").innerHTML = `
-          <div class="alert ok">
-            Empresa creada (Cupo inicial: ${res.staff_quota}).<br/>
-            <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <a href="${inviteLink}" target="_blank" style="color:#fff; text-decoration:underline; word-break:break-all;">${EP.escapeHtml(inviteLink)}</a>
-              <button class="btn sec sm" onclick="navigator.clipboard.writeText('${inviteLink}')">Copiar Link</button>
+          <div class="alert alert-success small">
+            <strong>Empresa creada</strong> (Cupo inicial default: ${res.staff_quota}).<br/>
+            <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
+              <a href="${inviteLink}" target="_blank" class="text-break">${EP.escapeHtml(inviteLink)}</a>
+              <button class="btn btn-light btn-sm py-0" onclick="navigator.clipboard.writeText('${inviteLink}')">Copiar Link</button>
             </div>
-          </div>
-        `;
-        await loadCompanies();
-      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
+          </div>`;
+        loadCompanies();
+      } catch (e) { bsMsg("compMsg", "err", e.message); }
     }
 
     async function loadCompanies() {
       if (!EP.getSession().token) return;
       try {
         const rows = await EP.api("/api/v1/accreditation/companies");
-        document.getElementById("kpiCompanies").textContent = String(rows.length);
-        document.getElementById("companiesTable").innerHTML = rows.map(c => `
-          <tr>
-            <td><strong>${EP.escapeHtml(c.company_name)}</strong></td>
-            <td><span class="badge purple">${c.staff_used} / ${c.staff_quota}</span></td>
-            <td>
-              <div class="row" style="gap:8px; align-items:center;">
-                <input id="q-${c.company_id}" type="number" min="1" max="500" value="${Math.min(10, c.staff_quota + 2)}" style="max-width:85px;" />
-                <button class="btn sec sm" onclick="updateQuota('${c.company_id}')">Actualizar</button>
-              </div>
-            </td>
-          </tr>
-        `).join("");
+        document.getElementById("companiesTable").innerHTML = rows.length
+          ? rows.map(c => `
+            <tr>
+              <td><strong>${EP.escapeHtml(c.company_name)}</strong></td>
+              <td><span class="badge text-bg-primary">${c.staff_used} / ${c.staff_quota}</span></td>
+              <td>
+                <div class="input-group input-group-sm" style="max-width:190px;">
+                  <input id="q-${c.company_id}" type="number" min="1" max="500" class="form-control" value="${Math.min(10, c.staff_quota + 2)}" />
+                  <button class="btn btn-outline-info" onclick="updateQuota('${c.company_id}')">Guardar</button>
+                </div>
+              </td>
+            </tr>`).join("")
+          : `<tr><td colspan="3" class="text-secondary">Sin empresas acreditadas</td></tr>`;
       } catch {}
     }
 
     async function updateQuota(companyId) {
-      const quota = Number(document.getElementById(`q-${companyId}`).value);
       try {
         const res = await EP.api(`/api/v1/accreditation/companies/${companyId}/quota`, {
           method: "PATCH",
-          body: JSON.stringify({ staff_quota: quota }),
+          body: JSON.stringify({ staff_quota: Number(document.getElementById(`q-${companyId}`).value) }),
         });
-        EP.showMsg("compMsg", "ok", `Cupo actualizado a ${res.staff_quota} para ${res.company_name}.`);
+        bsMsg("compMsg", "ok", `Cupo actualizado a ${res.staff_quota} para ${res.company_name}.`);
         loadCompanies();
-      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
+      } catch (e) { bsMsg("compMsg", "err", e.message); }
     }
 
+    // --- TAB 7: TEAM, AUDIT & COMPLAINTS ---
     async function createTeamUser() {
       try {
         const res = await EP.api("/api/v1/auth/users", {
@@ -455,9 +1261,9 @@
             role: document.getElementById("newUserRole").value,
           }),
         });
-        EP.showMsg("teamMsg", "ok", `Usuario creado: ${res.email} (${res.role}).`);
+        bsMsg("teamMsg", "ok", `Usuario creado: ${res.email} (${res.role}).`);
         loadTeamUsers();
-      } catch (e) { EP.showMsg("teamMsg", "err", e.message); }
+      } catch (e) { bsMsg("teamMsg", "err", e.message); }
     }
 
     async function loadTeamUsers() {
@@ -465,7 +1271,7 @@
       try {
         const rows = await EP.api("/api/v1/auth/users");
         document.getElementById("usersTable").innerHTML = rows.map(u => `
-          <tr><td>${EP.escapeHtml(u.full_name)}</td><td>${EP.escapeHtml(u.email)}</td><td><span class="badge cyan">${u.role}</span></td></tr>
+          <tr><td>${EP.escapeHtml(u.full_name)}</td><td>${EP.escapeHtml(u.email)}</td><td><span class="badge text-bg-info">${u.role}</span></td></tr>
         `).join("");
       } catch {}
     }
@@ -479,30 +1285,39 @@
             <td>${r.seq}</td>
             <td>${EP.escapeHtml(r.service)}</td>
             <td><strong>${EP.escapeHtml(r.action)}</strong></td>
-            <td><span class="badge">${EP.escapeHtml(r.actor_role)}</span></td>
-            <td class="mono">${escapeTrunc(JSON.stringify(r.metadata))}</td>
+            <td><span class="badge text-bg-secondary">${EP.escapeHtml(r.actor_role)}</span></td>
+            <td class="mono">${EP.escapeHtml(JSON.stringify(r.metadata).slice(0, 60))}</td>
             <td class="mono">${r.entry_hash.slice(0, 12)}...</td>
-          </tr>
-        `).join("");
-      } catch (e) { EP.showMsg("auditStatus", "err", e.message); }
-    }
-
-    function escapeTrunc(s) {
-      return EP.escapeHtml(s.length > 60 ? s.slice(0, 60) + "..." : s);
+          </tr>`).join("");
+      } catch {}
     }
 
     async function verifyAuditChain() {
       try {
         const res = await EP.api("/api/v1/audit/verify-chain");
-        EP.showMsg("auditStatus", res.intact ? "ok" : "err",
-          res.intact
-            ? `Integridad criptográfica VERIFICADA: ${res.total_entries} registros intactos.`
-            : `ALERTA: Cadena rota en seq ${res.broken_at_seq}`
-        );
-      } catch (e) { EP.showMsg("auditStatus", "err", e.message); }
+        bsMsg("auditStatus", res.intact ? "ok" : "err", res.intact ? `Cadena íntegra (${res.total_entries} registros verificados).` : `Fallo de integridad.`);
+      } catch (e) { bsMsg("auditStatus", "err", e.message); }
     }
 
-    init();
+    async function loadComplaints() {
+      if (!EP.getSession().token) return;
+      try {
+        const rows = await EP.api("/api/v1/registration/complaints");
+        document.getElementById("complaintsTable").innerHTML = rows.length
+          ? rows.map(c => `
+            <tr>
+              <td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td>
+              <td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td>
+              <td>${EP.escapeHtml(c.full_name)}</td>
+              <td class="mono">****${EP.escapeHtml(c.dni_last4)}</td>
+              <td class="small">${EP.escapeHtml(c.detail)}</td>
+              <td class="small">${new Date(c.created_at).toLocaleString()}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="6" class="text-secondary">Sin reclamos registrados</td></tr>`;
+      } catch {}
+    }
+
+    refreshSession();
   </script>
 </body>
 </html>

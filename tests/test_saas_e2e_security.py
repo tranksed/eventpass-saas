@@ -554,3 +554,192 @@ async def test_concurrency_no_overselling_and_dni_limit_enforced(saas_cluster):
     rejected = [r for r in responses if r.status_code == 409]
     assert len(created) == 3
     assert len(rejected) == 7
+
+
+async def test_rrpp_codes_guest_list_bulk_metrics_and_complaints(saas_cluster):
+    """Verify RR.PP. courtesy codes, Guest List 1-click QR, Excel/CSV bulk jobs, Metrics+XLSX, and Peru Complaints."""
+    auth: httpx.AsyncClient = saas_cluster["auth"]
+    reg: httpx.AsyncClient = saas_cluster["reg"]
+    accred: httpx.AsyncClient = saas_cluster["accred"]
+
+    r_a = await auth.post(
+        "/api/v1/auth/tenants/register",
+        json={
+            "company_name": "Lima Fest SAC",
+            "company_slug": "lima-fest",
+            "admin_email": "admin@limafest.pe",
+            "admin_full_name": "Admin Lima",
+            "admin_password": "StrongPassword!123",
+        },
+    )
+    assert r_a.status_code == 201
+    admin_token = r_a.json()["tokens"]["access_token"]
+
+    now = datetime.now(timezone.utc)
+    ev = (
+        await reg.post(
+            "/api/v1/registration/events",
+            headers=_bearer(admin_token),
+            json={
+                "name": "Lima Electronic Night",
+                "slug": "lima-electronic",
+                "venue": "Arena 1 Costa Verde, Lima",
+                "brand_color": "#22d3ee",
+                "timezone_name": "America/Lima",
+                "starts_at": (now + timedelta(days=1)).isoformat(),
+                "ends_at": (now + timedelta(days=2)).isoformat(),
+                "max_purchases_per_dni": 5,
+            },
+        )
+    ).json()
+    event_id = ev["id"]
+
+    item = (
+        await reg.post(
+            f"/api/v1/registration/events/{event_id}/items",
+            headers=_bearer(admin_token),
+            json={"code": "ENTRY", "name": "General Dancefloor", "item_type": "ENTRY", "price_cents": 9000, "stock_total": 100},
+        )
+    ).json()
+
+    # 1. RR.PP. Promoter & Courtesy Code Batch + Redemption -> QR Check-In
+    prom_res = await reg.post(
+        f"/api/v1/registration/events/{event_id}/promoters",
+        headers=_bearer(admin_token),
+        json={"name": "Promotor Vibe", "code_prefix": "VIBE", "email": "vibe@rrpp.pe"},
+    )
+    assert prom_res.status_code == 201
+    promoter_id = prom_res.json()["id"]
+
+    batch_res = await reg.post(
+        f"/api/v1/registration/events/{event_id}/codes/batch",
+        headers=_bearer(admin_token),
+        json={"catalog_item_id": item["id"], "promoter_id": promoter_id, "quantity": 3},
+    )
+    assert batch_res.status_code == 201
+    code_str = batch_res.json()[0]["code"]
+    assert code_str.startswith("VIBE-")
+
+    redeem_res = await reg.post(
+        "/api/v1/registration/public/redeem-code",
+        json={
+            "event_id": event_id,
+            "code": code_str,
+            "dni": "75001122",
+            "full_name": "Andrea Quiroz",
+            "email": "andrea@example.pe",
+        },
+    )
+    assert redeem_res.status_code == 200, redeem_res.text
+    code_qr = redeem_res.json()["qr_token"]
+
+    # Double redemption blocked
+    dup_redeem = await reg.post(
+        "/api/v1/registration/public/redeem-code",
+        json={
+            "event_id": event_id,
+            "code": code_str,
+            "dni": "75001123",
+            "full_name": "Other User",
+            "email": "other@example.pe",
+        },
+    )
+    assert dup_redeem.status_code == 409
+
+    # Check in courtesy QR
+    ci = await accred.post(
+        "/api/v1/accreditation/check-in",
+        headers=_bearer(admin_token),
+        json={"qr_token": code_qr, "entitlement_code": "ENTRY", "gate_id": "DOOR_VIP"},
+    )
+    assert ci.status_code == 200
+    assert ci.json()["outcome"] == "GRANTED"
+
+    # 2. Guest List public request + 1-click approval -> QR issued
+    gl_req = await reg.post(
+        f"/api/v1/registration/events/{event_id}/guest-list/request",
+        json={
+            "catalog_item_id": item["id"],
+            "dni": "75009988",
+            "full_name": "DJ Invitado",
+            "email": "dj@press.pe",
+            "note": "Prensa Oficial",
+        },
+    )
+    assert gl_req.status_code == 201
+    entry_id = gl_req.json()["id"]
+    assert gl_req.json()["status"] == "PENDING"
+
+    gl_approve = await reg.post(
+        f"/api/v1/registration/guest-list/{entry_id}/decision",
+        headers=_bearer(admin_token),
+        json={"decision": "APPROVE"},
+    )
+    assert gl_approve.status_code == 200
+    assert gl_approve.json()["status"] == "APPROVED"
+    assert gl_approve.json()["qr_token"]
+
+    # 3. Bulk CSV import background job + Template .xlsx download
+    tpl_res = await reg.get("/api/v1/registration/bulk-template.xlsx", headers=_bearer(admin_token))
+    assert tpl_res.status_code == 200
+    assert "spreadsheetml" in tpl_res.headers["content-type"]
+
+    csv_bytes = (
+        "dni,full_name,email,item_code\n"
+        "76110001,Invitado Uno,uno@corp.pe,ENTRY\n"
+        "76110002,Invitado Dos,dos@corp.pe,ENTRY\n"
+    ).encode("utf-8")
+    bulk_res = await reg.post(
+        f"/api/v1/registration/events/{event_id}/bulk-import",
+        headers=_bearer(admin_token),
+        files={"file": ("invitados.csv", csv_bytes, "text/csv")},
+    )
+    assert bulk_res.status_code == 202
+    assert bulk_res.json()["total_rows"] == 2
+
+    # Wait briefly for FastAPI BackgroundTasks to complete
+    await asyncio.sleep(0.3)
+    jobs_res = await reg.get(f"/api/v1/registration/events/{event_id}/bulk-jobs", headers=_bearer(admin_token))
+    assert jobs_res.status_code == 200
+    jobs = jobs_res.json()
+    assert len(jobs) == 1
+    assert jobs[0]["status"] == "COMPLETED"
+    assert jobs[0]["succeeded_rows"] == 2
+
+    # 4. Registration + Accreditation Metrics & .xlsx Export
+    reg_metrics = (await reg.get(f"/api/v1/registration/events/{event_id}/metrics", headers=_bearer(admin_token))).json()
+    assert reg_metrics["courtesy_codes"]["redeemed"] == 1
+    assert reg_metrics["guest_list"]["approved"] == 1
+    assert reg_metrics["orders_paid"] >= 4  # 1 code + 1 guest + 2 bulk
+
+    acc_metrics = (await accred.get(f"/api/v1/accreditation/events/{event_id}/metrics", headers=_bearer(admin_token))).json()
+    assert acc_metrics["total_active_credentials"] >= 4
+    assert acc_metrics["checked_in_entry"] == 1
+    assert acc_metrics["by_gate"]["DOOR_VIP"] == 1
+
+    xlsx_res = await reg.get(
+        f"/api/v1/registration/events/{event_id}/metrics/export.xlsx",
+        headers=_bearer(admin_token),
+    )
+    assert xlsx_res.status_code == 200
+    assert xlsx_res.content[:2] == b"PK"
+
+    # 5. Peru Libro de Reclamaciones
+    comp_pub = await reg.post(
+        "/api/v1/registration/public/complaints",
+        json={
+            "tenant_id": r_a.json()["tenant_id"],
+            "event_id": event_id,
+            "dni": "75001122",
+            "full_name": "Andrea Quiroz",
+            "email": "andrea@example.pe",
+            "claim_type": "RECLAMO",
+            "detail": "Demora en validación de entrada en puerta VIP.",
+        },
+    )
+    assert comp_pub.status_code == 201
+    assert comp_pub.json()["complaint_code"].startswith("LR-")
+
+    comp_list = await reg.get("/api/v1/registration/complaints", headers=_bearer(admin_token))
+    assert comp_list.status_code == 200
+    assert len(comp_list.json()) == 1

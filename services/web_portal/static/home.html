@@ -3,8 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EventPass SaaS — Plataforma de Eventos y Acreditación</title>
+  <title>EventPass SaaS — Plataforma de Eventos, Taquilla y Acreditación</title>
   <link rel="stylesheet" href="/static/shared.css" />
+  <style>
+    .faq-item { border-bottom: 1px solid var(--border); padding: 12px 0; }
+    .faq-btn { width: 100%; background: none; border: none; color: #f8fafc; font-weight: 700; font-size: 0.96rem; text-align: left; display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 4px 0; }
+    .faq-ans { display: none; color: var(--muted); font-size: 0.88rem; padding-top: 8px; line-height: 1.5; }
+    .faq-item.open .faq-ans { display: block; }
+    .step-num { width: 32px; height: 32px; border-radius: 999px; background: linear-gradient(135deg, var(--purple), var(--cyan)); color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .site-footer { margin-top: 42px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; color: var(--muted); font-size: 0.85rem; }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -14,88 +22,161 @@
     </div>
     <nav class="nav-links">
       <a class="nav-link active" href="/">Descubrir</a>
-      <a class="nav-link" href="/comprar">Comprar Entradas</a>
-      <a class="nav-link" href="/validar">Validación en Puerta</a>
+      <a class="nav-link" href="/comprar">Taquilla / Cortesías</a>
+      <a class="nav-link" href="/validar">Puerta (Online/Offline)</a>
       <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+      <a class="nav-link" href="/reclamos">Libro de Reclamaciones</a>
     </nav>
-    <a class="nav-cta" href="/admin">Panel Organizador</a>
+    <a class="nav-cta" href="/admin">Dashboard Organizador</a>
   </header>
 
   <main class="container">
-    <div class="card card-glow" style="margin-bottom:24px; padding:28px;">
+    <!-- Hero -->
+    <div class="card card-glow" style="margin-bottom:26px; padding:28px;">
       <div class="row" style="align-items:center; justify-content:space-between;">
         <div style="flex:2; min-width:280px;">
-          <span class="badge cyan">SAAS MULTI-TENANT · ALTA SEGURIDAD</span>
-          <h1 style="font-size:2rem; margin:12px 0 8px;">Experiencias en vivo con acreditación blindada</h1>
-          <p class="muted" style="margin:0; max-width:650px;">
-            Compra entradas, fotos y firmas enlazadas a tu DNI, acredita el staff de empresas aliadas con cupos controlados y valida en puerta online u offline con firmas Ed25519.
+          <span class="badge cyan">SAAS MULTI-TENANT · LISTO PARA PERÚ 🇵🇪</span>
+          <h1 style="font-size:2rem; margin:12px 0 8px;">Vende, acredita y controla el acceso con QR blindados Ed25519</h1>
+          <p class="muted" style="margin:0; max-width:680px;">
+            Plataforma preparada para picos de 10,000+ compradores en 48h. Enlaza entradas, fotos y firmas al DNI, gestiona promotores RR.PP., Guest List, envíos masivos Excel, acreditación de staff por empresa y validación en puerta online u offline.
           </p>
         </div>
         <div style="flex:0 0 auto; display:flex; gap:10px; flex-wrap:wrap;">
           <a class="btn" style="margin-top:0;" href="/comprar">🎟️ Ir a Taquilla</a>
           <a class="btn sec" style="margin-top:0;" href="/validar">📱 Ir a Puerta</a>
+          <a class="btn ok" style="margin-top:0;" href="/admin">📊 Dashboard Bootstrap 5</a>
         </div>
       </div>
     </div>
 
+    <!-- Eventos Disponibles -->
     <div class="section-title">
-      <span>Eventos Disponibles</span>
+      <span>Eventos Activos</span>
       <a class="badge purple" href="/comprar">Ver taquilla completa →</a>
     </div>
-    <div id="featuredEvents" class="grid-3" style="margin-bottom:28px;">
+    <div id="featuredEvents" class="grid-3" style="margin-bottom:30px;">
       <div class="card muted">Cargando eventos activos...</div>
     </div>
 
-    <div class="section-title"><span>Módulos de la Plataforma</span></div>
-    <div class="grid-2">
+    <!-- Así de simple (1-2-3) -->
+    <div class="section-title"><span>Así de simple · En 3 pasos</span></div>
+    <div class="grid-3" style="margin-bottom:30px;">
       <div class="card">
-        <span class="badge ok">PÚBLICO · PARTICIPANTES</span>
-        <h3 style="margin-top:10px;">🎟️ Taquilla y Registro por DNI</h3>
-        <p class="muted">Selección interactiva de entradas, fotos y firmas con reserva temporal, pago HMAC y pase QR digital descargable.</p>
+        <div class="step-num">1</div>
+        <h3 style="margin:0 0 6px;">Crea tu evento y tu marca</h3>
+        <p class="muted" style="margin:0;">Configura tu empresa tenant, lugar, color de marca, zona horaria <code>America/Lima</code>, ítems de entrada/foto/firma y el límite de compras por DNI (1 a 10).</p>
+      </div>
+      <div class="card">
+        <div class="step-num">2</div>
+        <h3 style="margin:0 0 6px;">Vende, invita o acredita</h3>
+        <p class="muted" style="margin:0;">Activa taquilla web, lotes de códigos para promotores RR.PP., Guest List con aprobación en 1 clic, importación Excel masiva y links privados de Staff.</p>
+      </div>
+      <div class="card">
+        <div class="step-num">3</div>
+        <h3 style="margin:0 0 6px;">Controla en puerta y mide</h3>
+        <p class="muted" style="margin:0;">Valida QRs criptográficos Ed25519 incluso sin internet (modo contingencia) y monitorea ocupación, ventas e ingresos en tu Dashboard Bootstrap 5.</p>
+      </div>
+    </div>
+
+    <!-- Todo lo que pasa antes y en la puerta (8 cards) -->
+    <div class="section-title"><span>Todo lo que pasa antes y en la puerta</span></div>
+    <div class="grid-2" style="margin-bottom:30px;">
+      <div class="card">
+        <span class="badge purple">COMERCIAL · TAQUILLA</span>
+        <h3 style="margin-top:10px;">🎟️ Taquilla e Interacciones por DNI</h3>
+        <p class="muted">Reserva temporal atómica, pasarela HMAC-SHA256 (Visa/MC, Yape/Plin, MercadoPago) y control estricto por DNI cifrado AES-256-GCM.</p>
         <a class="btn" href="/comprar">Abrir Taquilla →</a>
       </div>
 
       <div class="card">
-        <span class="badge warn">PRIVADO · PUERTA</span>
-        <h3 style="margin-top:10px;">📱 Validación Online y Contingencia Offline</h3>
-        <p class="muted">Control de ingreso para compradores y staff. Valida firmas Ed25519 incluso sin internet y sincroniza al reconectar.</p>
-        <a class="btn ok" href="/validar">Abrir Módulo Puerta →</a>
-      </div>
-
-      <div class="card">
-        <span class="badge purple">ORGANIZADOR · ADMIN / SUPERVISOR</span>
-        <h3 style="margin-top:10px;">⚙️ Panel General SaaS</h3>
-        <p class="muted">Gestiona tu empresa, usuarios (Admin, Supervisor, Validador), límites por DNI (1–10), cupos de staff y auditoría SHA-256.</p>
-        <a class="btn sec" href="/admin">Abrir Panel General →</a>
+        <span class="badge warn">RR.PP. & CORTESÍAS</span>
+        <h3 style="margin-top:10px;">🏷️ Códigos, Cortesías y Guest List</h3>
+        <p class="muted">Lotes nominativos para promotores con ranking en tiempo real, canje instantáneo en taquilla y flujo público de Guest List con QR en 1 clic.</p>
+        <a class="btn sec" href="/comprar?tab=code">Canjear Código / Guest List →</a>
       </div>
 
       <div class="card">
         <span class="badge cyan">LINK PRIVADO · EMPRESAS</span>
-        <h3 style="margin-top:10px;">🏢 Acreditación de Staff Corporativo</h3>
-        <p class="muted">Portal exclusivo por token para empresas expositoras (cupo default 6, Supervisor hasta 10, Admin personalizado).</p>
+        <h3 style="margin-top:10px;">🏢 Acreditación Corporativa de Staff</h3>
+        <p class="muted">Link exclusivo para expositores y sponsors. Cupo default de 6 staff, ampliable por Supervisor hasta 10 o personalizado por Administrador.</p>
         <a class="btn sec" href="/acreditacion">Abrir Acreditación Staff →</a>
       </div>
+
+      <div class="card">
+        <span class="badge ok">PRIVADO · PUERTA</span>
+        <h3 style="margin-top:10px;">📱 Validación Online y Contingencia Offline</h3>
+        <p class="muted">Verifica firmas Ed25519 en el navegador aunque caiga el internet en puerta y sincroniza escaneos detectando duplicados automáticamente.</p>
+        <a class="btn ok" href="/validar">Abrir Módulo Puerta →</a>
+      </div>
+
+      <div class="card">
+        <span class="badge cyan">PRODUCTIVIDAD</span>
+        <h3 style="margin-top:10px;">📊 Envíos Masivos Excel/CSV + Reportes</h3>
+        <p class="muted">Importa miles de cortesías desde plantilla <code>.xlsx</code> o <code>.csv</code> en background y exporta métricas completas del evento a Excel.</p>
+        <a class="btn sec" href="/admin">Ir a Envíos Masivos →</a>
+      </div>
+
+      <div class="card">
+        <span class="badge purple">SEGURIDAD & PERÚ 🇵🇪</span>
+        <h3 style="margin-top:10px;">🛡️ Auditoría SHA-256 + Libro de Reclamaciones</h3>
+        <p class="muted">Bitácora encadenada resistente a manipulación, 3 perfiles RBAC (Admin, Supervisor, Validador) y Libro de Reclamaciones Virtual integrado.</p>
+        <a class="btn sec" href="/reclamos">Ir al Libro de Reclamaciones →</a>
+      </div>
     </div>
+
+    <!-- Preguntas Frecuentes -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="section-title"><span>Preguntas frecuentes</span></div>
+      <div class="faq-item open">
+        <button class="faq-btn" onclick="toggleFaq(this)">¿Cómo funciona el límite de compras por DNI? <span>+</span></button>
+        <div class="faq-ans">El Administrador define un máximo entre 1 y 10 compras por DNI para cada evento. Al comprar o canjear, el DNI se normaliza y valida mediante un índice ciego HMAC-SHA256 sin exponer el documento en texto plano.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">¿Cómo se controlan los cupos de Acreditación de Staff? <span>+</span></button>
+        <div class="faq-ans">Cada empresa representada recibe un enlace privado con 6 cupos por defecto. Un Supervisor puede ampliarlo hasta 10 cupos, mientras que un Administrador puede asignar un cupo personalizado mayor según el contrato.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">¿Qué pasa si falla el internet en la puerta del evento? <span>+</span></button>
+        <div class="faq-ans">El módulo de Puerta (/validar) descarga un paquete de contingencia con la clave pública Ed25519. Los validadores siguen escaneando localmente sin latencia y al volver la conexión sincronizan el lote para consolidar ingresos y detectar duplicados.</div>
+      </div>
+      <div class="faq-item" style="border-bottom:none;">
+        <button class="faq-btn" onclick="toggleFaq(this)">¿Puedo importar listas en Excel y exportar métricas financieras? <span>+</span></button>
+        <div class="faq-ans">Sí. En el Dashboard Bootstrap 5 (/admin) puedes descargar la plantilla .xlsx, subir listas masivas en background con reporte final y exportar todas las métricas de ventas, ítems, promotores y puerta a Excel (.xlsx).</div>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <div>⚡ <strong>EventPass SaaS</strong> · Zona horaria Perú (America/Lima) · Arquitectura Multi-Servicio Segura</div>
+      <div style="display:flex; gap:16px;">
+        <a href="/reclamos" style="color:var(--cyan); text-decoration:underline;">📖 Libro de Reclamaciones Virtual</a>
+        <a href="/admin" style="color:var(--muted);">Acceso Organizadores</a>
+      </div>
+    </footer>
   </main>
 
   <script src="/static/shared.js"></script>
   <script>
+    function toggleFaq(btn) {
+      btn.parentElement.classList.toggle("open");
+    }
+
     async function loadFeatured() {
       const box = document.getElementById("featuredEvents");
       try {
         const events = await EP.api("/api/v1/registration/public/events", { auth: false });
         if (!events.length) {
-          box.innerHTML = `<div class="card muted">Aún no hay eventos creados. Crea el primero desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+          box.innerHTML = `<div class="card muted">Aún no hay eventos creados. Crea el primero desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Dashboard Organizador</a>.</div>`;
           return;
         }
         box.innerHTML = events.slice(0, 6).map(e => `
-          <div class="card" style="padding:16px;">
+          <div class="card" style="padding:16px; border-top: 3px solid ${EP.escapeHtml(e.brand_color || '#8b5cf6')};">
             <div class="event-banner" style="height:115px; margin-bottom:12px;">
               <span class="badge cyan" style="align-self:flex-start; margin-bottom:auto;">DNI máx ${e.max_purchases_per_dni}</span>
               <h2 style="font-size:1.08rem;">${EP.escapeHtml(e.name)}</h2>
             </div>
-            <div class="mono">Inicio: ${new Date(e.starts_at).toLocaleDateString()}</div>
-            <a class="btn block" href="/comprar?event=${encodeURIComponent(e.id)}">Comprar Entradas</a>
+            <div class="mono">📍 ${EP.escapeHtml(e.venue || "Lima, Perú")}</div>
+            <div class="mono" style="margin-bottom:8px;">📅 ${new Date(e.starts_at).toLocaleDateString()}</div>
+            <a class="btn block" href="/comprar?event=${encodeURIComponent(e.id)}">Comprar / Canjear</a>
           </div>
         `).join("");
       } catch {

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Libro de Reclamaciones Virtual — EventPass Perú</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    body { background: #0b0d14; color: #e5e7eb; }
+    .ep-card { background: #171c2c; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg border-bottom border-secondary-subtle px-3" style="background:#0f1320;">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="/">⚡ EVENTPASS <span class="badge text-bg-info">PERÚ</span></a>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-light btn-sm" href="/">Inicio</a>
+        <a class="btn btn-outline-info btn-sm" href="/comprar">Taquilla</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4" style="max-width:760px;">
+    <div class="ep-card p-4">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <i class="bi bi-journal-bookmark-fill text-warning fs-3"></i>
+        <div>
+          <h1 class="h4 fw-bold mb-0">Libro de Reclamaciones Virtual</h1>
+          <small class="text-secondary">Conforme al Código de Protección y Defensa del Consumidor (INDECOPI - Perú)</small>
+        </div>
+      </div>
+      <hr class="border-secondary-subtle" />
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label small">Evento relacionado (opcional)</label>
+          <select id="recEventId" class="form-select bg-dark text-light border-secondary">
+            <option value="">-- Consulta General Plataforma --</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Tipo de Registro</label>
+          <select id="recType" class="form-select bg-dark text-light border-secondary">
+            <option value="RECLAMO">RECLAMO (Disconformidad sobre entrada/servicio)</option>
+            <option value="QUEJA">QUEJA (Malestar sobre atención al público)</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">DNI / CE</label>
+          <input id="recDni" class="form-control bg-dark text-light border-secondary" placeholder="72345678" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Nombre completo</label>
+          <input id="recName" class="form-control bg-dark text-light border-secondary" placeholder="Nombre y Apellidos" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Correo electrónico</label>
+          <input id="recEmail" type="email" class="form-control bg-dark text-light border-secondary" placeholder="correo@ejemplo.pe" />
+        </div>
+        <div class="col-12">
+          <label class="form-label small">Detalle del reclamo o queja y pedido del consumidor</label>
+          <textarea id="recDetail" rows="4" class="form-control bg-dark text-light border-secondary" placeholder="Describe detalladamente lo ocurrido..."></textarea>
+        </div>
+      </div>
+
+      <button class="btn btn-warning fw-semibold mt-3" onclick="submitComplaint()">
+        <i class="bi bi-send-check"></i> Registrar Hoja de Reclamación
+      </button>
+      <div id="recMsg" class="mt-3"></div>
+    </div>
+  </main>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    async function loadEvents() {
+      try {
+        const events = await EP.api("/api/v1/registration/public/events", { auth: false });
+        const sel = document.getElementById("recEventId");
+        sel.innerHTML = `<option value="">-- Consulta General Plataforma --</option>` +
+          events.map(e => `<option value="${e.id}" data-tid="${e.tenant_id}">${EP.escapeHtml(e.name)}</option>`).join("");
+      } catch {}
+    }
+
+    async function submitComplaint() {
+      const sel = document.getElementById("recEventId");
+      const opt = sel.selectedOptions[0];
+      const msg = document.getElementById("recMsg");
+      try {
+        const res = await EP.api("/api/v1/registration/public/complaints", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            event_id: sel.value || null,
+            tenant_id: opt && opt.dataset.tid ? opt.dataset.tid : null,
+            dni: document.getElementById("recDni").value,
+            full_name: document.getElementById("recName").value,
+            email: document.getElementById("recEmail").value,
+            claim_type: document.getElementById("recType").value,
+            detail: document.getElementById("recDetail").value,
+          }),
+        });
+        msg.innerHTML = `<div class="alert alert-success">Hoja registrada correctamente. Código de seguimiento: <strong>${EP.escapeHtml(res.complaint_code)}</strong></div>`;
+      } catch (e) {
+        msg.innerHTML = `<div class="alert alert-danger">${EP.escapeHtml(e.message)}</div>`;
+      }
+    }
+    loadEvents();
+  </script>
+</body>
+</html>

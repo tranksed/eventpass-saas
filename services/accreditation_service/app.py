@@ -827,6 +827,98 @@ def create_accreditation_app(
             results=results,
         )
 
+    @app.get("/api/v1/accreditation/events/{event_id}/metrics")
+    async def get_event_accreditation_metrics(
+        event_id: str,
+        actor: AuthenticatedActor = Depends(require_validator_module),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict:
+        creds = list(
+            await db.scalars(
+                select(Credential).where(
+                    Credential.tenant_id == actor.tenant_id,
+                    Credential.event_id == event_id,
+                )
+            )
+        )
+        logs = list(
+            await db.scalars(
+                select(CheckInLog).where(
+                    CheckInLog.tenant_id == actor.tenant_id,
+                    CheckInLog.event_id == event_id,
+                )
+            )
+        )
+        companies = list(
+            await db.scalars(
+                select(AccreditedCompany).where(
+                    AccreditedCompany.tenant_id == actor.tenant_id,
+                    AccreditedCompany.event_id == event_id,
+                )
+            )
+        )
+
+        total_active_credentials = sum(1 for c in creds if c.status == "ACTIVE")
+        by_holder_type: dict[str, dict[str, int]] = {
+            "PARTICIPANT": {"total": 0, "checked_in": 0},
+            "STAFF": {"total": 0, "checked_in": 0},
+        }
+        checked_in_entry = 0
+        for c in creds:
+            if c.status != "ACTIVE":
+                continue
+            ht = c.holder_type if c.holder_type in by_holder_type else "PARTICIPANT"
+            by_holder_type[ht]["total"] += 1
+            redeemed = json.loads(c.redeemed_json or "{}")
+            if int(redeemed.get("ENTRY", 0)) > 0 or int(redeemed.get("STAFF_ACCESS", 0)) > 0:
+                checked_in_entry += 1
+                by_holder_type[ht]["checked_in"] += 1
+
+        by_gate: dict[str, int] = defaultdict(int)
+        by_entitlement: dict[str, int] = defaultdict(int)
+        by_mode: dict[str, int] = defaultdict(int)
+        offline_conflicts = 0
+        for log in logs:
+            by_mode[log.mode] += 1
+            if log.outcome in ("GRANTED", "SYNCED_GRANTED"):
+                by_gate[log.gate_id] += 1
+                by_entitlement[log.entitlement_code] += 1
+            elif log.outcome in ("CONFLICT_DUPLICATE_OFFLINE", "CONFLICT_REVOKED_OR_MISSING"):
+                offline_conflicts += 1
+
+        total_staff_quota = sum(c.staff_quota for c in companies)
+        total_staff_used = sum(c.staff_used for c in companies)
+
+        return {
+            "event_id": event_id,
+            "total_active_credentials": total_active_credentials,
+            "checked_in_entry": checked_in_entry,
+            "occupancy_pct": round((checked_in_entry / total_active_credentials * 100), 1)
+            if total_active_credentials
+            else 0.0,
+            "by_holder_type": by_holder_type,
+            "by_gate": dict(by_gate),
+            "by_entitlement": dict(by_entitlement),
+            "by_mode": dict(by_mode),
+            "total_scan_events": len(logs),
+            "offline_conflicts": offline_conflicts,
+            "staff_companies_summary": {
+                "companies_count": len(companies),
+                "total_quota": total_staff_quota,
+                "total_used": total_staff_used,
+                "companies": [
+                    {
+                        "id": c.id,
+                        "company_name": c.company_name,
+                        "staff_quota": c.staff_quota,
+                        "staff_used": c.staff_used,
+                        "is_active": c.is_active,
+                    }
+                    for c in companies
+                ],
+            },
+        }
+
     return app
 
 

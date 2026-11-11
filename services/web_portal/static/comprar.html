@@ -3,8 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Comprar Entradas — EventPass</title>
+  <title>Taquilla, Códigos y Guest List — EventPass</title>
   <link rel="stylesheet" href="/static/shared.css" />
+  <style>
+    .mode-pills { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
+    .mode-pill { padding:10px 16px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text); cursor:pointer; font-weight:700; font-size:0.88rem; }
+    .mode-pill.active { background:linear-gradient(135deg, var(--purple), #6366f1); border-color:transparent; color:#fff; }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -14,15 +19,16 @@
     </div>
     <nav class="nav-links">
       <a class="nav-link" href="/">Descubrir</a>
-      <a class="nav-link active" href="/comprar">Comprar Entradas</a>
+      <a class="nav-link active" href="/comprar">Taquilla / Cortesías</a>
       <a class="nav-link" href="/validar">Validación</a>
       <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+      <a class="nav-link" href="/reclamos">Reclamos</a>
     </nav>
-    <a class="nav-cta" href="/admin">Panel Organizador</a>
+    <a class="nav-cta" href="/admin">Dashboard Organizador</a>
   </header>
 
   <main class="container">
-    <!-- Barra de selección rápida / búsqueda -->
+    <!-- Barra de selección rápida de evento + modo -->
     <div class="card" style="padding:14px 18px; margin-bottom:20px;">
       <div class="row" style="align-items:center;">
         <div style="flex:2;">
@@ -33,20 +39,33 @@
           <button class="btn sec sm" onclick="loadEvents()">↻ Actualizar Eventos</button>
         </div>
       </div>
+      <div class="mode-pills" style="margin-top:14px; margin-bottom:0;">
+        <button class="mode-pill active" id="pill-buy" onclick="switchMode('buy', this)">🎟️ Comprar Entradas</button>
+        <button class="mode-pill" id="pill-code" onclick="switchMode('code', this)">🏷️ Canjear Código / Cortesía</button>
+        <button class="mode-pill" id="pill-guest" onclick="switchMode('guest', this)">✨ Solicitar Guest List</button>
+      </div>
     </div>
 
     <div class="checkout-grid">
       <!-- COLUMNA IZQUIERDA: INFO DEL EVENTO -->
-      <div class="card">
-        <div class="event-banner">
+      <div class="card" id="heroCard">
+        <div class="event-banner" id="heroBanner">
           <span class="badge ok" style="align-self:flex-start; margin-bottom:auto;">VENTA ACTIVA</span>
           <h2 id="heroEventTitle">Selecciona un evento</h2>
         </div>
 
         <div class="meta-tile">
+          <div class="meta-icon">📍</div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--muted);">Lugar / Venue</div>
+            <div id="heroEventVenue" style="font-weight:700; font-size:0.88rem;">Lima, Perú</div>
+          </div>
+        </div>
+
+        <div class="meta-tile">
           <div class="meta-icon">📅</div>
           <div>
-            <div style="font-size:0.75rem; color:var(--muted);">Fecha del evento</div>
+            <div style="font-size:0.75rem; color:var(--muted);">Fecha y Hora (America/Lima)</div>
             <div id="heroEventDate" style="font-weight:700; font-size:0.88rem;">—</div>
           </div>
         </div>
@@ -68,82 +87,151 @@
         </div>
       </div>
 
-      <!-- COLUMNA CENTRAL: SELECCIÓN DE ENTRADAS / INTERACCIONES + DNI -->
-      <div>
-        <div class="card" style="margin-bottom:20px;">
-          <div class="section-title">
-            <span>Selecciona tus entradas e interacciones</span>
-            <span class="badge purple">Paso 1</span>
+      <!-- COLUMNA CENTRAL + DERECHA -->
+      <div id="mode-buy" style="display:contents;">
+        <div>
+          <div class="card" style="margin-bottom:20px;">
+            <div class="section-title">
+              <span>Selecciona tus entradas e interacciones</span>
+              <span class="badge purple">Paso 1</span>
+            </div>
+            <div id="catalogContainer" class="tier-grid">
+              <div class="muted">Cargando catálogo...</div>
+            </div>
           </div>
-          <div id="catalogContainer" class="tier-grid">
-            <div class="muted">Cargando catálogo...</div>
+
+          <div class="card">
+            <div class="section-title">
+              <span>Formulario de asistente</span>
+              <span class="badge cyan">Paso 2 · Obligatorio</span>
+            </div>
+            <p class="muted" style="margin-top:0;">Tu DNI se cifra con AES-256-GCM y controla el límite máximo configurado por el organizador.</p>
+
+            <label>DNI / Documento de Identidad</label>
+            <input id="buyerDni" placeholder="Ej. 72345678" value="72345678" />
+
+            <div class="row">
+              <div>
+                <label>Nombre completo</label>
+                <input id="buyerName" placeholder="Tu nombre completo" value="Lucía Mendoza" />
+              </div>
+              <div>
+                <label>Correo electrónico</label>
+                <input id="buyerEmail" placeholder="correo@ejemplo.com" value="lucia@example.com" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="section-title">
-            <span>Formulario de asistente</span>
-            <span class="badge cyan">Paso 2 · Obligatorio</span>
+        <div>
+          <div class="card card-glow" style="margin-bottom:18px;">
+            <div class="section-title">
+              <span>Resumen de Compra</span>
+              <span class="timer-box" id="reserveTimer">10:00</span>
+            </div>
+            <div id="summaryItems" class="muted" style="padding:8px 0; border-bottom:1px solid var(--border);">
+              Aún no seleccionas entradas.
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+              <span class="muted">Total a pagar</span>
+              <span id="summaryTotal" style="font-size:1.55rem; font-weight:800;">S/ 0.00</span>
+            </div>
           </div>
-          <p class="muted" style="margin-top:0;">Tu DNI se cifra con AES-256-GCM y controla el límite máximo configurado por el organizador.</p>
 
-          <label>DNI / Documento de Identidad</label>
-          <input id="buyerDni" placeholder="Ej. 72345678" value="72345678" />
+          <div class="card">
+            <div class="section-title">
+              <span>Métodos de pago</span>
+              <span class="badge ok">HMAC Seguro</span>
+            </div>
+            <div class="pay-methods">
+              <div class="pay-pill active" data-pm="MERCADOPAGO" onclick="selectPayMethod(this)">💳 Tarjeta / MercadoPago</div>
+              <div class="pay-pill" data-pm="YAPE_PLIN" onclick="selectPayMethod(this)">📱 Yape / Plin</div>
+              <div class="pay-pill" data-pm="PAYPAL" onclick="selectPayMethod(this)">🅿️ PayPal / Stripe</div>
+              <div class="pay-pill" data-pm="DEMO" onclick="selectPayMethod(this)">⚡ Pasarela Demo</div>
+            </div>
 
-          <div class="row">
-            <div>
-              <label>Nombre completo</label>
-              <input id="buyerName" placeholder="Tu nombre completo" value="Lucía Mendoza" />
-            </div>
-            <div>
-              <label>Correo electrónico</label>
-              <input id="buyerEmail" placeholder="correo@ejemplo.com" value="lucia@example.com" />
-            </div>
+            <button class="btn block" id="confirmBtn" onclick="confirmAndPay()">Confirmar y Pagar</button>
+            <div id="buyerMsg"></div>
           </div>
         </div>
       </div>
 
-      <!-- COLUMNA DERECHA: RESUMEN DE COMPRA + PAGO -->
-      <div>
-        <div class="card card-glow" style="margin-bottom:18px;">
-          <div class="section-title">
-            <span>Resumen de Compra</span>
-            <span class="timer-box" id="reserveTimer">10:00</span>
-          </div>
-          <div id="summaryItems" class="muted" style="padding:8px 0; border-bottom:1px solid var(--border);">
-            Aún no seleccionas entradas.
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
-            <span class="muted">Total a pagar</span>
-            <span id="summaryTotal" style="font-size:1.55rem; font-weight:800;">$0.00</span>
-          </div>
-        </div>
-
+      <!-- MODO 2: CANJEAR CODIGO / CORTESIA -->
+      <div id="mode-code" style="display:none; grid-column: span 2;">
         <div class="card">
           <div class="section-title">
-            <span>Métodos de pago</span>
-            <span class="badge ok">HMAC Seguro</span>
+            <span>Canjear Código Promocional o Cortesía Nominativa</span>
+            <span class="badge warn">Enlazado a DNI</span>
           </div>
-          <div class="pay-methods">
-            <div class="pay-pill active" onclick="selectPayMethod(this)">💳 Tarjeta Visa / MC</div>
-            <div class="pay-pill" onclick="selectPayMethod(this)">📱 Yape / Plin</div>
-            <div class="pay-pill" onclick="selectPayMethod(this)">🅿️ PayPal / Stripe</div>
-            <div class="pay-pill" onclick="selectPayMethod(this)">⚡ Pasarela Demo</div>
+          <p class="muted">Ingresa el código único entregado por tu promotor RR.PP. o el organizador para emitir tu pase QR inmediatamente.</p>
+          <div class="row">
+            <div>
+              <label>Código de Cortesía / RR.PP.</label>
+              <input id="redeemCode" placeholder="Ej. VIBE-A1B2C3D4" />
+            </div>
+            <div>
+              <label>DNI / Documento de Identidad</label>
+              <input id="redeemDni" placeholder="72345678" />
+            </div>
           </div>
+          <div class="row">
+            <div>
+              <label>Nombre completo</label>
+              <input id="redeemName" placeholder="Nombre del asistente" />
+            </div>
+            <div>
+              <label>Correo electrónico</label>
+              <input id="redeemEmail" placeholder="asistente@ejemplo.pe" />
+            </div>
+          </div>
+          <button class="btn" onclick="redeemCourtesyCode()">🏷️ Canjear Código y Generar QR</button>
+          <div id="redeemMsg"></div>
+        </div>
+      </div>
 
-          <button class="btn block" id="confirmBtn" onclick="confirmAndPay()">Confirmar y Pagar</button>
-          <div id="buyerMsg"></div>
+      <!-- MODO 3: SOLICITAR GUEST LIST -->
+      <div id="mode-guest" style="display:none; grid-column: span 2;">
+        <div class="card">
+          <div class="section-title">
+            <span>Solicitar Ingreso por Guest List</span>
+            <span class="badge ok">Aprobación Organizador</span>
+          </div>
+          <p class="muted">Envía tus datos; una vez que el Administrador o Supervisor apruebe tu solicitud en 1 clic, se emitirá tu credencial QR.</p>
+          <div class="row">
+            <div>
+              <label>Categoría / Entrada solicitada</label>
+              <select id="guestItemSelect"></select>
+            </div>
+            <div>
+              <label>DNI / Documento de Identidad</label>
+              <input id="guestDni" placeholder="72345678" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Nombre completo</label>
+              <input id="guestName" placeholder="Tu nombre completo" />
+            </div>
+            <div>
+              <label>Correo electrónico</label>
+              <input id="guestEmail" placeholder="invitado@ejemplo.pe" />
+            </div>
+          </div>
+          <label>Motivo / Referencia (Promotor, Prensa, Invitado VIP)</label>
+          <input id="guestNote" placeholder="Ej. Invitado de Prensa / Agencia Vibe" />
+          <button class="btn ok" onclick="submitGuestRequest()">✨ Enviar Solicitud a Guest List</button>
+          <div id="guestPublicMsg"></div>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- MODAL TICKET DIGITAL EXITOSO (COMO EN LA IMAGEN DE REFERENCIA) -->
+  <!-- MODAL TICKET DIGITAL EXITOSO -->
   <div id="ticketModal" class="modal-backdrop">
     <div class="modal-box">
       <div class="digital-ticket">
         <button class="modal-close" onclick="closeTicketModal()">✕</button>
-        <span class="badge ok">¡Compra Exitosa!</span>
+        <span class="badge ok">¡Pase Emitido!</span>
         <div class="muted" style="margin-top:6px;">Ticket Digital Verificable</div>
         <h2 id="modalEventName" style="margin:10px 0 4px; font-size:1.3rem;">EVENTO</h2>
         <div id="modalEntitlements" class="mono" style="color:var(--cyan);">ENTRY</div>
@@ -169,10 +257,20 @@
     let catalogItems = [];
     let quantities = {};
     let countdownInterval = null;
+    let selectedPayMethod = "MERCADOPAGO";
+
+    function switchMode(mode, btn) {
+      document.querySelectorAll(".mode-pill").forEach(p => p.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+      document.getElementById("mode-buy").style.display = mode === "buy" ? "contents" : "none";
+      document.getElementById("mode-code").style.display = mode === "code" ? "block" : "none";
+      document.getElementById("mode-guest").style.display = mode === "guest" ? "block" : "none";
+    }
 
     function selectPayMethod(el) {
       document.querySelectorAll(".pay-pill").forEach(p => p.classList.remove("active"));
       el.classList.add("active");
+      selectedPayMethod = el.dataset.pm || "MERCADOPAGO";
     }
 
     function startCountdown(seconds = 600) {
@@ -195,16 +293,18 @@
         if (!events.length) {
           sel.innerHTML = `<option value="">Sin eventos publicados</option>`;
           document.getElementById("catalogContainer").innerHTML =
-            `<div class="muted">Aún no hay eventos. Crea uno desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+            `<div class="muted">Aún no hay eventos. Crea uno desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Dashboard Organizador</a>.</div>`;
           return;
         }
         sel.innerHTML = events.map(e =>
-          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}">${EP.escapeHtml(e.name)}</option>`
+          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}" data-venue="${EP.escapeHtml(e.venue || 'Lima, Perú')}" data-color="${EP.escapeHtml(e.brand_color || '#8b5cf6')}">${EP.escapeHtml(e.name)}</option>`
         ).join("");
-        const urlEvent = new URLSearchParams(location.search).get("event");
-        if (urlEvent && [...sel.options].some(o => o.value === urlEvent)) {
-          sel.value = urlEvent;
-        }
+        const urlParams = new URLSearchParams(location.search);
+        const urlEvent = urlParams.get("event");
+        if (urlEvent && [...sel.options].some(o => o.value === urlEvent)) sel.value = urlEvent;
+        const tab = urlParams.get("tab");
+        if (tab === "code") switchMode("code", document.getElementById("pill-code"));
+        if (tab === "guestlist") switchMode("guest", document.getElementById("pill-guest"));
         await loadCatalog();
       } catch (e) {
         EP.showMsg("buyerMsg", "err", e.message);
@@ -217,8 +317,10 @@
       if (!eventId) return;
       const opt = sel.selectedOptions[0];
       document.getElementById("heroEventTitle").textContent = opt.textContent;
+      document.getElementById("heroEventVenue").textContent = opt.dataset.venue || "Lima, Perú";
       document.getElementById("heroEventDate").textContent = new Date(opt.dataset.start).toLocaleString();
       document.getElementById("heroEventLimit").textContent = `Máx. ${opt.dataset.limit} por DNI`;
+      document.getElementById("heroCard").style.borderTop = `3px solid ${opt.dataset.color || '#8b5cf6'}`;
 
       try {
         catalogItems = await EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false });
@@ -226,6 +328,9 @@
         catalogItems.forEach((it, idx) => {
           quantities[it.id] = (it.code === "ENTRY" || idx === 0) && it.stock_available > 0 ? 1 : 0;
         });
+        document.getElementById("guestItemSelect").innerHTML = catalogItems.map(i =>
+          `<option value="${i.id}">${EP.escapeHtml(i.name)} (${EP.escapeHtml(i.code)})</option>`
+        ).join("");
         renderCatalog();
         renderSummary();
       } catch (e) {
@@ -245,7 +350,7 @@
     function renderCatalog() {
       const box = document.getElementById("catalogContainer");
       if (!catalogItems.length) {
-        box.innerHTML = `<div class="muted">Este evento no tiene entradas ni interacciones todavía. Agrégalas en <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+        box.innerHTML = `<div class="muted">Este evento no tiene entradas todavía. Agrégalas en <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Dashboard Organizador</a>.</div>`;
         return;
       }
       box.innerHTML = catalogItems.map(i => {
@@ -258,15 +363,14 @@
               <div class="tier-name">${EP.escapeHtml(i.name)}</div>
               <span class="badge ${badgeClass}">${badgeText}</span>
             </div>
-            <div class="tier-price">$${(i.price_cents / 100).toFixed(2)}</div>
+            <div class="tier-price">S/ ${(i.price_cents / 100).toFixed(2)}</div>
             <div class="mono" style="margin-top:2px;">${EP.escapeHtml(i.code)} · Stock: ${i.stock_available}</div>
             <div class="stepper">
               <button class="step-btn" onclick="changeQty('${i.id}', -1)">−</button>
               <span class="step-val">${qty}</span>
               <button class="step-btn" onclick="changeQty('${i.id}', 1)">+</button>
             </div>
-          </div>
-        `;
+          </div>`;
       }).join("");
     }
 
@@ -275,7 +379,7 @@
       const box = document.getElementById("summaryItems");
       if (!lines.length) {
         box.innerHTML = "Selecciona al menos 1 entrada o interacción.";
-        document.getElementById("summaryTotal").textContent = "$0.00";
+        document.getElementById("summaryTotal").textContent = "S/ 0.00";
         return;
       }
       let totalCents = 0;
@@ -285,20 +389,27 @@
         totalCents += sub;
         return `<div style="display:flex; justify-content:space-between; margin:6px 0; font-size:0.86rem;">
           <span>${q} × ${EP.escapeHtml(i.name)}</span>
-          <strong>$${(sub / 100).toFixed(2)}</strong>
+          <strong>S/ ${(sub / 100).toFixed(2)}</strong>
         </div>`;
       }).join("");
-      document.getElementById("summaryTotal").textContent = `$${(totalCents / 100).toFixed(2)}`;
+      document.getElementById("summaryTotal").textContent = `S/ ${(totalCents / 100).toFixed(2)}`;
+    }
+
+    async function showIssuedTicket(qrToken, labelCode, credId, dniHint) {
+      localStorage.setItem("ep_last_qr", qrToken);
+      const qrImgUrl = await EP.renderQrDataUrl(qrToken);
+      document.getElementById("modalEventName").textContent = document.getElementById("buyerEventSelect").selectedOptions[0].textContent;
+      document.getElementById("modalEntitlements").textContent = labelCode;
+      document.getElementById("modalQrImg").src = qrImgUrl;
+      document.getElementById("modalCredId").textContent = `${dniHint} · ID ${credId.slice(0, 12)}...`;
+      document.getElementById("modalDownloadBtn").href = qrImgUrl;
+      document.getElementById("ticketModal").classList.add("open");
     }
 
     async function confirmAndPay() {
       const eventId = document.getElementById("buyerEventSelect").value;
-      const items = Object.entries(quantities)
-        .filter(([, q]) => q > 0)
-        .map(([item_id, quantity]) => ({ item_id, quantity }));
-      if (!eventId || !items.length) {
-        return EP.showMsg("buyerMsg", "err", "Selecciona un evento y al menos 1 entrada o interacción.");
-      }
+      const items = Object.entries(quantities).filter(([, q]) => q > 0).map(([item_id, quantity]) => ({ item_id, quantity }));
+      if (!eventId || !items.length) return EP.showMsg("buyerMsg", "err", "Selecciona un evento y al menos 1 entrada.");
 
       const btn = document.getElementById("confirmBtn");
       btn.disabled = true;
@@ -312,6 +423,7 @@
             dni: document.getElementById("buyerDni").value,
             full_name: document.getElementById("buyerName").value,
             email: document.getElementById("buyerEmail").value,
+            payment_method: selectedPayMethod,
             items,
           }),
         });
@@ -320,27 +432,11 @@
         const paid = await EP.api("/bff/simulate-payment", {
           method: "POST",
           auth: false,
-          body: JSON.stringify({
-            order_id: order.order_id,
-            payment_reference: `GW-${Date.now()}`,
-            status: "PAID",
-          }),
+          body: JSON.stringify({ order_id: order.order_id, payment_reference: `GW-${Date.now()}`, status: "PAID" }),
         });
 
-        localStorage.setItem("ep_last_qr", paid.qr_token);
-        const qrImgUrl = await EP.renderQrDataUrl(paid.qr_token);
-        const boughtCodes = catalogItems
-          .filter(i => (quantities[i.id] || 0) > 0)
-          .map(i => `${quantities[i.id]}× ${i.code}`)
-          .join(" · ");
-
-        document.getElementById("modalEventName").textContent =
-          document.getElementById("buyerEventSelect").selectedOptions[0].textContent;
-        document.getElementById("modalEntitlements").textContent = boughtCodes;
-        document.getElementById("modalQrImg").src = qrImgUrl;
-        document.getElementById("modalCredId").textContent = `DNI ${order.dni_last4} · ID ${paid.credential_id.slice(0, 12)}...`;
-        document.getElementById("modalDownloadBtn").href = qrImgUrl;
-        document.getElementById("ticketModal").classList.add("open");
+        const boughtCodes = catalogItems.filter(i => (quantities[i.id] || 0) > 0).map(i => `${quantities[i.id]}× ${i.code}`).join(" · ");
+        await showIssuedTicket(paid.qr_token, boughtCodes, paid.credential_id, `DNI ${order.dni_last4}`);
         EP.showMsg("buyerMsg", "ok", `¡Compra confirmada! Ticket QR emitido.`);
         await loadCatalog();
       } catch (e) {
@@ -349,6 +445,46 @@
         btn.disabled = false;
         btn.textContent = "Confirmar y Pagar";
       }
+    }
+
+    async function redeemCourtesyCode() {
+      const eventId = document.getElementById("buyerEventSelect").value;
+      if (!eventId) return EP.showMsg("redeemMsg", "err", "Selecciona un evento primero.");
+      try {
+        const res = await EP.api("/api/v1/registration/public/redeem-code", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            event_id: eventId,
+            code: document.getElementById("redeemCode").value.trim().toUpperCase(),
+            dni: document.getElementById("redeemDni").value,
+            full_name: document.getElementById("redeemName").value,
+            email: document.getElementById("redeemEmail").value,
+          }),
+        });
+        await showIssuedTicket(res.qr_token, `CORTESÍA ${res.item_code}`, res.credential_id, "DNI Vinculado");
+        EP.showMsg("redeemMsg", "ok", `Código canjeado. Pase QR emitido.`);
+      } catch (e) { EP.showMsg("redeemMsg", "err", e.message); }
+    }
+
+    async function submitGuestRequest() {
+      const eventId = document.getElementById("buyerEventSelect").value;
+      const itemId = document.getElementById("guestItemSelect").value;
+      if (!eventId || !itemId) return EP.showMsg("guestPublicMsg", "err", "Selecciona un evento e ítem.");
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/guest-list/request`, {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            catalog_item_id: itemId,
+            dni: document.getElementById("guestDni").value,
+            full_name: document.getElementById("guestName").value,
+            email: document.getElementById("guestEmail").value,
+            note: document.getElementById("guestNote").value,
+          }),
+        });
+        EP.showMsg("guestPublicMsg", "ok", `Solicitud enviada (${res.status}). El organizador la revisará en su panel.`);
+      } catch (e) { EP.showMsg("guestPublicMsg", "err", e.message); }
     }
 
     function closeTicketModal() {

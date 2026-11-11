@@ -20,6 +20,10 @@ class ItemType(StrEnum):
 class CreateEventRequest(StrictModel):
     name: str = Field(min_length=2, max_length=160)
     slug: str = Field(min_length=2, max_length=100, pattern=r"^[a-z0-9-]+$")
+    venue: str = Field(default="Estadio / Centro de Convenciones, Lima", min_length=2, max_length=180)
+    description: str = Field(default="", max_length=2000)
+    brand_color: str = Field(default="#8b5cf6", pattern=r"^#[0-9a-fA-F]{6}$")
+    timezone_name: str = Field(default="America/Lima", min_length=3, max_length=60)
     starts_at: datetime
     ends_at: datetime
     max_purchases_per_dni: int = Field(default=1, ge=1, le=10)
@@ -34,6 +38,10 @@ class EventResponse(BaseModel):
     tenant_id: str
     name: str
     slug: str
+    venue: str = "Centro de Convenciones, Lima"
+    description: str = ""
+    brand_color: str = "#8b5cf6"
+    timezone_name: str = "America/Lima"
     starts_at: datetime
     ends_at: datetime
     max_purchases_per_dni: int
@@ -67,6 +75,8 @@ class CreateOrderRequest(StrictModel):
     dni: str = Field(min_length=6, max_length=20)
     full_name: str = Field(min_length=2, max_length=150)
     email: str = Field(min_length=5, max_length=255)
+    payment_method: str = Field(default="MERCADOPAGO", max_length=40)
+    promoter_id: str | None = Field(default=None, max_length=36)
     items: list[OrderItemRequest] = Field(min_length=1, max_length=20)
 
 
@@ -87,3 +97,79 @@ class PaymentWebhookPayload(StrictModel):
     order_id: str = Field(min_length=1, max_length=36)
     payment_reference: str = Field(min_length=3, max_length=120)
     status: str = Field(pattern=r"^(PAID|FAILED)$")
+
+
+class CreatePromoterRequest(StrictModel):
+    name: str = Field(min_length=2, max_length=120)
+    code_prefix: str = Field(min_length=2, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    email: str = Field(min_length=5, max_length=255)
+
+
+class PromoterStatsResponse(BaseModel):
+    id: str
+    name: str
+    code_prefix: str
+    email: str
+    codes_total: int
+    codes_redeemed: int
+    orders_paid: int
+    revenue_cents: int
+
+
+class CreateCodeBatchRequest(StrictModel):
+    catalog_item_id: str = Field(min_length=1, max_length=36)
+    promoter_id: str | None = Field(default=None, max_length=36)
+    quantity: int = Field(ge=1, le=500)
+
+
+class CourtesyCodeResponse(BaseModel):
+    id: str
+    code: str
+    catalog_item_id: str
+    promoter_id: str | None = None
+    status: str
+    redeemed_at: datetime | None = None
+
+
+class RedeemCodeRequest(StrictModel):
+    event_id: str = Field(min_length=1, max_length=36)
+    code: str = Field(min_length=4, max_length=40)
+    dni: str = Field(min_length=6, max_length=20)
+    full_name: str = Field(min_length=2, max_length=150)
+    email: str = Field(min_length=5, max_length=255)
+
+
+class GuestListSubmitRequest(StrictModel):
+    catalog_item_id: str = Field(min_length=1, max_length=36)
+    promoter_id: str | None = Field(default=None, max_length=36)
+    dni: str = Field(min_length=6, max_length=20)
+    full_name: str = Field(min_length=2, max_length=150)
+    email: str = Field(min_length=5, max_length=255)
+    note: str = Field(default="", max_length=255)
+
+
+class GuestListDecisionRequest(StrictModel):
+    decision: str = Field(pattern=r"^(APPROVE|REJECT)$")
+
+
+class GuestListEntryResponse(BaseModel):
+    id: str
+    event_id: str
+    catalog_item_id: str
+    display_name: str
+    dni_last4: str
+    note: str
+    status: str
+    credential_id: str | None = None
+    qr_token: str | None = None
+    created_at: datetime
+
+
+class ComplaintCreateRequest(StrictModel):
+    tenant_id: str | None = Field(default=None, max_length=36)
+    event_id: str | None = Field(default=None, max_length=36)
+    dni: str = Field(min_length=6, max_length=20)
+    full_name: str = Field(min_length=2, max_length=150)
+    email: str = Field(min_length=5, max_length=255)
+    claim_type: str = Field(pattern=r"^(RECLAMO|QUEJA)$")
+    detail: str = Field(min_length=10, max_length=2000)
