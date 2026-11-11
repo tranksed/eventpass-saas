@@ -3,723 +3,458 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EventPass SaaS — Dashboard & Panel Organizador</title>
+  <title>EventPass SaaS — Dashboard Organizador</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
-  <style>
-    :root {
-      --ep-bg: #0b0d14;
-      --ep-surface: #131724;
-      --ep-card: #171c2c;
-      --ep-border: rgba(255, 255, 255, 0.08);
-      --ep-accent: #8b5cf6;
-      --ep-cyan: #22d3ee;
-    }
-    body {
-      background-color: var(--ep-bg);
-      color: #e5e7eb;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    }
-    .ep-sidebar {
-      width: 270px;
-      min-height: 100vh;
-      background: var(--ep-surface);
-      border-right: 1px solid var(--ep-border);
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-    }
-    @media (max-width: 991.98px) {
-      .ep-sidebar {
-        width: 100%;
-        height: auto;
-        min-height: auto;
-        position: static;
-        border-right: none;
-        border-bottom: 1px solid var(--ep-border);
-      }
-    }
-    .ep-nav-btn {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      text-align: left;
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: #cbd5e1;
-      font-weight: 500;
-      font-size: 0.92rem;
-      transition: all 0.15s ease;
-    }
-    .ep-nav-btn:hover {
-      background: rgba(139, 92, 246, 0.12);
-      color: #fff;
-    }
-    .ep-nav-btn.active {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(34, 211, 238, 0.16));
-      border-color: rgba(139, 92, 246, 0.45);
-      color: #fff;
-      font-weight: 600;
-    }
-    .ep-card {
-      background: var(--ep-card);
-      border: 1px solid var(--ep-border);
-      border-radius: 14px;
-    }
-    .ep-kpi {
-      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-      border: 1px solid var(--ep-border);
-      border-radius: 14px;
-      padding: 16px 18px;
-      height: 100%;
-    }
-    .ep-kpi-label {
-      font-size: 0.78rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #94a3b8;
-    }
-    .ep-kpi-val {
-      font-size: 1.65rem;
-      font-weight: 700;
-      margin-top: 4px;
-      color: #f8fafc;
-    }
-    .ep-kpi-sub {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      margin-top: 4px;
-    }
-    .chart-box {
-      position: relative;
-      height: 260px;
-      width: 100%;
-    }
-    .ep-section-title {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #64748b;
-      padding: 10px 14px 4px;
-      font-weight: 700;
-    }
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.82rem;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/shared.css" />
 </head>
 <body>
-  <!-- Top Navbar -->
-  <nav class="navbar navbar-expand-lg border-bottom px-3 py-2" style="background:#0f1320; border-color:var(--ep-border)!important;">
-    <div class="container-fluid">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
-        <span class="badge bg-primary rounded-3 px-2 py-1"><i class="bi bi-lightning-charge-fill"></i></span>
-        <span>EVENTPASS <span class="text-info fw-normal fs-6">SaaS</span></span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="topNav">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0 gap-lg-1">
-          <li class="nav-item"><a class="nav-link" href="/">Inicio</a></li>
-          <li class="nav-item"><a class="nav-link" href="/comprar">Taquilla / Cortesías / Guest List</a></li>
-          <li class="nav-item"><a class="nav-link" href="/validar">Puerta (Online/Offline)</a></li>
-          <li class="nav-item"><a class="nav-link" href="/acreditacion">Acreditación Staff</a></li>
-          <li class="nav-item"><a class="nav-link active fw-semibold text-info" href="/admin">Dashboard Admin</a></li>
-          <li class="nav-item"><a class="nav-link" href="/reclamos">Libro Reclamaciones</a></li>
-        </ul>
-        <div class="d-flex align-items-center gap-2">
-          <span id="sessionBadge" class="badge text-bg-secondary py-2 px-3">Sin sesión</span>
-          <button id="btnLogout" class="btn btn-outline-danger btn-sm d-none" onclick="logout()">
-            <i class="bi bi-box-arrow-right"></i> Salir
-          </button>
+  <div id="epNavbarHost"></div>
+
+  <!-- AUTH GATE (Visible only when unauthenticated) -->
+  <section id="authGateScreen" class="container py-5 d-none">
+    <div class="row justify-content-center">
+      <div class="col-lg-9">
+        <div class="ep-card ep-card-accent p-4 p-lg-5">
+          <div class="text-center mb-4">
+            <span class="badge text-bg-info mb-2">CONSOLA MULTI-TENANT · ADMIN / SUPERVISOR</span>
+            <h1 class="h3 fw-bold text-white mb-1">Acceso al Aplicativo Organizador</h1>
+            <p class="small text-secondary mb-0">Inicia sesión en tu empresa o registra un nuevo tenant para gestionar eventos, ventas, staff y métricas.</p>
+          </div>
+
+          <ul class="nav nav-pills justify-content-center gap-2 mb-4" role="tablist">
+            <li class="nav-item">
+              <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-login" type="button">
+                <i class="bi bi-box-arrow-in-right me-1"></i>Iniciar Sesión
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-register" type="button">
+                <i class="bi bi-building-add me-1"></i>Registrar Nueva Empresa
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content mx-auto" style="max-width:560px;">
+            <div class="tab-pane fade show active" id="pane-login">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small">Slug de Empresa</label>
+                  <input id="loginSlug" class="form-control" placeholder="ej. mi-productora" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Correo Corporativo</label>
+                  <input id="loginEmail" type="email" class="form-control" placeholder="admin@empresa.pe" />
+                </div>
+                <div class="col-md-8">
+                  <label class="form-label small">Contraseña</label>
+                  <input id="loginPass" type="password" class="form-control" placeholder="••••••••••" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small">MFA (opcional)</label>
+                  <input id="loginMfa" class="form-control" placeholder="6 dígitos" />
+                </div>
+              </div>
+              <button class="btn btn-primary w-100 fw-semibold mt-3" onclick="loginUser()">
+                <i class="bi bi-unlock me-1"></i>Entrar al Dashboard
+              </button>
+              <div id="loginMsg"></div>
+            </div>
+
+            <div class="tab-pane fade" id="pane-register">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small">Nombre de la Empresa</label>
+                  <input id="regCompanyName" class="form-control" placeholder="Ej. Productora Andina SAC" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Slug Único URL</label>
+                  <input id="regCompanySlug" class="form-control" placeholder="ej. andina-live" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Nombre Administrador</label>
+                  <input id="regAdminName" class="form-control" placeholder="Nombre completo" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small">Correo Administrador</label>
+                  <input id="regAdminEmail" type="email" class="form-control" placeholder="admin@empresa.pe" />
+                </div>
+                <div class="col-12">
+                  <label class="form-label small">Contraseña (mín. 10 caracteres, mayúscula, número y símbolo)</label>
+                  <input id="regAdminPass" type="password" class="form-control" placeholder="Mínimo 10 caracteres" />
+                </div>
+              </div>
+              <button class="btn btn-success w-100 fw-semibold mt-3" onclick="registerTenant()">
+                <i class="bi bi-check2-circle me-1"></i>Crear Tenant y Acceder
+              </button>
+              <div id="regMsg"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  </nav>
+  </section>
 
-  <div class="d-lg-flex">
-    <!-- Sidebar -->
-    <aside class="ep-sidebar p-3 d-flex flex-column justify-content-between">
-      <div>
-        <div class="mb-3">
-          <label class="form-label small text-secondary mb-1">Evento activo</label>
-          <select id="globalEventSelect" class="form-select form-select-sm bg-dark border-secondary text-light" onchange="onEventChange()">
-            <option value="">-- Sin eventos --</option>
-          </select>
-        </div>
-
-        <div class="ep-section-title">Principal</div>
-        <div class="d-grid gap-1 mb-2">
-          <button class="ep-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
-            <i class="bi bi-speedometer2 text-info"></i> 1. Dashboard & Métricas
-          </button>
-          <button class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
-            <i class="bi bi-calendar-event text-primary"></i> 2. Eventos y Entradas
-          </button>
-        </div>
-
-        <div class="ep-section-title">Operación Comercial</div>
-        <div class="d-grid gap-1 mb-2">
-          <button class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
-            <i class="bi bi-ticket-perforated text-warning"></i> 3. Códigos, Cortesías y RR.PP.
-          </button>
-          <button class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
-            <i class="bi bi-person-check text-success"></i> 4. Guest List
-          </button>
-          <button class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
-            <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos (Excel/CSV)
-          </button>
-        </div>
-
-        <div class="ep-section-title">Acreditaciones & Seguridad</div>
-        <div class="d-grid gap-1 mb-2">
-          <button class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
-            <i class="bi bi-building-check text-primary"></i> 6. Acreditaciones Staff
-          </button>
-          <button class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
-            <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
-          </button>
-        </div>
-
-        <div class="ep-section-title">Cuenta SaaS</div>
-        <div class="d-grid gap-1">
-          <button class="ep-nav-btn" data-tab="auth" onclick="switchTab('auth', this)">
-            <i class="bi bi-key"></i> Acceso / Nueva Empresa
-          </button>
-        </div>
-      </div>
-
-      <div class="mt-4 pt-3 border-top border-secondary-subtle small text-secondary">
-        <div><i class="bi bi-clock"></i> Zona horaria: <strong>America/Lima</strong></div>
-        <div><i class="bi bi-shield-check text-success"></i> Ed25519 + AES-256-GCM + SHA-256</div>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-grow-1 p-3 p-lg-4">
-      <div id="globalAlert" class="mb-3"></div>
-
-      <!-- TAB 1: DASHBOARD & METRICAS -->
-      <section id="tab-dashboard" class="ep-tab">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div>
-            <h2 class="h4 fw-bold mb-0"><i class="bi bi-graph-up-arrow text-info me-2"></i>Dashboard Analítico del Evento</h2>
-            <small class="text-secondary" id="dashEventSubtitle">Selecciona o crea un evento para visualizar métricas en tiempo real.</small>
+  <!-- AUTHENTICATED APP SHELL -->
+  <div id="appShell" class="d-none">
+    <div class="d-lg-flex">
+      <!-- Responsive Sidebar (Offcanvas on mobile, fixed column on lg+) -->
+      <aside class="offcanvas-lg offcanvas-start ep-sidebar p-3 d-flex flex-column justify-content-between" tabindex="-1" id="adminSidebar">
+        <div>
+          <div class="d-lg-none d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary-subtle">
+            <span class="fw-bold">Menú Organizador</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#adminSidebar"></button>
           </div>
-          <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-info btn-sm" onclick="loadDashboardMetrics()">
-              <i class="bi bi-arrow-clockwise"></i> Actualizar Métricas
+
+          <div class="mb-3">
+            <label class="form-label small text-secondary mb-1">Evento activo</label>
+            <select id="globalEventSelect" class="form-select form-select-sm" onchange="onEventChange()">
+              <option value="">-- Sin eventos --</option>
+            </select>
+          </div>
+
+          <div class="ep-section-label">Analítica y Gestión</div>
+          <div class="d-grid gap-1">
+            <button class="ep-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+              <i class="bi bi-speedometer2 text-info"></i> 1. Dashboard & Métricas
             </button>
-            <button class="btn btn-success btn-sm" onclick="downloadExcelExport()">
-              <i class="bi bi-file-earmark-excel"></i> Exportar Excel (.xlsx)
+            <button class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
+              <i class="bi bi-calendar-event text-primary"></i> 2. Eventos y Entradas
+            </button>
+          </div>
+
+          <div class="ep-section-label">Comercial y Acceso</div>
+          <div class="d-grid gap-1">
+            <button class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
+              <i class="bi bi-ticket-perforated text-warning"></i> 3. Códigos y RR.PP.
+            </button>
+            <button class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
+              <i class="bi bi-person-check text-success"></i> 4. Guest List
+            </button>
+            <button class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
+              <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos Excel
+            </button>
+          </div>
+
+          <div class="ep-section-label">Acreditación y Seguridad</div>
+          <div class="d-grid gap-1">
+            <button class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
+              <i class="bi bi-building-check text-primary"></i> 6. Acreditaciones Staff
+            </button>
+            <button class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
+              <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
             </button>
           </div>
         </div>
 
-        <!-- 8 KPI Cards -->
-        <div class="row g-3 mb-4">
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-cash-stack text-success me-1"></i> Ingresos Totales</div>
-              <div class="ep-kpi-val" id="kpiRevenue">S/ 0.00</div>
-              <div class="ep-kpi-sub" id="kpiOrdersSummary">0 pagadas · 0 pendientes</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-ticket-detailed text-primary me-1"></i> Aforo Vendido</div>
-              <div class="ep-kpi-val" id="kpiSold">0 / 0</div>
-              <div class="progress mt-2" style="height:6px;"><div id="kpiSoldBar" class="progress-bar bg-primary" style="width:0%"></div></div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-door-open text-info me-1"></i> Ocupación en Puerta</div>
-              <div class="ep-kpi-val" id="kpiDoor">0 / 0</div>
-              <div class="ep-kpi-sub" id="kpiDoorPct">0% ingresados (Participantes + Staff)</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-building-check text-warning me-1"></i> Acreditación Staff</div>
-              <div class="ep-kpi-val" id="kpiStaff">0 / 0</div>
-              <div class="ep-kpi-sub" id="kpiStaffCompanies">0 empresas aliadas</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-qr-code text-warning me-1"></i> Cortesías / Códigos</div>
-              <div class="ep-kpi-val" id="kpiCodes">0 / 0</div>
-              <div class="ep-kpi-sub">Canjeados vs generados</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-person-lines-fill text-success me-1"></i> Guest List</div>
-              <div class="ep-kpi-val" id="kpiGuest">0 aprob.</div>
-              <div class="ep-kpi-sub" id="kpiGuestSub">0 pendientes · 0 rechazados</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-upc-scan text-info me-1"></i> Escaneos Totales</div>
-              <div class="ep-kpi-val" id="kpiScans">0</div>
-              <div class="ep-kpi-sub" id="kpiScanMode">Online + Sync Offline</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="ep-kpi">
-              <div class="ep-kpi-label"><i class="bi bi-exclamation-triangle text-danger me-1"></i> Conflictos Offline</div>
-              <div class="ep-kpi-val" id="kpiConflicts">0</div>
-              <div class="ep-kpi-sub">Duplicados o revocados detectados</div>
-            </div>
-          </div>
+        <div class="pt-3 mt-4 border-top border-secondary-subtle">
+          <div class="small text-secondary mb-2"><i class="bi bi-clock me-1"></i>America/Lima · Ed25519</div>
+          <button class="btn btn-outline-danger btn-sm w-100" onclick="logout()">
+            <i class="bi bi-box-arrow-right me-1"></i>Cerrar Sesión
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Workspace -->
+      <main class="flex-grow-1 p-3 p-lg-4">
+        <div class="d-lg-none mb-3">
+          <button class="btn btn-outline-light btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar">
+            <i class="bi bi-list me-1"></i>Menú del Panel
+          </button>
         </div>
 
-        <!-- 4 Chart.js Charts -->
-        <div class="row g-3 mb-4">
-          <div class="col-lg-7">
-            <div class="ep-card p-3 h-100">
-              <h6 class="fw-semibold mb-3"><i class="bi bi-activity text-info me-1"></i> Ventas por Hora (Órdenes e Ingresos)</h6>
-              <div class="chart-box"><canvas id="chartTimeline"></canvas></div>
-            </div>
-          </div>
-          <div class="col-lg-5">
-            <div class="ep-card p-3 h-100">
-              <h6 class="fw-semibold mb-3"><i class="bi bi-pie-chart text-warning me-1"></i> Órdenes por Canal (Web / Códigos / Guest / Excel)</h6>
-              <div class="chart-box"><canvas id="chartSources"></canvas></div>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="ep-card p-3 h-100">
-              <h6 class="fw-semibold mb-3"><i class="bi bi-bar-chart text-primary me-1"></i> Rendimiento por Ítem / Categoría</h6>
-              <div class="chart-box"><canvas id="chartItems"></canvas></div>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="ep-card p-3 h-100">
-              <h6 class="fw-semibold mb-3"><i class="bi bi-shield-check text-success me-1"></i> Accesos en Puerta (Puertas & Tipo de Titular)</h6>
-              <div class="chart-box"><canvas id="chartDoor"></canvas></div>
-            </div>
-          </div>
-        </div>
+        <div id="globalAlert" class="mb-3"></div>
 
-        <!-- Detailed Tables -->
-        <div class="row g-3">
-          <div class="col-lg-6">
-            <div class="ep-card p-3">
-              <h6 class="fw-semibold mb-2"><i class="bi bi-tags me-1 text-primary"></i> Detalle de Stock & Recaudación por Ítem</h6>
-              <div class="table-responsive">
-                <table class="table table-dark table-sm align-middle mb-0">
-                  <thead><tr><th>Código</th><th>Tipo</th><th>Precio</th><th>Vendidos</th><th>Disp.</th><th>Ingreso</th></tr></thead>
-                  <tbody id="dashItemsTable"><tr><td colspan="6" class="text-secondary">Sin datos</td></tr></tbody>
-                </table>
-              </div>
+        <!-- TAB 1: DASHBOARD -->
+        <section id="tab-dashboard" class="ep-tab">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h1 class="h4 fw-bold mb-0"><i class="bi bi-graph-up-arrow text-info me-2"></i>Dashboard del Evento</h1>
+              <small class="text-secondary" id="dashEventSubtitle">Crea o selecciona un evento para ver métricas en vivo.</small>
             </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="ep-card p-3">
-              <h6 class="fw-semibold mb-2"><i class="bi bi-megaphone me-1 text-warning"></i> Ranking Promotores RR.PP.</h6>
-              <div class="table-responsive">
-                <table class="table table-dark table-sm align-middle mb-0">
-                  <thead><tr><th>Promotor</th><th>Prefijo</th><th>Códigos</th><th>Órdenes</th><th>Ingreso</th></tr></thead>
-                  <tbody id="dashPromotersTable"><tr><td colspan="5" class="text-secondary">Sin datos</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 2: EVENTOS Y CATALOGO -->
-      <section id="tab-events" class="ep-tab d-none">
-        <h2 class="h4 fw-bold mb-3"><i class="bi bi-calendar-event text-primary me-2"></i>Eventos, Branding y Catálogo de Entradas</h2>
-        <div class="row g-3">
-          <div class="col-lg-6">
-            <div class="ep-card p-3">
-              <h5 class="h6 fw-bold mb-3">Crear Nuevo Evento</h5>
-              <div class="row g-2">
-                <div class="col-md-7">
-                  <label class="form-label small">Nombre del Evento</label>
-                  <input id="evName" class="form-control form-control-sm" value="Festival Lima Tech 2026" />
-                </div>
-                <div class="col-md-5">
-                  <label class="form-label small">Slug URL</label>
-                  <input id="evSlug" class="form-control form-control-sm" value="lima-tech-2026" />
-                </div>
-                <div class="col-md-7">
-                  <label class="form-label small">Lugar / Venue</label>
-                  <input id="evVenue" class="form-control form-control-sm" value="Centro de Convenciones de Lima" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label small">Color Marca</label>
-                  <input id="evBrandColor" type="color" class="form-control form-control-color form-control-sm w-100" value="#8b5cf6" />
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label small">Lím. DNI</label>
-                  <input id="evMaxDni" type="number" min="1" max="10" class="form-control form-control-sm" value="4" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small">Zona Horaria</label>
-                  <input id="evTz" class="form-control form-control-sm" value="America/Lima" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small">Descripción corta</label>
-                  <input id="evDesc" class="form-control form-control-sm" value="Acceso general, interacciones y acreditación corporativa" />
-                </div>
-              </div>
-              <button class="btn btn-primary btn-sm mt-3" onclick="createEvent()">
-                <i class="bi bi-plus-circle"></i> Crear Evento
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-outline-info btn-sm" onclick="loadDashboardMetrics()">
+                <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
               </button>
-              <div id="evMsg" class="mt-2"></div>
-            </div>
-          </div>
-
-          <div class="col-lg-6">
-            <div class="ep-card p-3 mb-3">
-              <h5 class="h6 fw-bold mb-2">Regla de Límite por DNI (1 a 10)</h5>
-              <div class="input-group input-group-sm">
-                <span class="input-group-text">Máximo compras por DNI</span>
-                <input id="editMaxDni" type="number" min="1" max="10" class="form-control" value="4" />
-                <button class="btn btn-outline-warning" onclick="updateEventDniLimit()">Actualizar Límite</button>
-              </div>
-            </div>
-
-            <div class="ep-card p-3">
-              <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción al Evento Activo</h5>
-              <div class="row g-2">
-                <div class="col-md-4">
-                  <label class="form-label small">Código (MAYÚS)</label>
-                  <input id="itemCode" class="form-control form-control-sm" value="ENTRY" />
-                </div>
-                <div class="col-md-5">
-                  <label class="form-label small">Nombre visible</label>
-                  <input id="itemName" class="form-control form-control-sm" value="Entrada General VIP" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label small">Tipo</label>
-                  <select id="itemType" class="form-select form-select-sm">
-                    <option value="ENTRY">ENTRY (Ingreso)</option>
-                    <option value="INTERACTION">INTERACTION (Foto/Firma)</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small">Precio (centavos, ej 8000 = 80.00)</label>
-                  <input id="itemPrice" type="number" min="0" class="form-control form-control-sm" value="8000" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small">Stock total</label>
-                  <input id="itemStock" type="number" min="1" class="form-control form-control-sm" value="500" />
-                </div>
-              </div>
-              <button class="btn btn-success btn-sm mt-3" onclick="createCatalogItem()">
-                <i class="bi bi-bag-plus"></i> Publicar en Taquilla
-              </button>
-              <div id="itemMsg" class="mt-2"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 3: CODIGOS, CORTESIAS Y RRPP -->
-      <section id="tab-codes" class="ep-tab d-none">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h2 class="h4 fw-bold mb-0"><i class="bi bi-ticket-perforated text-warning me-2"></i>Códigos Nominativos, Cortesías y Promotores RR.PP.</h2>
-          <button class="btn btn-outline-light btn-sm" onclick="loadCodesModule()"><i class="bi bi-arrow-clockwise"></i> Recargar</button>
-        </div>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-5">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">1. Registrar Promotor RR.PP.</h5>
-              <div class="mb-2">
-                <label class="form-label small">Nombre del Promotor</label>
-                <input id="promName" class="form-control form-control-sm" placeholder="Ej. Agencia Vibe / Carlos R." />
-              </div>
-              <div class="row g-2 mb-2">
-                <div class="col-5">
-                  <label class="form-label small">Prefijo Código</label>
-                  <input id="promPrefix" class="form-control form-control-sm" placeholder="VIBE" />
-                </div>
-                <div class="col-7">
-                  <label class="form-label small">Email</label>
-                  <input id="promEmail" type="email" class="form-control form-control-sm" placeholder="carlos@rrpp.pe" />
-                </div>
-              </div>
-              <button class="btn btn-warning btn-sm" onclick="createPromoter()">Crear Promotor RR.PP.</button>
-              <div id="promMsg" class="mt-2"></div>
-            </div>
-          </div>
-
-          <div class="col-lg-7">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">2. Generar Lote de Códigos / Cortesías</h5>
-              <div class="row g-2 mb-2">
-                <div class="col-md-4">
-                  <label class="form-label small">Ítem del Catálogo</label>
-                  <select id="codeItemSelect" class="form-select form-select-sm"></select>
-                </div>
-                <div class="col-md-5">
-                  <label class="form-label small">Promotor RR.PP. (opcional)</label>
-                  <select id="codePromoterSelect" class="form-select form-select-sm"><option value="">-- Cortesía Directa --</option></select>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label small">Cantidad (1..500)</label>
-                  <input id="codeQty" type="number" min="1" max="500" class="form-control form-control-sm" value="10" />
-                </div>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="generateCodeBatch()">
-                <i class="bi bi-magic"></i> Generar Lote de Códigos
-              </button>
-              <div id="codeBatchMsg" class="mt-2"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ep-card p-3">
-          <h6 class="fw-semibold mb-2">Códigos Generados (Se enlazan al DNI al canjear en /comprar)</h6>
-          <div class="table-responsive" style="max-height:340px;">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead><tr><th>Código</th><th>Estado</th><th>Canjeado</th><th>Acción</th></tr></thead>
-              <tbody id="codesTable"><tr><td colspan="4" class="text-secondary">Sin códigos aún</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 4: GUEST LIST -->
-      <section id="tab-guestlist" class="ep-tab d-none">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div>
-            <h2 class="h4 fw-bold mb-0"><i class="bi bi-person-check text-success me-2"></i>Guest List & Aprobación en 1 Clic</h2>
-            <small class="text-secondary">Los invitados solicitan desde <code>/comprar</code> y al aprobar se emite automáticamente su credencial QR Ed25519.</small>
-          </div>
-          <button class="btn btn-outline-light btn-sm" onclick="loadGuestList()"><i class="bi bi-arrow-clockwise"></i> Actualizar Lista</button>
-        </div>
-        <div id="guestMsg" class="mb-2"></div>
-        <div class="ep-card p-3">
-          <div class="table-responsive">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead><tr><th>Invitado</th><th>DNI (últ. 4)</th><th>Nota</th><th>Estado</th><th>Acciones / QR</th></tr></thead>
-              <tbody id="guestListTable"><tr><td colspan="5" class="text-secondary">Sin solicitudes</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 5: ENVIOS MASIVOS (EXCEL/CSV) -->
-      <section id="tab-bulk" class="ep-tab d-none">
-        <h2 class="h4 fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet text-info me-2"></i>Envíos Masivos de Cortesías / Invitados (Excel & CSV)</h2>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-5">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-2">Paso 1: Descargar Plantilla Oficial</h5>
-              <p class="small text-secondary">Columnas requeridas: <code>dni</code>, <code>full_name</code>, <code>email</code>, <code>item_code</code> (ej. ENTRY).</p>
-              <button class="btn btn-outline-info btn-sm" onclick="downloadBulkTemplate()">
-                <i class="bi bi-download"></i> Descargar plantilla .xlsx
+              <button class="btn btn-success btn-sm" onclick="downloadExcelExport()">
+                <i class="bi bi-file-earmark-excel me-1"></i>Exportar .xlsx
               </button>
             </div>
           </div>
-          <div class="col-lg-7">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-2">Paso 2: Subir Excel (.xlsx) o CSV (.csv) en Background</h5>
-              <div class="input-group input-group-sm">
-                <input id="bulkFileInput" type="file" accept=".xlsx,.csv" class="form-control" />
-                <button class="btn btn-primary" onclick="uploadBulkFile()">
-                  <i class="bi bi-cloud-upload"></i> Iniciar Envío Masivo
-                </button>
+
+          <div class="row g-3 mb-4">
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Ingresos Totales</div><div class="ep-kpi-val" id="kpiRevenue">S/ 0.00</div><div class="ep-kpi-sub" id="kpiOrdersSummary">0 pagadas · 0 pend.</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Aforo Vendido</div><div class="ep-kpi-val" id="kpiSold">0 / 0</div><div class="progress mt-2" style="height:6px;"><div id="kpiSoldBar" class="progress-bar bg-primary" style="width:0%"></div></div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Ocupación en Puerta</div><div class="ep-kpi-val" id="kpiDoor">0 / 0</div><div class="ep-kpi-sub" id="kpiDoorPct">0% ingresados</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Acreditación Staff</div><div class="ep-kpi-val" id="kpiStaff">0 / 0</div><div class="ep-kpi-sub" id="kpiStaffCompanies">0 empresas</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Códigos / Cortesías</div><div class="ep-kpi-val" id="kpiCodes">0 / 0</div><div class="ep-kpi-sub">Canjeados vs emitidos</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Guest List</div><div class="ep-kpi-val" id="kpiGuest">0 aprob.</div><div class="ep-kpi-sub" id="kpiGuestSub">0 pend. · 0 rech.</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Escaneos Totales</div><div class="ep-kpi-val" id="kpiScans">0</div><div class="ep-kpi-sub" id="kpiScanMode">Online + Offline</div></div></div>
+            <div class="col-6 col-xl-3"><div class="ep-kpi"><div class="ep-kpi-label">Conflictos Offline</div><div class="ep-kpi-val" id="kpiConflicts">0</div><div class="ep-kpi-sub">Duplicados o revocados</div></div></div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-lg-7"><div class="ep-card p-3 h-100"><h6 class="fw-semibold mb-3">Ventas e Ingresos por Hora</h6><div class="chart-box"><canvas id="chartTimeline"></canvas></div></div></div>
+            <div class="col-lg-5"><div class="ep-card p-3 h-100"><h6 class="fw-semibold mb-3">Órdenes por Canal</h6><div class="chart-box"><canvas id="chartSources"></canvas></div></div></div>
+            <div class="col-lg-6"><div class="ep-card p-3 h-100"><h6 class="fw-semibold mb-3">Stock Vendido vs Disponible por Ítem</h6><div class="chart-box"><canvas id="chartItems"></canvas></div></div></div>
+            <div class="col-lg-6"><div class="ep-card p-3 h-100"><h6 class="fw-semibold mb-3">Control de Puerta (Participantes vs Staff)</h6><div class="chart-box"><canvas id="chartDoor"></canvas></div></div></div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <div class="ep-card p-3">
+                <h6 class="fw-semibold mb-2">Detalle por Ítem</h6>
+                <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Tipo</th><th>Precio</th><th>Vend.</th><th>Disp.</th><th>Ingreso</th></tr></thead><tbody id="dashItemsTable"><tr><td colspan="6" class="text-secondary">Sin datos</td></tr></tbody></table></div>
               </div>
-              <div id="bulkMsg" class="mt-2"></div>
             </div>
-          </div>
-        </div>
-
-        <div class="ep-card p-3">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-semibold mb-0">Historial y Reporte Final de Procesamiento</h6>
-            <button class="btn btn-outline-light btn-sm" onclick="loadBulkJobs()"><i class="bi bi-arrow-clockwise"></i> Actualizar Jobs</button>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead><tr><th>Archivo</th><th>Estado</th><th>Progreso</th><th>Éxitos</th><th>Errores</th><th>Reporte</th></tr></thead>
-              <tbody id="bulkJobsTable"><tr><td colspan="6" class="text-secondary">Sin envíos masivos</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 6: ACREDITACIONES STAFF (ORDENADO E INTACTO) -->
-      <section id="tab-staff" class="ep-tab d-none">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <div>
-            <h2 class="h4 fw-bold mb-0"><i class="bi bi-building-check text-primary me-2"></i>Acreditaciones Corporativas de Staff</h2>
-            <small class="text-secondary">Cupo default: <strong>6</strong> · Supervisor expande hasta <strong>10</strong> · Administrador personalizado (1..500). Cada empresa recibe su link privado.</small>
-          </div>
-          <button class="btn btn-outline-light btn-sm" onclick="loadCompanies()"><i class="bi bi-arrow-clockwise"></i> Actualizar Empresas</button>
-        </div>
-
-        <div class="row g-3">
-          <div class="col-lg-5">
-            <div class="ep-card p-3">
-              <h5 class="h6 fw-bold mb-3">Registrar Empresa Representada</h5>
-              <div class="mb-2">
-                <label class="form-label small">Empresa / Marca Expositora</label>
-                <input id="accCompName" class="form-control form-control-sm" value="Sponsor Tech Perú SAC" />
-              </div>
-              <div class="mb-2">
-                <label class="form-label small">Email Responsable</label>
-                <input id="accCompEmail" type="email" class="form-control form-control-sm" value="rrhh@sponsortech.pe" />
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="createAccreditedCompany()">
-                <i class="bi bi-link-45deg"></i> Crear Link Privado de Staff
-              </button>
-              <div id="compMsg" class="mt-2"></div>
-            </div>
-          </div>
-
-          <div class="col-lg-7">
-            <div class="ep-card p-3">
-              <h5 class="h6 fw-bold mb-3">Empresas Acreditadas y Control de Cupos</h5>
-              <div class="table-responsive">
-                <table class="table table-dark table-sm align-middle mb-0">
-                  <thead><tr><th>Empresa</th><th>Uso / Cupo</th><th>Ajustar Cupo</th></tr></thead>
-                  <tbody id="companiesTable"><tr><td colspan="3" class="text-secondary">Sin empresas acreditadas aún</td></tr></tbody>
-                </table>
+            <div class="col-lg-6">
+              <div class="ep-card p-3">
+                <h6 class="fw-semibold mb-2">Ranking Promotores RR.PP.</h6>
+                <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Promotor</th><th>Prefijo</th><th>Códigos</th><th>Órdenes</th><th>Ingreso</th></tr></thead><tbody id="dashPromotersTable"><tr><td colspan="5" class="text-secondary">Sin datos</td></tr></tbody></table></div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- TAB 7: EQUIPO, AUDITORIA Y RECLAMOS -->
-      <section id="tab-team" class="ep-tab d-none">
-        <h2 class="h4 fw-bold mb-3"><i class="bi bi-shield-lock text-danger me-2"></i>Equipo RBAC, Auditoría SHA-256 y Libro de Reclamaciones</h2>
-        <div class="row g-3 mb-3">
-          <div class="col-lg-5">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">Crear Usuario de Equipo (3 Perfiles)</h5>
-              <div class="mb-2">
-                <label class="form-label small">Nombre completo</label>
-                <input id="newUserName" class="form-control form-control-sm" value="Supervisor Puerta Norte" />
-              </div>
-              <div class="mb-2">
-                <label class="form-label small">Correo</label>
-                <input id="newUserEmail" type="email" class="form-control form-control-sm" value="sup@miempresa.com" />
-              </div>
-              <div class="row g-2 mb-2">
-                <div class="col-6">
-                  <label class="form-label small">Contraseña (10+)</label>
-                  <input id="newUserPass" type="password" class="form-control form-control-sm" value="SupPass!98765" />
+        <!-- TAB 2: EVENTOS Y CATALOGO -->
+        <section id="tab-events" class="ep-tab d-none">
+          <h2 class="h4 fw-bold mb-3"><i class="bi bi-calendar-event text-primary me-2"></i>Eventos y Catálogo de Taquilla</h2>
+          <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Crear Evento</h5>
+                <div class="row g-2">
+                  <div class="col-md-7"><label class="form-label small">Nombre</label><input id="evName" class="form-control form-control-sm" placeholder="Ej. Lima Tech Summit 2026" /></div>
+                  <div class="col-md-5"><label class="form-label small">Slug URL</label><input id="evSlug" class="form-control form-control-sm" placeholder="ej. lima-tech-2026" /></div>
+                  <div class="col-md-7"><label class="form-label small">Sede / Venue</label><input id="evVenue" class="form-control form-control-sm" placeholder="Ej. Arena 1 Costa Verde, Lima" /></div>
+                  <div class="col-md-3"><label class="form-label small">Color</label><input id="evBrandColor" type="color" class="form-control form-control-color form-control-sm w-100" value="#7c3aed" /></div>
+                  <div class="col-md-2"><label class="form-label small">Máx DNI</label><input id="evMaxDni" type="number" min="1" max="10" class="form-control form-control-sm" value="4" /></div>
+                  <div class="col-md-5"><label class="form-label small">Zona Horaria</label><input id="evTz" class="form-control form-control-sm" value="America/Lima" /></div>
+                  <div class="col-md-7"><label class="form-label small">Descripción corta</label><input id="evDesc" class="form-control form-control-sm" placeholder="Detalles clave del evento" /></div>
                 </div>
-                <div class="col-6">
-                  <label class="form-label small">Rol</label>
-                  <select id="newUserRole" class="form-select form-select-sm">
-                    <option value="SUPERVISOR">SUPERVISOR</option>
-                    <option value="VALIDATOR">VALIDATOR</option>
-                    <option value="ADMIN">ADMIN</option>
-                  </select>
+                <button class="btn btn-primary btn-sm mt-3" onclick="createEvent()"><i class="bi bi-plus-circle me-1"></i>Crear Evento</button>
+                <div id="evMsg"></div>
+              </div>
+            </div>
+
+            <div class="col-lg-6">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción (Evento Activo)</h5>
+                <div class="row g-2">
+                  <div class="col-md-4"><label class="form-label small">Código (MAYÚS)</label><input id="itemCode" class="form-control form-control-sm" placeholder="ENTRY / PHOTO" /></div>
+                  <div class="col-md-5"><label class="form-label small">Nombre visible</label><input id="itemName" class="form-control form-control-sm" placeholder="Ej. Entrada General" /></div>
+                  <div class="col-md-3"><label class="form-label small">Tipo</label><select id="itemType" class="form-select form-select-sm"><option value="ENTRY">ENTRY</option><option value="INTERACTION">INTERACTION</option></select></div>
+                  <div class="col-md-6"><label class="form-label small">Precio (centavos, ej. 8000 = S/ 80)</label><input id="itemPrice" type="number" min="0" class="form-control form-control-sm" placeholder="8000" /></div>
+                  <div class="col-md-6"><label class="form-label small">Stock total</label><input id="itemStock" type="number" min="1" class="form-control form-control-sm" placeholder="500" /></div>
+                </div>
+                <button class="btn btn-success btn-sm mt-3" onclick="createCatalogItem()"><i class="bi bi-bag-plus me-1"></i>Publicar Ítem en Taquilla</button>
+                <div id="itemMsg"></div>
+
+                <hr class="border-secondary-subtle my-3" />
+                <label class="form-label small">Actualizar límite máximo por DNI del evento activo (1 a 10)</label>
+                <div class="input-group input-group-sm">
+                  <input id="editMaxDni" type="number" min="1" max="10" class="form-control" value="4" />
+                  <button class="btn btn-outline-warning" onclick="updateEventDniLimit()">Actualizar Límite</button>
                 </div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="createTeamUser()">Crear Usuario</button>
-              <div id="teamMsg" class="mt-2"></div>
             </div>
           </div>
 
-          <div class="col-lg-7">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">Miembros de la Organización</h5>
-              <div class="table-responsive" style="max-height:240px;">
-                <table class="table table-dark table-sm align-middle mb-0">
-                  <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead>
-                  <tbody id="usersTable"><tr><td colspan="3" class="text-secondary">Inicia sesión como Admin/Supervisor</td></tr></tbody>
-                </table>
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <div class="ep-card p-3">
+                <h6 class="fw-semibold mb-2">Mis Eventos</h6>
+                <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Evento</th><th>Sede</th><th>Lím. DNI</th><th>Taquilla</th></tr></thead><tbody id="eventsListTable"><tr><td colspan="4" class="text-secondary">Sin eventos</td></tr></tbody></table></div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="ep-card p-3">
+                <h6 class="fw-semibold mb-2">Ítems del Evento Activo</h6>
+                <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Precio</th><th>Disp.</th></tr></thead><tbody id="eventItemsTable"><tr><td colspan="5" class="text-secondary">Sin ítems</td></tr></tbody></table></div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div class="ep-card p-3 mb-3">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <h5 class="h6 fw-bold mb-0">Registro de Auditoría Inmutable (Hash-Chained)</h5>
-            <div class="d-flex gap-2">
-              <button class="btn btn-outline-light btn-sm" onclick="loadAuditLogs()">Recargar Logs</button>
-              <button class="btn btn-outline-success btn-sm" onclick="verifyAuditChain()">Verificar Cadena SHA-256</button>
-            </div>
+        <!-- TAB 3: CODIGOS, CORTESIAS Y RRPP -->
+        <section id="tab-codes" class="ep-tab d-none">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 fw-bold mb-0"><i class="bi bi-ticket-perforated text-warning me-2"></i>Códigos Nominativos y Promotores RR.PP.</h2>
+            <button class="btn btn-outline-light btn-sm" onclick="loadCodesModule()"><i class="bi bi-arrow-clockwise"></i></button>
           </div>
-          <div id="auditStatus" class="mb-2"></div>
-          <div class="table-responsive" style="max-height:260px;">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead><tr><th>#</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Metadata</th><th>Hash</th></tr></thead>
-              <tbody id="auditTable"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="ep-card p-3">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="h6 fw-bold mb-0"><i class="bi bi-journal-text text-warning me-1"></i> Libro de Reclamaciones Virtual (Perú)</h5>
-            <button class="btn btn-outline-light btn-sm" onclick="loadComplaints()">Actualizar Reclamos</button>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-dark table-sm align-middle mb-0">
-              <thead><tr><th>Código</th><th>Tipo</th><th>Ciudadano</th><th>DNI</th><th>Detalle</th><th>Fecha</th></tr></thead>
-              <tbody id="complaintsTable"><tr><td colspan="6" class="text-secondary">Sin reclamos registrados</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 0: AUTH / NUEVA EMPRESA -->
-      <section id="tab-auth" class="ep-tab d-none">
-        <h2 class="h4 fw-bold mb-3"><i class="bi bi-key text-info me-2"></i>Acceso Organizador o Registro de Nueva Empresa</h2>
-        <div class="row g-3">
-          <div class="col-lg-6">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">Registrar Empresa Tenant</h5>
-              <div class="row g-2">
-                <div class="col-md-6"><label class="form-label small">Empresa</label><input id="regCompanyName" class="form-control form-control-sm" value="Productora Andina SAC" /></div>
-                <div class="col-md-6"><label class="form-label small">Slug Tenant</label><input id="regCompanySlug" class="form-control form-control-sm" value="andina-live" /></div>
-                <div class="col-md-6"><label class="form-label small">Admin</label><input id="regAdminName" class="form-control form-control-sm" value="Lucía Mendoza" /></div>
-                <div class="col-md-6"><label class="form-label small">Correo Admin</label><input id="regAdminEmail" type="email" class="form-control form-control-sm" value="admin@andinalive.pe" /></div>
-                <div class="col-12"><label class="form-label small">Contraseña (10+ caracteres)</label><input id="regAdminPass" type="password" class="form-control form-control-sm" value="StrongPass!98765" /></div>
+          <div class="row g-3 mb-3">
+            <div class="col-lg-5">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Registrar Promotor RR.PP.</h5>
+                <div class="mb-2"><label class="form-label small">Nombre</label><input id="promName" class="form-control form-control-sm" placeholder="Ej. Agencia Vibe" /></div>
+                <div class="row g-2 mb-2">
+                  <div class="col-5"><label class="form-label small">Prefijo</label><input id="promPrefix" class="form-control form-control-sm" placeholder="VIBE" /></div>
+                  <div class="col-7"><label class="form-label small">Correo</label><input id="promEmail" type="email" class="form-control form-control-sm" placeholder="rrpp@agencia.pe" /></div>
+                </div>
+                <button class="btn btn-warning btn-sm" onclick="createPromoter()">Crear Promotor</button>
+                <div id="promMsg"></div>
               </div>
-              <button class="btn btn-primary btn-sm mt-3" onclick="registerTenant()">Crear Tenant y Entrar</button>
-              <div id="regMsg" class="mt-2"></div>
+            </div>
+            <div class="col-lg-7">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Generar Lote de Códigos</h5>
+                <div class="row g-2 mb-2">
+                  <div class="col-md-4"><label class="form-label small">Ítem</label><select id="codeItemSelect" class="form-select form-select-sm"></select></div>
+                  <div class="col-md-5"><label class="form-label small">Promotor (opc.)</label><select id="codePromoterSelect" class="form-select form-select-sm"><option value="">-- Cortesía Directa --</option></select></div>
+                  <div class="col-md-3"><label class="form-label small">Cantidad</label><input id="codeQty" type="number" min="1" max="500" class="form-control form-control-sm" value="10" /></div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="generateCodeBatch()"><i class="bi bi-magic me-1"></i>Generar Códigos</button>
+                <div id="codeBatchMsg"></div>
+              </div>
             </div>
           </div>
 
-          <div class="col-lg-6">
-            <div class="ep-card p-3 h-100">
-              <h5 class="h6 fw-bold mb-3">Iniciar Sesión (Admin / Supervisor)</h5>
-              <div class="mb-2"><label class="form-label small">Slug Tenant</label><input id="loginSlug" class="form-control form-control-sm" placeholder="andina-live" /></div>
-              <div class="mb-2"><label class="form-label small">Correo</label><input id="loginEmail" type="email" class="form-control form-control-sm" placeholder="admin@andinalive.pe" /></div>
-              <div class="row g-2">
-                <div class="col-8"><label class="form-label small">Contraseña</label><input id="loginPass" type="password" class="form-control form-control-sm" /></div>
-                <div class="col-4"><label class="form-label small">MFA (opc.)</label><input id="loginMfa" class="form-control form-control-sm" placeholder="123456" /></div>
-              </div>
-              <button class="btn btn-success btn-sm mt-3" onclick="loginUser()">Entrar al Dashboard</button>
-              <div id="loginMsg" class="mt-2"></div>
+          <div class="ep-card p-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <h6 class="fw-semibold mb-0">Códigos Generados</h6>
+              <select id="codeStatusFilter" class="form-select form-select-sm" style="max-width:170px;" onchange="renderFilteredCodes()">
+                <option value="ALL">Todos</option>
+                <option value="AVAILABLE">Disponibles</option>
+                <option value="REDEEMED">Canjeados</option>
+              </select>
+            </div>
+            <div class="table-responsive" style="max-height:320px;">
+              <table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Estado</th><th>Canjeado</th><th>Acción</th></tr></thead><tbody id="codesTable"><tr><td colspan="4" class="text-secondary">Sin códigos</td></tr></tbody></table>
             </div>
           </div>
-        </div>
-      </section>
-    </main>
+        </section>
+
+        <!-- TAB 4: GUEST LIST -->
+        <section id="tab-guestlist" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-person-check text-success me-2"></i>Guest List & Aprobación en 1 Clic</h2>
+              <small class="text-secondary">Al aprobar una solicitud se emite su QR criptográfico Ed25519.</small>
+            </div>
+            <button class="btn btn-outline-light btn-sm" onclick="loadGuestList()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+          </div>
+          <div id="guestMsg" class="mb-2"></div>
+          <div class="ep-card p-3">
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Invitado</th><th>DNI (últ. 4)</th><th>Nota</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="guestListTable"><tr><td colspan="5" class="text-secondary">Sin solicitudes</td></tr></tbody></table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 5: ENVIOS MASIVOS -->
+        <section id="tab-bulk" class="ep-tab d-none">
+          <h2 class="h4 fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet text-info me-2"></i>Envíos Masivos (Excel / CSV)</h2>
+          <div class="row g-3 mb-3">
+            <div class="col-lg-5">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-2">1. Plantilla Oficial</h5>
+                <p class="small text-secondary">Columnas: <code>dni</code>, <code>full_name</code>, <code>email</code>, <code>item_code</code>.</p>
+                <button class="btn btn-outline-info btn-sm" onclick="downloadBulkTemplate()"><i class="bi bi-download me-1"></i>Descargar .xlsx</button>
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-2">2. Subir Archivo en Segundo Plano</h5>
+                <div class="input-group input-group-sm">
+                  <input id="bulkFileInput" type="file" accept=".xlsx,.csv" class="form-control" />
+                  <button class="btn btn-primary" onclick="uploadBulkFile()"><i class="bi bi-cloud-upload me-1"></i>Procesar</button>
+                </div>
+                <div id="bulkMsg"></div>
+              </div>
+            </div>
+          </div>
+          <div class="ep-card p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="fw-semibold mb-0">Reportes de Procesamiento</h6>
+              <button class="btn btn-outline-light btn-sm" onclick="loadBulkJobs()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Archivo</th><th>Estado</th><th>Progreso</th><th>Éxitos</th><th>Errores</th><th>Detalle</th></tr></thead><tbody id="bulkJobsTable"><tr><td colspan="6" class="text-secondary">Sin cargas masivas</td></tr></tbody></table></div>
+          </div>
+        </section>
+
+        <!-- TAB 6: ACREDITACIONES STAFF -->
+        <section id="tab-staff" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-building-check text-primary me-2"></i>Acreditaciones de Staff</h2>
+              <small class="text-secondary">Cupo base: <strong>6</strong> · Supervisor hasta <strong>10</strong> · Admin personalizado (1..500).</small>
+            </div>
+            <button class="btn btn-outline-light btn-sm" onclick="loadCompanies()"><i class="bi bi-arrow-clockwise"></i></button>
+          </div>
+          <div class="row g-3">
+            <div class="col-lg-5">
+              <div class="ep-card p-3">
+                <h5 class="h6 fw-bold mb-3">Crear Link Privado de Empresa</h5>
+                <div class="mb-2"><label class="form-label small">Empresa / Marca</label><input id="accCompName" class="form-control form-control-sm" placeholder="Ej. Sponsor Tech Perú SAC" /></div>
+                <div class="mb-2"><label class="form-label small">Correo Responsable</label><input id="accCompEmail" type="email" class="form-control form-control-sm" placeholder="rrhh@sponsor.pe" /></div>
+                <button class="btn btn-primary btn-sm" onclick="createAccreditedCompany()"><i class="bi bi-link-45deg me-1"></i>Generar Link Privado</button>
+                <div id="compMsg"></div>
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="ep-card p-3">
+                <h5 class="h6 fw-bold mb-3">Empresas Acreditadas</h5>
+                <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Empresa</th><th>Uso / Cupo</th><th>Ajustar Cupo</th></tr></thead><tbody id="companiesTable"><tr><td colspan="3" class="text-secondary">Sin empresas</td></tr></tbody></table></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 7: EQUIPO, AUDITORIA Y RECLAMOS -->
+        <section id="tab-team" class="ep-tab d-none">
+          <h2 class="h4 fw-bold mb-3"><i class="bi bi-shield-lock text-danger me-2"></i>Equipo RBAC, Auditoría y Reclamos</h2>
+          <div class="row g-3 mb-3">
+            <div class="col-lg-5">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Nuevo Usuario de Equipo</h5>
+                <div class="mb-2"><label class="form-label small">Nombre completo</label><input id="newUserName" class="form-control form-control-sm" placeholder="Nombre del operador" /></div>
+                <div class="mb-2"><label class="form-label small">Correo</label><input id="newUserEmail" type="email" class="form-control form-control-sm" placeholder="operador@empresa.pe" /></div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6"><label class="form-label small">Contraseña</label><input id="newUserPass" type="password" class="form-control form-control-sm" placeholder="Mínimo 10 caracteres" /></div>
+                  <div class="col-6"><label class="form-label small">Perfil</label><select id="newUserRole" class="form-select form-select-sm"><option value="SUPERVISOR">SUPERVISOR</option><option value="VALIDATOR">VALIDATOR</option><option value="ADMIN">ADMIN</option></select></div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="createTeamUser()">Crear Usuario</button>
+                <div id="teamMsg"></div>
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3">Usuarios de la Organización</h5>
+                <div class="table-responsive" style="max-height:240px;"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead><tbody id="usersTable"></tbody></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ep-card p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <h5 class="h6 fw-bold mb-0">Auditoría Inmutable (Hash-Chained SHA-256)</h5>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-light btn-sm" onclick="loadAuditLogs()">Recargar</button>
+                <button class="btn btn-outline-success btn-sm" onclick="verifyAuditChain()">Verificar Cadena</button>
+              </div>
+            </div>
+            <div id="auditStatus"></div>
+            <div class="table-responsive" style="max-height:240px;"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>#</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Metadata</th><th>Hash</th></tr></thead><tbody id="auditTable"></tbody></table></div>
+          </div>
+
+          <div class="ep-card p-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="h6 fw-bold mb-0"><i class="bi bi-journal-text text-warning me-1"></i>Libro de Reclamaciones Virtual</h5>
+              <button class="btn btn-outline-light btn-sm" onclick="loadComplaints()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+            <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Tipo</th><th>Ciudadano</th><th>DNI</th><th>Detalle</th><th>Fecha</th></tr></thead><tbody id="complaintsTable"><tr><td colspan="6" class="text-secondary">Sin reclamos</td></tr></tbody></table></div>
+          </div>
+        </section>
+      </main>
+    </div>
   </div>
 
-  <!-- Guest List QR Modal -->
+  <!-- QR Modal -->
   <div class="modal fade" id="qrModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-dark border-secondary">
-        <div class="modal-header border-secondary">
-          <h5 class="modal-title">Credencial QR Emitida</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center">
+      <div class="modal-content bg-dark border-secondary text-center">
+        <div class="modal-header border-secondary-subtle"><h5 class="modal-title">Credencial QR</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
           <img id="qrModalImg" class="bg-white p-2 rounded-3 mb-2" style="width:200px;height:200px;" alt="QR" />
           <p class="small text-secondary mb-1" id="qrModalInfo"></p>
           <textarea id="qrModalToken" class="form-control form-control-sm mono" rows="3" readonly></textarea>
@@ -733,12 +468,7 @@
   <script src="/static/shared.js"></script>
   <script>
     const charts = {};
-
-    function bsMsg(elId, type, text) {
-      const cls = type === "ok" ? "alert-success" : type === "warn" ? "alert-warning" : "alert-danger";
-      const el = document.getElementById(elId);
-      if (el) el.innerHTML = `<div class="alert ${cls} py-2 px-3 small mb-0">${EP.escapeHtml(text)}</div>`;
-    }
+    let cachedCodes = [];
 
     function switchTab(tabName, btn) {
       document.querySelectorAll(".ep-tab").forEach(s => s.classList.add("d-none"));
@@ -750,6 +480,7 @@
         if (match) match.classList.add("active");
       }
       if (tabName === "dashboard") loadDashboardMetrics();
+      if (tabName === "events") loadEventsAndItemsTable();
       if (tabName === "codes") loadCodesModule();
       if (tabName === "guestlist") loadGuestList();
       if (tabName === "bulk") loadBulkJobs();
@@ -765,26 +496,23 @@
       await loadDashboardMetrics();
       const activeBtn = document.querySelector(".ep-nav-btn.active");
       const tab = activeBtn ? activeBtn.dataset.tab : "dashboard";
+      if (tab === "events") loadEventsAndItemsTable();
       if (tab === "codes") loadCodesModule();
       if (tab === "guestlist") loadGuestList();
       if (tab === "bulk") loadBulkJobs();
     }
 
     function refreshSession() {
+      EP.renderNavbar("admin");
       const s = EP.getSession();
-      const badge = document.getElementById("sessionBadge");
-      const btnOut = document.getElementById("btnLogout");
       if (s.token) {
-        badge.className = "badge text-bg-success py-2 px-3";
-        badge.textContent = `${s.slug || "tenant"} · ${s.role}`;
-        btnOut.classList.remove("d-none");
+        document.getElementById("authGateScreen").classList.add("d-none");
+        document.getElementById("appShell").classList.remove("d-none");
         loadEvents().then(() => loadDashboardMetrics());
         loadCompanies();
       } else {
-        badge.className = "badge text-bg-secondary py-2 px-3";
-        badge.textContent = "Sin sesión (Inicia en Acceso)";
-        btnOut.classList.add("d-none");
-        switchTab("auth");
+        document.getElementById("authGateScreen").classList.remove("d-none");
+        document.getElementById("appShell").classList.add("d-none");
       }
     }
 
@@ -807,28 +535,24 @@
           }),
         });
         EP.saveSession(res.tokens.access_token, res.tokens.role, res.tenant_id, res.company_slug);
-        bsMsg("regMsg", "ok", `Empresa '${res.company_name}' creada. Redirigiendo a Eventos...`);
+        EP.toast(`Empresa '${res.company_name}' creada.`);
         refreshSession();
         switchTab("events");
-      } catch (e) { bsMsg("regMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("regMsg", "err", e.message); }
     }
 
     async function loginUser() {
       try {
         const slug = document.getElementById("loginSlug").value.trim();
-        const body = {
-          tenant_slug: slug,
-          email: document.getElementById("loginEmail").value.trim(),
-          password: document.getElementById("loginPass").value,
-        };
+        const body = { tenant_slug: slug, email: document.getElementById("loginEmail").value.trim(), password: document.getElementById("loginPass").value };
         const mfa = document.getElementById("loginMfa").value.trim();
         if (mfa) body.mfa_code = mfa;
         const res = await EP.api("/api/v1/auth/login", { method: "POST", auth: false, body: JSON.stringify(body) });
         EP.saveSession(res.access_token, res.role, res.tenant_id, slug);
-        bsMsg("loginMsg", "ok", `Sesión iniciada (${res.role}).`);
+        EP.toast(`Sesión iniciada (${res.role}).`);
         refreshSession();
         switchTab("dashboard");
-      } catch (e) { bsMsg("loginMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("loginMsg", "err", e.message); }
     }
 
     async function loadEvents() {
@@ -846,6 +570,42 @@
       } catch {}
     }
 
+    async function loadEventsAndItemsTable() {
+      if (!EP.getSession().token) return;
+      try {
+        const events = await EP.api("/api/v1/registration/events");
+        document.getElementById("eventsListTable").innerHTML = events.length
+          ? events.map(e => `
+            <tr>
+              <td><strong>${EP.escapeHtml(e.name)}</strong></td>
+              <td class="small text-secondary">${EP.escapeHtml(e.venue || "-")}</td>
+              <td><span class="badge text-bg-info">${e.max_purchases_per_dni}</span></td>
+              <td><button class="btn btn-outline-light btn-sm py-0" onclick="copyTaquillaLink('${e.id}')">Copiar URL</button></td>
+            </tr>`).join("")
+          : `<tr><td colspan="4" class="text-secondary">Sin eventos</td></tr>`;
+
+        const eid = currentEventId();
+        if (eid) {
+          const items = await EP.api(`/api/v1/registration/events/${eid}/items`, { auth: false });
+          document.getElementById("eventItemsTable").innerHTML = items.length
+            ? items.map(i => `
+              <tr>
+                <td class="mono">${EP.escapeHtml(i.code)}</td>
+                <td>${EP.escapeHtml(i.name)}</td>
+                <td><span class="badge text-bg-secondary">${i.item_type}</span></td>
+                <td>S/ ${(i.price_cents / 100).toFixed(2)}</td>
+                <td>${i.stock_available}</td>
+              </tr>`).join("")
+            : `<tr><td colspan="5" class="text-secondary">Sin ítems en este evento</td></tr>`;
+        }
+      } catch {}
+    }
+
+    function copyTaquillaLink(eventId) {
+      navigator.clipboard.writeText(`${location.origin}/comprar?event=${eventId}`);
+      EP.toast("Enlace público de taquilla copiado.");
+    }
+
     async function createEvent() {
       try {
         const now = new Date();
@@ -854,38 +614,40 @@
           body: JSON.stringify({
             name: document.getElementById("evName").value,
             slug: document.getElementById("evSlug").value,
-            venue: document.getElementById("evVenue").value,
+            venue: document.getElementById("evVenue").value || "Lima, Perú",
             description: document.getElementById("evDesc").value,
             brand_color: document.getElementById("evBrandColor").value,
-            timezone_name: document.getElementById("evTz").value,
+            timezone_name: document.getElementById("evTz").value || "America/Lima",
             starts_at: new Date(now.getTime() + 1800 * 1000).toISOString(),
             ends_at: new Date(now.getTime() + 96 * 3600 * 1000).toISOString(),
             max_purchases_per_dni: Number(document.getElementById("evMaxDni").value),
           }),
         });
-        bsMsg("evMsg", "ok", `Evento '${res.name}' creado en ${res.venue}.`);
+        EP.toast(`Evento '${res.name}' creado.`);
         await loadEvents();
         document.getElementById("globalEventSelect").value = res.id;
+        await loadEventsAndItemsTable();
         await loadDashboardMetrics();
-      } catch (e) { bsMsg("evMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("evMsg", "err", e.message); }
     }
 
     async function updateEventDniLimit() {
       const eventId = currentEventId();
-      if (!eventId) return bsMsg("evMsg", "err", "Selecciona un evento primero.");
+      if (!eventId) return EP.showMsg("evMsg", "err", "Selecciona un evento primero.");
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/dni-limit`, {
           method: "PATCH",
           body: JSON.stringify({ max_purchases_per_dni: Number(document.getElementById("editMaxDni").value) }),
         });
-        bsMsg("evMsg", "ok", `Límite DNI actualizado a ${res.max_purchases_per_dni}.`);
+        EP.toast(`Límite por DNI actualizado a ${res.max_purchases_per_dni}.`);
         await loadEvents();
-      } catch (e) { bsMsg("evMsg", "err", e.message); }
+        await loadEventsAndItemsTable();
+      } catch (e) { EP.showMsg("evMsg", "err", e.message); }
     }
 
     async function createCatalogItem() {
       const eventId = currentEventId();
-      if (!eventId) return bsMsg("itemMsg", "err", "Selecciona o crea un evento primero.");
+      if (!eventId) return EP.showMsg("itemMsg", "err", "Selecciona o crea un evento primero.");
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/items`, {
           method: "POST",
@@ -897,9 +659,10 @@
             stock_total: Number(document.getElementById("itemStock").value),
           }),
         });
-        bsMsg("itemMsg", "ok", `Ítem '${res.code}' publicado (${res.stock_available} disponibles).`);
+        EP.toast(`Ítem '${res.code}' publicado.`);
+        await loadEventsAndItemsTable();
         await loadDashboardMetrics();
-      } catch (e) { bsMsg("itemMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("itemMsg", "err", e.message); }
     }
 
     function upsertChart(id, cfg) {
@@ -916,110 +679,79 @@
           EP.api(`/api/v1/registration/events/${eventId}/metrics`),
           EP.api(`/api/v1/accreditation/events/${eventId}/metrics`).catch(() => null),
         ]);
-        document.getElementById("dashEventSubtitle").textContent = `Evento: ${reg.event_name} · Métricas en vivo`;
-
+        document.getElementById("dashEventSubtitle").textContent = `Evento activo: ${reg.event_name}`;
         document.getElementById("kpiRevenue").textContent = `S/ ${(reg.total_revenue_cents / 100).toFixed(2)}`;
-        document.getElementById("kpiOrdersSummary").textContent = `${reg.orders_paid} pagadas · ${reg.orders_pending} pendientes`;
-
+        document.getElementById("kpiOrdersSummary").textContent = `${reg.orders_paid} pagadas · ${reg.orders_pending} pend.`;
         document.getElementById("kpiSold").textContent = `${reg.tickets_sold} / ${reg.tickets_capacity}`;
         const soldPct = reg.tickets_capacity ? Math.round((reg.tickets_sold / reg.tickets_capacity) * 100) : 0;
         document.getElementById("kpiSoldBar").style.width = `${soldPct}%`;
-
         document.getElementById("kpiCodes").textContent = `${reg.courtesy_codes.redeemed} / ${reg.courtesy_codes.total}`;
         document.getElementById("kpiGuest").textContent = `${reg.guest_list.approved} aprob.`;
-        document.getElementById("kpiGuestSub").textContent = `${reg.guest_list.pending} pendientes · ${reg.guest_list.rejected} rechazados`;
+        document.getElementById("kpiGuestSub").textContent = `${reg.guest_list.pending} pend. · ${reg.guest_list.rejected} rech.`;
 
         if (acc) {
           document.getElementById("kpiDoor").textContent = `${acc.checked_in_entry} / ${acc.total_active_credentials}`;
-          document.getElementById("kpiDoorPct").textContent = `${acc.occupancy_pct}% aforo ingresado en puerta`;
+          document.getElementById("kpiDoorPct").textContent = `${acc.occupancy_pct}% ingresados`;
           document.getElementById("kpiStaff").textContent = `${acc.staff_companies_summary.total_used} / ${acc.staff_companies_summary.total_quota}`;
-          document.getElementById("kpiStaffCompanies").textContent = `${acc.staff_companies_summary.companies_count} empresas acreditadas`;
+          document.getElementById("kpiStaffCompanies").textContent = `${acc.staff_companies_summary.companies_count} empresas`;
           document.getElementById("kpiScans").textContent = String(acc.total_scan_events);
-          document.getElementById("kpiScanMode").textContent = `Online: ${acc.by_mode.ONLINE || 0} · Offline Sync: ${acc.by_mode.OFFLINE_SYNC || 0}`;
+          document.getElementById("kpiScanMode").textContent = `Online: ${acc.by_mode.ONLINE || 0} · Offline: ${acc.by_mode.OFFLINE_SYNC || 0}`;
           document.getElementById("kpiConflicts").textContent = String(acc.offline_conflicts);
         }
 
-        // Tables
         document.getElementById("dashItemsTable").innerHTML = reg.items.length
-          ? reg.items.map(i => `
-            <tr>
-              <td><span class="badge text-bg-secondary">${EP.escapeHtml(i.code)}</span></td>
-              <td class="small">${EP.escapeHtml(i.item_type)}</td>
-              <td>S/ ${(i.price_cents / 100).toFixed(2)}</td>
-              <td>${i.stock_sold}</td>
-              <td>${i.stock_available}</td>
-              <td class="text-success fw-semibold">S/ ${(i.revenue_cents / 100).toFixed(2)}</td>
-            </tr>`).join("")
-          : `<tr><td colspan="6" class="text-secondary">Sin ítems configurados</td></tr>`;
+          ? reg.items.map(i => `<tr><td><span class="badge text-bg-secondary">${EP.escapeHtml(i.code)}</span></td><td class="small">${EP.escapeHtml(i.item_type)}</td><td>S/ ${(i.price_cents / 100).toFixed(2)}</td><td>${i.stock_sold}</td><td>${i.stock_available}</td><td class="text-success fw-semibold">S/ ${(i.revenue_cents / 100).toFixed(2)}</td></tr>`).join("")
+          : `<tr><td colspan="6" class="text-secondary">Sin ítems</td></tr>`;
 
         document.getElementById("dashPromotersTable").innerHTML = reg.promoters.length
-          ? reg.promoters.map(p => `
-            <tr>
-              <td><strong>${EP.escapeHtml(p.name)}</strong></td>
-              <td><span class="badge text-bg-warning">${EP.escapeHtml(p.code_prefix)}</span></td>
-              <td>${p.codes_redeemed} / ${p.codes_total}</td>
-              <td>${p.orders_paid}</td>
-              <td class="text-info fw-semibold">S/ ${(p.revenue_cents / 100).toFixed(2)}</td>
-            </tr>`).join("")
-          : `<tr><td colspan="5" class="text-secondary">Sin promotores RR.PP.</td></tr>`;
+          ? reg.promoters.map(p => `<tr><td><strong>${EP.escapeHtml(p.name)}</strong></td><td><span class="badge text-bg-warning">${EP.escapeHtml(p.code_prefix)}</span></td><td>${p.codes_redeemed} / ${p.codes_total}</td><td>${p.orders_paid}</td><td class="text-info fw-semibold">S/ ${(p.revenue_cents / 100).toFixed(2)}</td></tr>`).join("")
+          : `<tr><td colspan="5" class="text-secondary">Sin promotores</td></tr>`;
 
-        // Chart 1: Sales Timeline
         const tLabels = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.hour) : ["Sin ventas"];
-        const tOrders = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.orders) : [0];
-        const tRev = reg.sales_timeline.length ? reg.sales_timeline.map(x => x.revenue_cents / 100) : [0];
         upsertChart("chartTimeline", {
           type: "line",
           data: {
             labels: tLabels,
             datasets: [
-              { label: "Órdenes Pagadas", data: tOrders, borderColor: "#22d3ee", backgroundColor: "rgba(34,211,238,0.18)", fill: true, tension: 0.3 },
-              { label: "Ingresos (S/)", data: tRev, borderColor: "#8b5cf6", backgroundColor: "rgba(139,92,246,0.12)", fill: false, tension: 0.3 },
+              { label: "Órdenes", data: reg.sales_timeline.length ? reg.sales_timeline.map(x => x.orders) : [0], borderColor: "#06b6d4", backgroundColor: "rgba(6,182,212,0.16)", fill: true, tension: 0.3 },
+              { label: "Ingresos (S/)", data: reg.sales_timeline.length ? reg.sales_timeline.map(x => x.revenue_cents / 100) : [0], borderColor: "#7c3aed", fill: false, tension: 0.3 },
             ],
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
         });
 
-        // Chart 2: Orders by source
         const srcKeys = Object.keys(reg.orders_by_source);
         upsertChart("chartSources", {
           type: "doughnut",
           data: {
             labels: srcKeys.length ? srcKeys : ["Sin órdenes"],
-            datasets: [{
-              data: srcKeys.length ? srcKeys.map(k => reg.orders_by_source[k]) : [1],
-              backgroundColor: ["#8b5cf6", "#22d3ee", "#10b981", "#f59e0b", "#ec4899"],
-            }],
+            datasets: [{ data: srcKeys.length ? srcKeys.map(k => reg.orders_by_source[k]) : [1], backgroundColor: ["#7c3aed", "#06b6d4", "#10b981", "#f59e0b", "#ec4899"] }],
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { color: "#cbd5e1" } } } },
         });
 
-        // Chart 3: Items Breakdown
         upsertChart("chartItems", {
           type: "bar",
           data: {
             labels: reg.items.length ? reg.items.map(i => i.code) : ["Sin ítems"],
             datasets: [
-              { label: "Vendidos", data: reg.items.length ? reg.items.map(i => i.stock_sold) : [0], backgroundColor: "#8b5cf6" },
+              { label: "Vendidos", data: reg.items.length ? reg.items.map(i => i.stock_sold) : [0], backgroundColor: "#7c3aed" },
               { label: "Disponibles", data: reg.items.length ? reg.items.map(i => i.stock_available) : [0], backgroundColor: "rgba(148,163,184,0.3)" },
             ],
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#cbd5e1" } } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
         });
 
-        // Chart 4: Door Occupancy by Holder Type + Gates
-        const doorLabels = ["Participantes Emitidos", "Participantes Ingresados", "Staff Emitidos", "Staff Ingresados"];
-        const doorVals = acc
-          ? [acc.by_holder_type.PARTICIPANT.total, acc.by_holder_type.PARTICIPANT.checked_in, acc.by_holder_type.STAFF.total, acc.by_holder_type.STAFF.checked_in]
-          : [0, 0, 0, 0];
+        const doorVals = acc ? [acc.by_holder_type.PARTICIPANT.total, acc.by_holder_type.PARTICIPANT.checked_in, acc.by_holder_type.STAFF.total, acc.by_holder_type.STAFF.checked_in] : [0, 0, 0, 0];
         upsertChart("chartDoor", {
           type: "bar",
           data: {
-            labels: doorLabels,
-            datasets: [{ label: "Credenciales", data: doorVals, backgroundColor: ["#6366f1", "#22d3ee", "#f59e0b", "#10b981"] }],
+            labels: ["Part. Emitidos", "Part. Ingresados", "Staff Emitidos", "Staff Ingresados"],
+            datasets: [{ label: "Credenciales", data: doorVals, backgroundColor: ["#6366f1", "#06b6d4", "#f59e0b", "#10b981"] }],
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" }, beginAtZero: true } } },
         });
-      } catch (e) { bsMsg("globalAlert", "err", e.message); }
+      } catch (e) { EP.showMsg("globalAlert", "err", e.message); }
     }
 
     async function downloadAuthFile(url, filename) {
@@ -1038,10 +770,23 @@
       const eventId = currentEventId();
       if (!eventId) return;
       try { await downloadAuthFile(`/api/v1/registration/events/${eventId}/metrics/export.xlsx`, `eventpass_metrics_${eventId}.xlsx`); }
-      catch (e) { bsMsg("globalAlert", "err", e.message); }
+      catch (e) { EP.showMsg("globalAlert", "err", e.message); }
     }
 
-    // --- TAB 3: CODES & RRPP ---
+    function renderFilteredCodes() {
+      const f = document.getElementById("codeStatusFilter").value;
+      const list = f === "ALL" ? cachedCodes : cachedCodes.filter(c => c.status === f);
+      document.getElementById("codesTable").innerHTML = list.length
+        ? list.map(c => `
+          <tr>
+            <td class="mono fw-bold">${EP.escapeHtml(c.code)}</td>
+            <td><span class="badge ${c.status === "AVAILABLE" ? "text-bg-success" : "text-bg-secondary"}">${c.status}</span></td>
+            <td class="small">${c.redeemed_at ? new Date(c.redeemed_at).toLocaleString() : "-"}</td>
+            <td><button class="btn btn-outline-light btn-sm py-0" onclick="navigator.clipboard.writeText('${c.code}'); EP.toast('Código copiado')">Copiar</button></td>
+          </tr>`).join("")
+        : `<tr><td colspan="4" class="text-secondary">Sin códigos</td></tr>`;
+    }
+
     async function loadCodesModule() {
       const eventId = currentEventId();
       if (!eventId || !EP.getSession().token) return;
@@ -1051,18 +796,11 @@
           EP.api(`/api/v1/registration/events/${eventId}/promoters`),
           EP.api(`/api/v1/registration/events/${eventId}/codes`),
         ]);
-        document.getElementById("codeItemSelect").innerHTML = items.map(i => `<option value="${i.id}">${EP.escapeHtml(i.code)} (${EP.escapeHtml(i.name)})</option>`).join("");
+        cachedCodes = codes;
+        document.getElementById("codeItemSelect").innerHTML = items.map(i => `<option value="${i.id}">${EP.escapeHtml(i.code)}</option>`).join("");
         document.getElementById("codePromoterSelect").innerHTML = `<option value="">-- Cortesía Directa --</option>` + promoters.map(p => `<option value="${p.id}">${EP.escapeHtml(p.name)} (${EP.escapeHtml(p.code_prefix)})</option>`).join("");
-        document.getElementById("codesTable").innerHTML = codes.length
-          ? codes.map(c => `
-            <tr>
-              <td class="mono fw-bold">${EP.escapeHtml(c.code)}</td>
-              <td><span class="badge ${c.status === "AVAILABLE" ? "text-bg-success" : "text-bg-secondary"}">${c.status}</span></td>
-              <td class="small">${c.redeemed_at ? new Date(c.redeemed_at).toLocaleString() : "-"}</td>
-              <td><button class="btn btn-outline-light btn-sm py-0" onclick="navigator.clipboard.writeText('${c.code}')">Copiar</button></td>
-            </tr>`).join("")
-          : `<tr><td colspan="4" class="text-secondary">Sin códigos generados</td></tr>`;
-      } catch (e) { bsMsg("codeBatchMsg", "err", e.message); }
+        renderFilteredCodes();
+      } catch (e) { EP.showMsg("codeBatchMsg", "err", e.message); }
     }
 
     async function createPromoter() {
@@ -1077,9 +815,9 @@
             email: document.getElementById("promEmail").value,
           }),
         });
-        bsMsg("promMsg", "ok", `Promotor '${res.name}' (${res.code_prefix}) registrado.`);
+        EP.toast(`Promotor '${res.name}' registrado.`);
         loadCodesModule();
-      } catch (e) { bsMsg("promMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("promMsg", "err", e.message); }
     }
 
     async function generateCodeBatch() {
@@ -1089,18 +827,13 @@
         const promId = document.getElementById("codePromoterSelect").value || null;
         const rows = await EP.api(`/api/v1/registration/events/${eventId}/codes/batch`, {
           method: "POST",
-          body: JSON.stringify({
-            catalog_item_id: document.getElementById("codeItemSelect").value,
-            promoter_id: promId,
-            quantity: Number(document.getElementById("codeQty").value),
-          }),
+          body: JSON.stringify({ catalog_item_id: document.getElementById("codeItemSelect").value, promoter_id: promId, quantity: Number(document.getElementById("codeQty").value) }),
         });
-        bsMsg("codeBatchMsg", "ok", `${rows.length} códigos únicos generados correctamente.`);
+        EP.toast(`${rows.length} códigos generados.`);
         loadCodesModule();
-      } catch (e) { bsMsg("codeBatchMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("codeBatchMsg", "err", e.message); }
     }
 
-    // --- TAB 4: GUEST LIST ---
     async function loadGuestList() {
       const eventId = currentEventId();
       if (!eventId || !EP.getSession().token) return;
@@ -1110,34 +843,21 @@
           ? rows.map(g => {
             const cls = g.status === "APPROVED" ? "text-bg-success" : g.status === "REJECTED" ? "text-bg-danger" : "text-bg-warning";
             const actions = g.status === "PENDING"
-              ? `<button class="btn btn-success btn-sm py-0 me-1" onclick="decideGuest('${g.id}','APPROVE')">Aprobar QR</button>
-                 <button class="btn btn-outline-danger btn-sm py-0" onclick="decideGuest('${g.id}','REJECT')">Rechazar</button>`
-              : g.qr_token
-                ? `<button class="btn btn-outline-info btn-sm py-0" onclick='showQrModal(${JSON.stringify(g.display_name)}, ${JSON.stringify(g.qr_token)})'>Ver QR</button>`
-                : "-";
-            return `
-              <tr>
-                <td><strong>${EP.escapeHtml(g.display_name)}</strong></td>
-                <td class="mono">****${EP.escapeHtml(g.dni_last4)}</td>
-                <td class="small text-secondary">${EP.escapeHtml(g.note || "-")}</td>
-                <td><span class="badge ${cls}">${g.status}</span></td>
-                <td>${actions}</td>
-              </tr>`;
+              ? `<button class="btn btn-success btn-sm py-0 me-1" onclick="decideGuest('${g.id}','APPROVE')">Aprobar</button><button class="btn btn-outline-danger btn-sm py-0" onclick="decideGuest('${g.id}','REJECT')">Rechazar</button>`
+              : g.qr_token ? `<button class="btn btn-outline-info btn-sm py-0" onclick='showQrModal(${JSON.stringify(g.display_name)}, ${JSON.stringify(g.qr_token)})'>Ver QR</button>` : "-";
+            return `<tr><td><strong>${EP.escapeHtml(g.display_name)}</strong></td><td class="mono">****${EP.escapeHtml(g.dni_last4)}</td><td class="small text-secondary">${EP.escapeHtml(g.note || "-")}</td><td><span class="badge ${cls}">${g.status}</span></td><td>${actions}</td></tr>`;
           }).join("")
-          : `<tr><td colspan="5" class="text-secondary">Sin solicitudes en Guest List</td></tr>`;
-      } catch (e) { bsMsg("guestMsg", "err", e.message); }
+          : `<tr><td colspan="5" class="text-secondary">Sin solicitudes</td></tr>`;
+      } catch (e) { EP.showMsg("guestMsg", "err", e.message); }
     }
 
     async function decideGuest(entryId, decision) {
       try {
-        const res = await EP.api(`/api/v1/registration/guest-list/${entryId}/decision`, {
-          method: "POST",
-          body: JSON.stringify({ decision }),
-        });
-        bsMsg("guestMsg", "ok", `Invitado ${res.display_name}: ${res.status}.`);
+        const res = await EP.api(`/api/v1/registration/guest-list/${entryId}/decision`, { method: "POST", body: JSON.stringify({ decision }) });
+        EP.toast(`Guest List: ${res.display_name} -> ${res.status}`);
         await loadGuestList();
         if (res.qr_token) await showQrModal(res.display_name, res.qr_token);
-      } catch (e) { bsMsg("guestMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("guestMsg", "err", e.message); }
     }
 
     async function showQrModal(name, token) {
@@ -1147,30 +867,28 @@
       new bootstrap.Modal(document.getElementById("qrModal")).show();
     }
 
-    // --- TAB 5: BULK IMPORT ---
     async function downloadBulkTemplate() {
       try { await downloadAuthFile("/api/v1/registration/bulk-template.xlsx", "eventpass_plantilla_masiva.xlsx"); }
-      catch (e) { bsMsg("bulkMsg", "err", e.message); }
+      catch (e) { EP.showMsg("bulkMsg", "err", e.message); }
     }
 
     async function uploadBulkFile() {
       const eventId = currentEventId();
       const input = document.getElementById("bulkFileInput");
-      if (!eventId || !input.files.length) return bsMsg("bulkMsg", "err", "Selecciona un evento y un archivo .xlsx/.csv.");
+      if (!eventId || !input.files.length) return EP.showMsg("bulkMsg", "err", "Selecciona un evento y archivo.");
       const form = new FormData();
       form.append("file", input.files[0]);
       try {
-        const s = EP.getSession();
         const res = await fetch(`/api/v1/registration/events/${eventId}/bulk-import`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${s.token}` },
+          headers: { Authorization: `Bearer ${EP.getSession().token}` },
           body: form,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
-        bsMsg("bulkMsg", "ok", `Job ${data.job_id} encolado (${data.total_rows} filas). Procesando en background...`);
-        setTimeout(loadBulkJobs, 1200);
-      } catch (e) { bsMsg("bulkMsg", "err", e.message); }
+        EP.toast(`Carga masiva encolada (${data.total_rows} filas).`);
+        setTimeout(loadBulkJobs, 1000);
+      } catch (e) { EP.showMsg("bulkMsg", "err", e.message); }
     }
 
     async function loadBulkJobs() {
@@ -1179,43 +897,23 @@
       try {
         const rows = await EP.api(`/api/v1/registration/events/${eventId}/bulk-jobs`);
         document.getElementById("bulkJobsTable").innerHTML = rows.length
-          ? rows.map(j => `
-            <tr>
-              <td>${EP.escapeHtml(j.filename)}</td>
-              <td><span class="badge ${j.status === "COMPLETED" ? "text-bg-success" : "text-bg-warning"}">${j.status}</span></td>
-              <td>${j.processed_rows} / ${j.total_rows}</td>
-              <td class="text-success fw-bold">${j.succeeded_rows}</td>
-              <td class="text-danger">${j.failed_rows}</td>
-              <td class="mono small">${EP.escapeHtml(JSON.stringify(j.report || {}))}</td>
-            </tr>`).join("")
+          ? rows.map(j => `<tr><td>${EP.escapeHtml(j.filename)}</td><td><span class="badge ${j.status === "COMPLETED" ? "text-bg-success" : "text-bg-warning"}">${j.status}</span></td><td>${j.processed_rows}/${j.total_rows}</td><td class="text-success fw-bold">${j.succeeded_rows}</td><td class="text-danger">${j.failed_rows}</td><td class="mono small">${EP.escapeHtml(JSON.stringify(j.report || {}))}</td></tr>`).join("")
           : `<tr><td colspan="6" class="text-secondary">Sin envíos masivos</td></tr>`;
       } catch {}
     }
 
-    // --- TAB 6: STAFF ACCREDITATION (INTACT & ORDERED) ---
     async function createAccreditedCompany() {
       const eventId = currentEventId();
-      if (!eventId) return bsMsg("compMsg", "err", "Crea o selecciona un evento primero.");
+      if (!eventId) return EP.showMsg("compMsg", "err", "Selecciona un evento primero.");
       try {
         const res = await EP.api("/api/v1/accreditation/companies", {
           method: "POST",
-          body: JSON.stringify({
-            event_id: eventId,
-            company_name: document.getElementById("accCompName").value,
-            contact_email: document.getElementById("accCompEmail").value,
-          }),
+          body: JSON.stringify({ event_id: eventId, company_name: document.getElementById("accCompName").value, contact_email: document.getElementById("accCompEmail").value }),
         });
         const inviteLink = `${location.origin}/acreditacion?token=${encodeURIComponent(res.invite_token)}`;
-        document.getElementById("compMsg").innerHTML = `
-          <div class="alert alert-success small">
-            <strong>Empresa creada</strong> (Cupo inicial default: ${res.staff_quota}).<br/>
-            <div class="mt-2 d-flex gap-2 align-items-center flex-wrap">
-              <a href="${inviteLink}" target="_blank" class="text-break">${EP.escapeHtml(inviteLink)}</a>
-              <button class="btn btn-light btn-sm py-0" onclick="navigator.clipboard.writeText('${inviteLink}')">Copiar Link</button>
-            </div>
-          </div>`;
+        document.getElementById("compMsg").innerHTML = `<div class="alert alert-success small mt-2">Link privado creado (cupo ${res.staff_quota}):<div class="mt-1 d-flex gap-2 align-items-center flex-wrap"><a href="${inviteLink}" target="_blank" class="text-break">${EP.escapeHtml(inviteLink)}</a><button class="btn btn-light btn-sm py-0" onclick="navigator.clipboard.writeText('${inviteLink}'); EP.toast('Link copiado')">Copiar</button></div></div>`;
         loadCompanies();
-      } catch (e) { bsMsg("compMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
     }
 
     async function loadCompanies() {
@@ -1223,56 +921,32 @@
       try {
         const rows = await EP.api("/api/v1/accreditation/companies");
         document.getElementById("companiesTable").innerHTML = rows.length
-          ? rows.map(c => `
-            <tr>
-              <td><strong>${EP.escapeHtml(c.company_name)}</strong></td>
-              <td><span class="badge text-bg-primary">${c.staff_used} / ${c.staff_quota}</span></td>
-              <td>
-                <div class="input-group input-group-sm" style="max-width:190px;">
-                  <input id="q-${c.company_id}" type="number" min="1" max="500" class="form-control" value="${Math.min(10, c.staff_quota + 2)}" />
-                  <button class="btn btn-outline-info" onclick="updateQuota('${c.company_id}')">Guardar</button>
-                </div>
-              </td>
-            </tr>`).join("")
-          : `<tr><td colspan="3" class="text-secondary">Sin empresas acreditadas</td></tr>`;
+          ? rows.map(c => `<tr><td><strong>${EP.escapeHtml(c.company_name)}</strong></td><td><span class="badge text-bg-primary">${c.staff_used} / ${c.staff_quota}</span></td><td><div class="input-group input-group-sm" style="max-width:170px;"><input id="q-${c.company_id}" type="number" min="1" max="500" class="form-control" value="${Math.min(10, c.staff_quota + 2)}" /><button class="btn btn-outline-info" onclick="updateQuota('${c.company_id}')">Guardar</button></div></td></tr>`).join("")
+          : `<tr><td colspan="3" class="text-secondary">Sin empresas</td></tr>`;
       } catch {}
     }
 
     async function updateQuota(companyId) {
       try {
-        const res = await EP.api(`/api/v1/accreditation/companies/${companyId}/quota`, {
-          method: "PATCH",
-          body: JSON.stringify({ staff_quota: Number(document.getElementById(`q-${companyId}`).value) }),
-        });
-        bsMsg("compMsg", "ok", `Cupo actualizado a ${res.staff_quota} para ${res.company_name}.`);
+        const res = await EP.api(`/api/v1/accreditation/companies/${companyId}/quota`, { method: "PATCH", body: JSON.stringify({ staff_quota: Number(document.getElementById(`q-${companyId}`).value) }) });
+        EP.toast(`Cupo actualizado a ${res.staff_quota} para ${res.company_name}.`);
         loadCompanies();
-      } catch (e) { bsMsg("compMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
     }
 
-    // --- TAB 7: TEAM, AUDIT & COMPLAINTS ---
     async function createTeamUser() {
       try {
-        const res = await EP.api("/api/v1/auth/users", {
-          method: "POST",
-          body: JSON.stringify({
-            full_name: document.getElementById("newUserName").value,
-            email: document.getElementById("newUserEmail").value,
-            password: document.getElementById("newUserPass").value,
-            role: document.getElementById("newUserRole").value,
-          }),
-        });
-        bsMsg("teamMsg", "ok", `Usuario creado: ${res.email} (${res.role}).`);
+        const res = await EP.api("/api/v1/auth/users", { method: "POST", body: JSON.stringify({ full_name: document.getElementById("newUserName").value, email: document.getElementById("newUserEmail").value, password: document.getElementById("newUserPass").value, role: document.getElementById("newUserRole").value }) });
+        EP.toast(`Usuario ${res.email} creado.`);
         loadTeamUsers();
-      } catch (e) { bsMsg("teamMsg", "err", e.message); }
+      } catch (e) { EP.showMsg("teamMsg", "err", e.message); }
     }
 
     async function loadTeamUsers() {
       if (!EP.getSession().token) return;
       try {
         const rows = await EP.api("/api/v1/auth/users");
-        document.getElementById("usersTable").innerHTML = rows.map(u => `
-          <tr><td>${EP.escapeHtml(u.full_name)}</td><td>${EP.escapeHtml(u.email)}</td><td><span class="badge text-bg-info">${u.role}</span></td></tr>
-        `).join("");
+        document.getElementById("usersTable").innerHTML = rows.map(u => `<tr><td>${EP.escapeHtml(u.full_name)}</td><td>${EP.escapeHtml(u.email)}</td><td><span class="badge text-bg-info">${u.role}</span></td></tr>`).join("");
       } catch {}
     }
 
@@ -1280,23 +954,15 @@
       if (!EP.getSession().token) return;
       try {
         const rows = await EP.api("/api/v1/audit/events?limit=25");
-        document.getElementById("auditTable").innerHTML = rows.map(r => `
-          <tr>
-            <td>${r.seq}</td>
-            <td>${EP.escapeHtml(r.service)}</td>
-            <td><strong>${EP.escapeHtml(r.action)}</strong></td>
-            <td><span class="badge text-bg-secondary">${EP.escapeHtml(r.actor_role)}</span></td>
-            <td class="mono">${EP.escapeHtml(JSON.stringify(r.metadata).slice(0, 60))}</td>
-            <td class="mono">${r.entry_hash.slice(0, 12)}...</td>
-          </tr>`).join("");
+        document.getElementById("auditTable").innerHTML = rows.map(r => `<tr><td>${r.seq}</td><td>${EP.escapeHtml(r.service)}</td><td><strong>${EP.escapeHtml(r.action)}</strong></td><td><span class="badge text-bg-secondary">${EP.escapeHtml(r.actor_role)}</span></td><td class="mono">${EP.escapeHtml(JSON.stringify(r.metadata).slice(0, 60))}</td><td class="mono">${r.entry_hash.slice(0, 12)}...</td></tr>`).join("");
       } catch {}
     }
 
     async function verifyAuditChain() {
       try {
         const res = await EP.api("/api/v1/audit/verify-chain");
-        bsMsg("auditStatus", res.intact ? "ok" : "err", res.intact ? `Cadena íntegra (${res.total_entries} registros verificados).` : `Fallo de integridad.`);
-      } catch (e) { bsMsg("auditStatus", "err", e.message); }
+        EP.showMsg("auditStatus", res.intact ? "ok" : "err", res.intact ? `Cadena íntegra (${res.total_entries} registros verificados).` : `Fallo de integridad.`);
+      } catch (e) { EP.showMsg("auditStatus", "err", e.message); }
     }
 
     async function loadComplaints() {
@@ -1304,16 +970,8 @@
       try {
         const rows = await EP.api("/api/v1/registration/complaints");
         document.getElementById("complaintsTable").innerHTML = rows.length
-          ? rows.map(c => `
-            <tr>
-              <td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td>
-              <td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td>
-              <td>${EP.escapeHtml(c.full_name)}</td>
-              <td class="mono">****${EP.escapeHtml(c.dni_last4)}</td>
-              <td class="small">${EP.escapeHtml(c.detail)}</td>
-              <td class="small">${new Date(c.created_at).toLocaleString()}</td>
-            </tr>`).join("")
-          : `<tr><td colspan="6" class="text-secondary">Sin reclamos registrados</td></tr>`;
+          ? rows.map(c => `<tr><td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td><td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td><td>${EP.escapeHtml(c.full_name)}</td><td class="mono">****${EP.escapeHtml(c.dni_last4)}</td><td class="small">${EP.escapeHtml(c.detail)}</td><td class="small">${new Date(c.created_at).toLocaleString()}</td></tr>`).join("")
+          : `<tr><td colspan="6" class="text-secondary">Sin reclamos</td></tr>`;
       } catch {}
     }
 

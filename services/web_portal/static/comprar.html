@@ -1,274 +1,282 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Taquilla, Códigos y Guest List — EventPass</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/shared.css" />
-  <style>
-    .mode-pills { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }
-    .mode-pill { padding:10px 16px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text); cursor:pointer; font-weight:700; font-size:0.88rem; }
-    .mode-pill.active { background:linear-gradient(135deg, var(--purple), #6366f1); border-color:transparent; color:#fff; }
-  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-logo">⚡</div>
-      <span>EVENTPASS</span>
+  <div id="epNavbarHost"></div>
+
+  <main class="container py-4">
+    <!-- Top Event & Mode Bar -->
+    <div class="ep-card p-3 mb-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label small text-secondary mb-1">Evento seleccionado</label>
+          <select id="buyerEventSelect" class="form-select" onchange="loadCatalog()"></select>
+        </div>
+        <div class="col-md-6 d-flex flex-wrap justify-content-md-end gap-2">
+          <ul class="nav nav-pills gap-1" id="modeTabs">
+            <li class="nav-item">
+              <button class="nav-link active btn-sm" id="pill-buy" onclick="switchMode('buy', this)">
+                <i class="bi bi-ticket-perforated me-1"></i>Comprar
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link btn-sm" id="pill-code" onclick="switchMode('code', this)">
+                <i class="bi bi-tag me-1"></i>Canjear Código
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link btn-sm" id="pill-guest" onclick="switchMode('guest', this)">
+                <i class="bi bi-person-plus me-1"></i>Guest List
+              </button>
+            </li>
+          </ul>
+          <button class="btn btn-outline-light btn-sm" onclick="loadEvents()" title="Actualizar eventos">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
     </div>
-    <nav class="nav-links">
-      <a class="nav-link" href="/">Descubrir</a>
-      <a class="nav-link active" href="/comprar">Taquilla / Cortesías</a>
-      <a class="nav-link" href="/validar">Validación</a>
-      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
-      <a class="nav-link" href="/reclamos">Reclamos</a>
-    </nav>
-    <a class="nav-cta" href="/admin">Dashboard Organizador</a>
-  </header>
 
-  <main class="container">
-    <!-- Barra de selección rápida de evento + modo -->
-    <div class="card" style="padding:14px 18px; margin-bottom:20px;">
-      <div class="row" style="align-items:center;">
-        <div style="flex:2;">
-          <label style="margin-top:0;">Evento seleccionado</label>
-          <select id="buyerEventSelect" onchange="loadCatalog()"></select>
-        </div>
-        <div style="flex:0 0 auto;">
-          <button class="btn sec sm" onclick="loadEvents()">↻ Actualizar Eventos</button>
-        </div>
-      </div>
-      <div class="mode-pills" style="margin-top:14px; margin-bottom:0;">
-        <button class="mode-pill active" id="pill-buy" onclick="switchMode('buy', this)">🎟️ Comprar Entradas</button>
-        <button class="mode-pill" id="pill-code" onclick="switchMode('code', this)">🏷️ Canjear Código / Cortesía</button>
-        <button class="mode-pill" id="pill-guest" onclick="switchMode('guest', this)">✨ Solicitar Guest List</button>
-      </div>
-    </div>
+    <div class="row g-4">
+      <!-- Left Event Info Column -->
+      <div class="col-lg-3">
+        <div class="ep-card p-3 h-100" id="heroCard">
+          <span class="badge text-bg-success mb-2">EVENTO ACTIVO</span>
+          <h2 class="h5 fw-bold text-white mb-3" id="heroEventTitle">Selecciona un evento</h2>
 
-    <div class="checkout-grid">
-      <!-- COLUMNA IZQUIERDA: INFO DEL EVENTO -->
-      <div class="card" id="heroCard">
-        <div class="event-banner" id="heroBanner">
-          <span class="badge ok" style="align-self:flex-start; margin-bottom:auto;">VENTA ACTIVA</span>
-          <h2 id="heroEventTitle">Selecciona un evento</h2>
-        </div>
-
-        <div class="meta-tile">
-          <div class="meta-icon">📍</div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--muted);">Lugar / Venue</div>
-            <div id="heroEventVenue" style="font-weight:700; font-size:0.88rem;">Lima, Perú</div>
+          <div class="d-flex align-items-start gap-2 mb-3 small">
+            <i class="bi bi-geo-alt text-info mt-1"></i>
+            <div>
+              <div class="text-secondary">Sede / Lugar</div>
+              <div class="fw-semibold" id="heroEventVenue">—</div>
+            </div>
           </div>
-        </div>
 
-        <div class="meta-tile">
-          <div class="meta-icon">📅</div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--muted);">Fecha y Hora (America/Lima)</div>
-            <div id="heroEventDate" style="font-weight:700; font-size:0.88rem;">—</div>
+          <div class="d-flex align-items-start gap-2 mb-3 small">
+            <i class="bi bi-calendar3 text-primary mt-1"></i>
+            <div>
+              <div class="text-secondary">Fecha (America/Lima)</div>
+              <div class="fw-semibold" id="heroEventDate">—</div>
+            </div>
           </div>
-        </div>
 
-        <div class="meta-tile">
-          <div class="meta-icon">🛡️</div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--muted);">Regla de seguridad</div>
-            <div id="heroEventLimit" style="font-weight:700; font-size:0.88rem;">Registro vinculado al DNI</div>
+          <div class="d-flex align-items-start gap-2 mb-3 small">
+            <i class="bi bi-shield-lock text-warning mt-1"></i>
+            <div>
+              <div class="text-secondary">Control por DNI</div>
+              <div class="fw-semibold" id="heroEventLimit">Enlazado al documento</div>
+            </div>
           </div>
-        </div>
 
-        <div class="meta-tile">
-          <div class="meta-icon">🎟️</div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--muted);">Entrega digital</div>
-            <div style="font-weight:700; font-size:0.88rem;">QR Cifrado Ed25519</div>
+          <div class="d-flex align-items-start gap-2 small">
+            <i class="bi bi-qr-code text-success mt-1"></i>
+            <div>
+              <div class="text-secondary">Credencial Digital</div>
+              <div class="fw-semibold">Firma Ed25519 verificable</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- COLUMNA CENTRAL + DERECHA -->
-      <div id="mode-buy" style="display:contents;">
-        <div>
-          <div class="card" style="margin-bottom:20px;">
-            <div class="section-title">
-              <span>Selecciona tus entradas e interacciones</span>
-              <span class="badge purple">Paso 1</span>
-            </div>
-            <div id="catalogContainer" class="tier-grid">
-              <div class="muted">Cargando catálogo...</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="section-title">
-              <span>Formulario de asistente</span>
-              <span class="badge cyan">Paso 2 · Obligatorio</span>
-            </div>
-            <p class="muted" style="margin-top:0;">Tu DNI se cifra con AES-256-GCM y controla el límite máximo configurado por el organizador.</p>
-
-            <label>DNI / Documento de Identidad</label>
-            <input id="buyerDni" placeholder="Ej. 72345678" value="72345678" />
-
-            <div class="row">
-              <div>
-                <label>Nombre completo</label>
-                <input id="buyerName" placeholder="Tu nombre completo" value="Lucía Mendoza" />
+      <!-- Mode 1: Buy Tickets -->
+      <div class="col-lg-9" id="mode-buy">
+        <div class="row g-4">
+          <div class="col-lg-7">
+            <div class="ep-card p-3 mb-4">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="h6 fw-bold mb-0">1. Selecciona Entradas e Interacciones</h3>
+                <span class="badge text-bg-primary">Catálogo</span>
               </div>
-              <div>
-                <label>Correo electrónico</label>
-                <input id="buyerEmail" placeholder="correo@ejemplo.com" value="lucia@example.com" />
+              <div id="catalogContainer" class="d-grid gap-2">
+                <div class="text-secondary small">Cargando entradas...</div>
               </div>
             </div>
+
+            <div class="ep-card p-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3 class="h6 fw-bold mb-0">2. Datos del Asistente</h3>
+                <span class="badge text-bg-info">DNI Cifrado AES-256</span>
+              </div>
+              <p class="small text-secondary mb-3">El documento valida el límite máximo permitido por persona para este evento.</p>
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label small">DNI / CE</label>
+                  <input id="buyerDni" class="form-control" placeholder="8 dígitos" />
+                </div>
+                <div class="col-md-8">
+                  <label class="form-label small">Nombre completo</label>
+                  <input id="buyerName" class="form-control" placeholder="Nombres y apellidos" />
+                </div>
+                <div class="col-12">
+                  <label class="form-label small">Correo electrónico</label>
+                  <input id="buyerEmail" type="email" class="form-control" placeholder="correo@dominio.pe" />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <div class="card card-glow" style="margin-bottom:18px;">
-            <div class="section-title">
-              <span>Resumen de Compra</span>
-              <span class="timer-box" id="reserveTimer">10:00</span>
-            </div>
-            <div id="summaryItems" class="muted" style="padding:8px 0; border-bottom:1px solid var(--border);">
-              Aún no seleccionas entradas.
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
-              <span class="muted">Total a pagar</span>
-              <span id="summaryTotal" style="font-size:1.55rem; font-weight:800;">S/ 0.00</span>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="section-title">
-              <span>Métodos de pago</span>
-              <span class="badge ok">HMAC Seguro</span>
-            </div>
-            <div class="pay-methods">
-              <div class="pay-pill active" data-pm="MERCADOPAGO" onclick="selectPayMethod(this)">💳 Tarjeta / MercadoPago</div>
-              <div class="pay-pill" data-pm="YAPE_PLIN" onclick="selectPayMethod(this)">📱 Yape / Plin</div>
-              <div class="pay-pill" data-pm="PAYPAL" onclick="selectPayMethod(this)">🅿️ PayPal / Stripe</div>
-              <div class="pay-pill" data-pm="DEMO" onclick="selectPayMethod(this)">⚡ Pasarela Demo</div>
+          <div class="col-lg-5">
+            <div class="ep-card ep-card-accent p-3 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3 class="h6 fw-bold mb-0">Resumen de Compra</h3>
+                <span class="badge text-bg-dark border border-secondary mono" id="reserveTimer">10:00</span>
+              </div>
+              <div id="summaryItems" class="small text-secondary py-2 border-top border-bottom border-secondary-subtle my-2">
+                Selecciona al menos 1 entrada.
+              </div>
+              <div class="d-flex justify-content-between align-items-center pt-1">
+                <span class="text-secondary small">Total a pagar</span>
+                <span class="fs-4 fw-bold text-white" id="summaryTotal">S/ 0.00</span>
+              </div>
             </div>
 
-            <button class="btn block" id="confirmBtn" onclick="confirmAndPay()">Confirmar y Pagar</button>
-            <div id="buyerMsg"></div>
+            <div class="ep-card p-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3 class="h6 fw-bold mb-0">Método de Pago</h3>
+                <span class="badge text-bg-success bg-opacity-25 text-success">HMAC-SHA256</span>
+              </div>
+              <div class="row g-2 mb-3">
+                <div class="col-6"><div class="ep-pay-option active" data-pm="MERCADOPAGO" onclick="selectPayMethod(this)"><i class="bi bi-credit-card me-1"></i>Tarjeta / MP</div></div>
+                <div class="col-6"><div class="ep-pay-option" data-pm="YAPE_PLIN" onclick="selectPayMethod(this)"><i class="bi bi-phone me-1"></i>Yape / Plin</div></div>
+                <div class="col-6"><div class="ep-pay-option" data-pm="PAYPAL" onclick="selectPayMethod(this)"><i class="bi bi-wallet2 me-1"></i>PayPal</div></div>
+                <div class="col-6"><div class="ep-pay-option" data-pm="DEMO" onclick="selectPayMethod(this)"><i class="bi bi-lightning me-1"></i>Pasarela Demo</div></div>
+              </div>
+              <button class="btn btn-primary w-100 fw-semibold" id="confirmBtn" onclick="confirmAndPay()">
+                <i class="bi bi-lock-fill me-1"></i>Confirmar y Generar QR
+              </button>
+              <div id="buyerMsg"></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- MODO 2: CANJEAR CODIGO / CORTESIA -->
-      <div id="mode-code" style="display:none; grid-column: span 2;">
-        <div class="card">
-          <div class="section-title">
-            <span>Canjear Código Promocional o Cortesía Nominativa</span>
-            <span class="badge warn">Enlazado a DNI</span>
+      <!-- Mode 2: Redeem Code -->
+      <div class="col-lg-9 d-none" id="mode-code">
+        <div class="ep-card p-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="h5 fw-bold mb-0">Canjear Código Promocional o Cortesía RR.PP.</h3>
+            <span class="badge text-bg-warning">Nominativo por DNI</span>
           </div>
-          <p class="muted">Ingresa el código único entregado por tu promotor RR.PP. o el organizador para emitir tu pase QR inmediatamente.</p>
-          <div class="row">
-            <div>
-              <label>Código de Cortesía / RR.PP.</label>
-              <input id="redeemCode" placeholder="Ej. VIBE-A1B2C3D4" />
+          <p class="small text-secondary mb-3">Ingresa el código único asignado por el organizador o promotor para emitir tu pase digital QR.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small">Código de Cortesía / RR.PP.</label>
+              <input id="redeemCode" class="form-control mono" placeholder="Ej. VIBE-A1B2C3D4" />
             </div>
-            <div>
-              <label>DNI / Documento de Identidad</label>
-              <input id="redeemDni" placeholder="72345678" />
+            <div class="col-md-6">
+              <label class="form-label small">DNI / CE</label>
+              <input id="redeemDni" class="form-control" placeholder="Documento del asistente" />
             </div>
-          </div>
-          <div class="row">
-            <div>
-              <label>Nombre completo</label>
-              <input id="redeemName" placeholder="Nombre del asistente" />
+            <div class="col-md-6">
+              <label class="form-label small">Nombre completo</label>
+              <input id="redeemName" class="form-control" placeholder="Nombres y apellidos" />
             </div>
-            <div>
-              <label>Correo electrónico</label>
-              <input id="redeemEmail" placeholder="asistente@ejemplo.pe" />
+            <div class="col-md-6">
+              <label class="form-label small">Correo electrónico</label>
+              <input id="redeemEmail" type="email" class="form-control" placeholder="correo@dominio.pe" />
             </div>
           </div>
-          <button class="btn" onclick="redeemCourtesyCode()">🏷️ Canjear Código y Generar QR</button>
+          <button class="btn btn-warning fw-semibold mt-3" onclick="redeemCourtesyCode()">
+            <i class="bi bi-qr-code me-1"></i>Canjear y Emitir QR
+          </button>
           <div id="redeemMsg"></div>
         </div>
       </div>
 
-      <!-- MODO 3: SOLICITAR GUEST LIST -->
-      <div id="mode-guest" style="display:none; grid-column: span 2;">
-        <div class="card">
-          <div class="section-title">
-            <span>Solicitar Ingreso por Guest List</span>
-            <span class="badge ok">Aprobación Organizador</span>
+      <!-- Mode 3: Guest List -->
+      <div class="col-lg-9 d-none" id="mode-guest">
+        <div class="ep-card p-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="h5 fw-bold mb-0">Solicitar Acceso por Guest List</h3>
+            <span class="badge text-bg-success">Aprobación en 1 clic</span>
           </div>
-          <p class="muted">Envía tus datos; una vez que el Administrador o Supervisor apruebe tu solicitud en 1 clic, se emitirá tu credencial QR.</p>
-          <div class="row">
-            <div>
-              <label>Categoría / Entrada solicitada</label>
-              <select id="guestItemSelect"></select>
+          <p class="small text-secondary mb-3">Registra tus datos para evaluación del Administrador o Supervisor. Al aprobarse se genera tu QR.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small">Categoría solicitada</label>
+              <select id="guestItemSelect" class="form-select"></select>
             </div>
-            <div>
-              <label>DNI / Documento de Identidad</label>
-              <input id="guestDni" placeholder="72345678" />
+            <div class="col-md-6">
+              <label class="form-label small">DNI / CE</label>
+              <input id="guestDni" class="form-control" placeholder="Documento de identidad" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Nombre completo</label>
+              <input id="guestName" class="form-control" placeholder="Nombres y apellidos" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Correo electrónico</label>
+              <input id="guestEmail" type="email" class="form-control" placeholder="correo@dominio.pe" />
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Referencia / Motivo (Prensa, Invitado VIP, Partner)</label>
+              <input id="guestNote" class="form-control" placeholder="Indica quién invita o área de prensa" />
             </div>
           </div>
-          <div class="row">
-            <div>
-              <label>Nombre completo</label>
-              <input id="guestName" placeholder="Tu nombre completo" />
-            </div>
-            <div>
-              <label>Correo electrónico</label>
-              <input id="guestEmail" placeholder="invitado@ejemplo.pe" />
-            </div>
-          </div>
-          <label>Motivo / Referencia (Promotor, Prensa, Invitado VIP)</label>
-          <input id="guestNote" placeholder="Ej. Invitado de Prensa / Agencia Vibe" />
-          <button class="btn ok" onclick="submitGuestRequest()">✨ Enviar Solicitud a Guest List</button>
+          <button class="btn btn-success fw-semibold mt-3" onclick="submitGuestRequest()">
+            <i class="bi bi-send-check me-1"></i>Enviar Solicitud a Guest List
+          </button>
           <div id="guestPublicMsg"></div>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- MODAL TICKET DIGITAL EXITOSO -->
-  <div id="ticketModal" class="modal-backdrop">
-    <div class="modal-box">
-      <div class="digital-ticket">
-        <button class="modal-close" onclick="closeTicketModal()">✕</button>
-        <span class="badge ok">¡Pase Emitido!</span>
-        <div class="muted" style="margin-top:6px;">Ticket Digital Verificable</div>
-        <h2 id="modalEventName" style="margin:10px 0 4px; font-size:1.3rem;">EVENTO</h2>
-        <div id="modalEntitlements" class="mono" style="color:var(--cyan);">ENTRY</div>
-
-        <div class="ticket-divider"></div>
-
-        <div class="qr-frame">
-          <img id="modalQrImg" src="" alt="QR Ticket" />
+  <!-- Digital Ticket Modal -->
+  <div class="modal fade" id="ticketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-secondary text-center p-2">
+        <div class="modal-header border-secondary-subtle">
+          <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill text-success me-2"></i>Ticket Digital Emitido</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="muted" style="font-size:0.8rem;">Muestra este QR al ingresar o en zonas de Foto/Firma</div>
-        <div id="modalCredId" class="mono" style="margin-top:6px;"></div>
-
-        <div class="ticket-divider"></div>
-
-        <a id="modalDownloadBtn" class="btn block" href="#" download="ticket-eventpass.png">⬇ Descargar Ticket PNG</a>
-        <a class="btn sec block" href="/validar">Probar este QR en Validación →</a>
+        <div class="modal-body">
+          <div class="fw-bold fs-5 text-white" id="modalEventName">EVENTO</div>
+          <div class="mono text-info mb-3" id="modalEntitlements">ENTRY</div>
+          <div class="d-inline-block bg-white p-3 rounded-4 mb-3">
+            <img id="modalQrImg" src="" alt="QR Ticket" style="width:200px; height:200px;" />
+          </div>
+          <div class="small text-secondary mb-1">Presenta este QR en puerta y zonas de interacción</div>
+          <div id="modalCredId" class="mono text-secondary mb-3"></div>
+          <div class="d-grid gap-2">
+            <a id="modalDownloadBtn" class="btn btn-primary" href="#" download="ticket-eventpass.png">
+              <i class="bi bi-download me-1"></i>Descargar Ticket PNG
+            </a>
+            <a class="btn btn-outline-info" href="/validar">
+              <i class="bi bi-upc-scan me-1"></i>Validar en Consola de Puerta
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/shared.js"></script>
   <script>
+    EP.renderNavbar("comprar");
     let catalogItems = [];
     let quantities = {};
     let countdownInterval = null;
     let selectedPayMethod = "MERCADOPAGO";
 
     function switchMode(mode, btn) {
-      document.querySelectorAll(".mode-pill").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll("#modeTabs .nav-link").forEach(p => p.classList.remove("active"));
       if (btn) btn.classList.add("active");
-      document.getElementById("mode-buy").style.display = mode === "buy" ? "contents" : "none";
-      document.getElementById("mode-code").style.display = mode === "code" ? "block" : "none";
-      document.getElementById("mode-guest").style.display = mode === "guest" ? "block" : "none";
+      document.getElementById("mode-buy").classList.toggle("d-none", mode !== "buy");
+      document.getElementById("mode-code").classList.toggle("d-none", mode !== "code");
+      document.getElementById("mode-guest").classList.toggle("d-none", mode !== "guest");
     }
 
     function selectPayMethod(el) {
-      document.querySelectorAll(".pay-pill").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll(".ep-pay-option").forEach(p => p.classList.remove("active"));
       el.classList.add("active");
       selectedPayMethod = el.dataset.pm || "MERCADOPAGO";
     }
@@ -292,12 +300,11 @@
         const events = await EP.api("/api/v1/registration/public/events", { auth: false });
         if (!events.length) {
           sel.innerHTML = `<option value="">Sin eventos publicados</option>`;
-          document.getElementById("catalogContainer").innerHTML =
-            `<div class="muted">Aún no hay eventos. Crea uno desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Dashboard Organizador</a>.</div>`;
+          document.getElementById("catalogContainer").innerHTML = `<div class="small text-secondary">Crea un evento primero en <a href="/admin" class="text-info">Dashboard Organizador</a>.</div>`;
           return;
         }
         sel.innerHTML = events.map(e =>
-          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}" data-venue="${EP.escapeHtml(e.venue || 'Lima, Perú')}" data-color="${EP.escapeHtml(e.brand_color || '#8b5cf6')}">${EP.escapeHtml(e.name)}</option>`
+          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}" data-venue="${EP.escapeHtml(e.venue || 'Lima, Perú')}" data-color="${EP.escapeHtml(e.brand_color || '#7c3aed')}">${EP.escapeHtml(e.name)}</option>`
         ).join("");
         const urlParams = new URLSearchParams(location.search);
         const urlEvent = urlParams.get("event");
@@ -306,9 +313,7 @@
         if (tab === "code") switchMode("code", document.getElementById("pill-code"));
         if (tab === "guestlist") switchMode("guest", document.getElementById("pill-guest"));
         await loadCatalog();
-      } catch (e) {
-        EP.showMsg("buyerMsg", "err", e.message);
-      }
+      } catch (e) { EP.showMsg("buyerMsg", "err", e.message); }
     }
 
     async function loadCatalog() {
@@ -320,7 +325,7 @@
       document.getElementById("heroEventVenue").textContent = opt.dataset.venue || "Lima, Perú";
       document.getElementById("heroEventDate").textContent = new Date(opt.dataset.start).toLocaleString();
       document.getElementById("heroEventLimit").textContent = `Máx. ${opt.dataset.limit} por DNI`;
-      document.getElementById("heroCard").style.borderTop = `3px solid ${opt.dataset.color || '#8b5cf6'}`;
+      document.getElementById("heroCard").style.borderTop = `3px solid ${opt.dataset.color || '#7c3aed'}`;
 
       try {
         catalogItems = await EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false });
@@ -334,15 +339,14 @@
         renderCatalog();
         renderSummary();
       } catch (e) {
-        document.getElementById("catalogContainer").innerHTML = `<div class="muted">${EP.escapeHtml(e.message)}</div>`;
+        document.getElementById("catalogContainer").innerHTML = `<div class="text-danger small">${EP.escapeHtml(e.message)}</div>`;
       }
     }
 
     function changeQty(itemId, delta) {
       const item = catalogItems.find(x => x.id === itemId);
       if (!item) return;
-      const next = Math.max(0, Math.min(10, Math.min(item.stock_available, (quantities[itemId] || 0) + delta)));
-      quantities[itemId] = next;
+      quantities[itemId] = Math.max(0, Math.min(10, Math.min(item.stock_available, (quantities[itemId] || 0) + delta)));
       renderCatalog();
       renderSummary();
     }
@@ -350,25 +354,29 @@
     function renderCatalog() {
       const box = document.getElementById("catalogContainer");
       if (!catalogItems.length) {
-        box.innerHTML = `<div class="muted">Este evento no tiene entradas todavía. Agrégalas en <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Dashboard Organizador</a>.</div>`;
+        box.innerHTML = `<div class="small text-secondary">Este evento aún no tiene entradas configuradas.</div>`;
         return;
       }
       box.innerHTML = catalogItems.map(i => {
         const qty = quantities[i.id] || 0;
-        const badgeClass = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "ok" : "warn") : "err";
-        const badgeText = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "Disponible" : "Interacción") : "Agotado";
+        const badgeCls = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "text-bg-success" : "text-bg-warning") : "text-bg-danger";
+        const badgeTxt = i.stock_available > 0 ? i.item_type : "Agotado";
         return `
-          <div class="tier-card ${qty > 0 ? "selected" : ""}">
-            <div class="tier-head">
-              <div class="tier-name">${EP.escapeHtml(i.name)}</div>
-              <span class="badge ${badgeClass}">${badgeText}</span>
+          <div class="ep-tier-card ${qty > 0 ? "selected" : ""} d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-white">${EP.escapeHtml(i.name)}</span>
+                <span class="badge ${badgeCls}">${badgeTxt}</span>
+              </div>
+              <div class="mono text-secondary mt-1">${EP.escapeHtml(i.code)} · Disponibles: ${i.stock_available}</div>
             </div>
-            <div class="tier-price">S/ ${(i.price_cents / 100).toFixed(2)}</div>
-            <div class="mono" style="margin-top:2px;">${EP.escapeHtml(i.code)} · Stock: ${i.stock_available}</div>
-            <div class="stepper">
-              <button class="step-btn" onclick="changeQty('${i.id}', -1)">−</button>
-              <span class="step-val">${qty}</span>
-              <button class="step-btn" onclick="changeQty('${i.id}', 1)">+</button>
+            <div class="d-flex align-items-center gap-3">
+              <div class="fw-bold fs-5 text-white">S/ ${(i.price_cents / 100).toFixed(2)}</div>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', -1)"><i class="bi bi-dash"></i></button>
+                <span class="btn btn-dark disabled text-white fw-bold" style="min-width:36px;">${qty}</span>
+                <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', 1)"><i class="bi bi-plus"></i></button>
+              </div>
             </div>
           </div>`;
       }).join("");
@@ -387,9 +395,9 @@
         const q = quantities[i.id];
         const sub = i.price_cents * q;
         totalCents += sub;
-        return `<div style="display:flex; justify-content:space-between; margin:6px 0; font-size:0.86rem;">
+        return `<div class="d-flex justify-content-between py-1">
           <span>${q} × ${EP.escapeHtml(i.name)}</span>
-          <strong>S/ ${(sub / 100).toFixed(2)}</strong>
+          <strong class="text-white">S/ ${(sub / 100).toFixed(2)}</strong>
         </div>`;
       }).join("");
       document.getElementById("summaryTotal").textContent = `S/ ${(totalCents / 100).toFixed(2)}`;
@@ -403,7 +411,7 @@
       document.getElementById("modalQrImg").src = qrImgUrl;
       document.getElementById("modalCredId").textContent = `${dniHint} · ID ${credId.slice(0, 12)}...`;
       document.getElementById("modalDownloadBtn").href = qrImgUrl;
-      document.getElementById("ticketModal").classList.add("open");
+      new bootstrap.Modal(document.getElementById("ticketModal")).show();
     }
 
     async function confirmAndPay() {
@@ -413,7 +421,7 @@
 
       const btn = document.getElementById("confirmBtn");
       btn.disabled = true;
-      btn.textContent = "Procesando reserva y pago...";
+      btn.textContent = "Procesando...";
       try {
         const order = await EP.api(`/api/v1/registration/events/${eventId}/orders`, {
           method: "POST",
@@ -428,28 +436,26 @@
           }),
         });
         startCountdown(600);
-
         const paid = await EP.api("/bff/simulate-payment", {
           method: "POST",
           auth: false,
           body: JSON.stringify({ order_id: order.order_id, payment_reference: `GW-${Date.now()}`, status: "PAID" }),
         });
-
         const boughtCodes = catalogItems.filter(i => (quantities[i.id] || 0) > 0).map(i => `${quantities[i.id]}× ${i.code}`).join(" · ");
         await showIssuedTicket(paid.qr_token, boughtCodes, paid.credential_id, `DNI ${order.dni_last4}`);
-        EP.showMsg("buyerMsg", "ok", `¡Compra confirmada! Ticket QR emitido.`);
+        EP.toast("Compra confirmada. Ticket QR emitido.");
         await loadCatalog();
       } catch (e) {
         EP.showMsg("buyerMsg", "err", e.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = "Confirmar y Pagar";
+        btn.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Confirmar y Generar QR`;
       }
     }
 
     async function redeemCourtesyCode() {
       const eventId = document.getElementById("buyerEventSelect").value;
-      if (!eventId) return EP.showMsg("redeemMsg", "err", "Selecciona un evento primero.");
+      if (!eventId) return EP.showMsg("redeemMsg", "err", "Selecciona un evento.");
       try {
         const res = await EP.api("/api/v1/registration/public/redeem-code", {
           method: "POST",
@@ -463,14 +469,14 @@
           }),
         });
         await showIssuedTicket(res.qr_token, `CORTESÍA ${res.item_code}`, res.credential_id, "DNI Vinculado");
-        EP.showMsg("redeemMsg", "ok", `Código canjeado. Pase QR emitido.`);
+        EP.toast("Código canjeado correctamente.");
       } catch (e) { EP.showMsg("redeemMsg", "err", e.message); }
     }
 
     async function submitGuestRequest() {
       const eventId = document.getElementById("buyerEventSelect").value;
       const itemId = document.getElementById("guestItemSelect").value;
-      if (!eventId || !itemId) return EP.showMsg("guestPublicMsg", "err", "Selecciona un evento e ítem.");
+      if (!eventId || !itemId) return EP.showMsg("guestPublicMsg", "err", "Selecciona evento y categoría.");
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/guest-list/request`, {
           method: "POST",
@@ -483,12 +489,8 @@
             note: document.getElementById("guestNote").value,
           }),
         });
-        EP.showMsg("guestPublicMsg", "ok", `Solicitud enviada (${res.status}). El organizador la revisará en su panel.`);
+        EP.showMsg("guestPublicMsg", "ok", `Solicitud enviada (${res.status}). El organizador aprobará tu ingreso desde el panel.`);
       } catch (e) { EP.showMsg("guestPublicMsg", "err", e.message); }
-    }
-
-    function closeTicketModal() {
-      document.getElementById("ticketModal").classList.remove("open");
     }
 
     loadEvents();

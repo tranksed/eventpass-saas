@@ -1,184 +1,209 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Validación en Puerta — EventPass</title>
+  <title>Consola de Puerta — EventPass</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/shared.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-logo">⚡</div>
-      <span>EVENTPASS · PUERTA</span>
-      <span id="connBadge" class="badge ok">ONLINE</span>
-    </div>
-    <nav class="nav-links">
-      <a class="nav-link" href="/">Descubrir</a>
-      <a class="nav-link" href="/comprar">Comprar Entradas</a>
-      <a class="nav-link active" href="/validar">Validación</a>
-      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
-    </nav>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span id="actorBadge" class="badge warn">Sin sesión</span>
-      <button id="switchUserBtn" class="btn sec sm" style="display:none;" onclick="logoutValidator()">Cambiar cuenta</button>
-      <a class="nav-cta" href="/admin">Panel Organizador</a>
-    </div>
-  </header>
+  <div id="epNavbarHost"></div>
 
-  <main class="container">
-    <div id="loginCard" class="card card-glow" style="max-width:500px; margin:20px auto;">
-      <span class="badge warn">ACCESO PRIVADO · STAFF DE PUERTA</span>
-      <h2 style="margin-top:10px;">Iniciar Sesión en Validador</h2>
-      <p class="muted">Ingresa con tu cuenta de <strong>VALIDATOR</strong>, <strong>SUPERVISOR</strong> o <strong>ADMIN</strong> de la empresa organizadora del evento.</p>
-      <div class="row">
-        <div>
-          <label>Slug de la Empresa</label>
-          <input id="valSlug" placeholder="ej. empresa-..." />
+  <main class="container py-4">
+    <!-- Auth Gate -->
+    <div id="loginCard" class="ep-card ep-card-accent p-4 mx-auto" style="max-width:480px;">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="badge text-bg-warning">ACCESO PRIVADO · PUERTA</span>
+      </div>
+      <h1 class="h4 fw-bold mb-1">Consola de Control de Acceso</h1>
+      <p class="small text-secondary mb-3">Inicia sesión con tu cuenta de <strong>VALIDATOR</strong>, <strong>SUPERVISOR</strong> o <strong>ADMIN</strong> del evento.</p>
+      <div class="row g-2 mb-3">
+        <div class="col-md-6">
+          <label class="form-label small">Slug de Empresa</label>
+          <input id="valSlug" class="form-control" placeholder="ej. lima-fest" />
         </div>
-        <div>
-          <label>Email</label>
-          <input id="valEmail" placeholder="validador@empresa.com" />
+        <div class="col-md-6">
+          <label class="form-label small">Correo electrónico</label>
+          <input id="valEmail" type="email" class="form-control" placeholder="puerta@empresa.pe" />
+        </div>
+        <div class="col-md-8">
+          <label class="form-label small">Contraseña</label>
+          <input id="valPass" type="password" class="form-control" placeholder="••••••••••" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">MFA (opc.)</label>
+          <input id="valMfa" class="form-control" placeholder="6 dígitos" />
         </div>
       </div>
-      <div class="row">
-        <div>
-          <label>Contraseña</label>
-          <input id="valPass" type="password" />
-        </div>
-        <div>
-          <label>MFA (si activado)</label>
-          <input id="valMfa" placeholder="6 dígitos" />
-        </div>
-      </div>
-      <button class="btn block" onclick="loginValidator()">Ingresar a Control de Puerta</button>
+      <button class="btn btn-primary w-100 fw-semibold" onclick="loginValidator()">
+        <i class="bi bi-door-open me-1"></i>Ingresar a Control de Puerta
+      </button>
       <div id="valLoginMsg"></div>
     </div>
 
-    <div id="scannerWorkspace" style="display:none;">
-      <div class="grid-3" style="margin-bottom:20px;">
-        <div class="card" style="padding:16px;">
-          <div class="muted">Validados en esta sesión</div>
-          <div id="kpiScans" style="font-size:1.7rem; font-weight:800; margin-top:4px;">0</div>
+    <!-- Active Gate Workspace -->
+    <div id="scannerWorkspace" class="d-none">
+      <!-- KPI Strip -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="ep-kpi">
+            <div class="ep-kpi-label"><i class="bi bi-wifi text-info me-1"></i>Estado de Operación</div>
+            <div class="ep-kpi-val fs-4" id="kpiMode">ONLINE EN TIEMPO REAL</div>
+            <div class="ep-kpi-sub">Verificación criptográfica Ed25519</div>
+          </div>
         </div>
-        <div class="card" style="padding:16px;">
-          <div class="muted">Modo de operación</div>
-          <div id="kpiMode" style="font-size:1.25rem; font-weight:800; margin-top:8px; color:var(--ok);">ONLINE EN TIEMPO REAL</div>
+        <div class="col-6 col-md-4">
+          <div class="ep-kpi">
+            <div class="ep-kpi-label"><i class="bi bi-check2-all text-success me-1"></i>Escaneos en Sesión</div>
+            <div class="ep-kpi-val" id="kpiScans">0</div>
+            <div class="ep-kpi-sub">Validados en esta terminal</div>
+          </div>
         </div>
-        <div class="card" style="padding:16px;">
-          <div class="muted">Escaneos pendientes offline</div>
-          <div id="kpiQueue" style="font-size:1.7rem; font-weight:800; margin-top:4px;">0</div>
+        <div class="col-6 col-md-4">
+          <div class="ep-kpi">
+            <div class="ep-kpi-label"><i class="bi bi-cloud-arrow-up text-warning me-1"></i>Cola Pendiente Offline</div>
+            <div class="ep-kpi-val" id="kpiQueue">0</div>
+            <div class="ep-kpi-sub">Listos para sincronizar</div>
+          </div>
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card card-glow">
-          <div class="section-title">
-            <span>Lector de Credenciales QR</span>
-            <span class="badge cyan">Ed25519 Verificado</span>
-          </div>
-          <div class="row">
-            <div>
-              <label>Evento</label>
-              <select id="valEventSelect"></select>
+      <div class="row g-4">
+        <!-- Left: Scanner & Outcome -->
+        <div class="col-lg-7">
+          <div class="ep-card ep-card-accent p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h5 fw-bold mb-0"><i class="bi bi-qr-code-scan text-info me-2"></i>Lector de Credenciales</h2>
+              <button class="btn btn-outline-secondary btn-sm" onclick="logoutValidator()"><i class="bi bi-box-arrow-right me-1"></i>Cambiar cuenta</button>
             </div>
-            <div>
-              <label>Puerta / Zona</label>
-              <select id="valGateId">
-                <option value="PUERTA_PRINCIPAL">PUERTA_PRINCIPAL</option>
-                <option value="ZONA_FOTO">ZONA_FOTO</option>
-                <option value="ZONA_FIRMAS">ZONA_FIRMAS</option>
-                <option value="ACCESO_STAFF">ACCESO_STAFF</option>
-              </select>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-5">
+                <label class="form-label small">Evento</label>
+                <select id="valEventSelect" class="form-select"></select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Puerta / Zona</label>
+                <select id="valGateId" class="form-select">
+                  <option value="PUERTA_PRINCIPAL">PUERTA_PRINCIPAL</option>
+                  <option value="ZONA_FOTO">ZONA_FOTO</option>
+                  <option value="ZONA_FIRMAS">ZONA_FIRMAS</option>
+                  <option value="ACCESO_STAFF">ACCESO_STAFF</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Beneficio</label>
+                <select id="valEntitlement" class="form-select">
+                  <option value="ENTRY">ENTRY</option>
+                  <option value="PHOTO">PHOTO</option>
+                  <option value="SIGNATURE">SIGNATURE</option>
+                  <option value="STAFF_ACCESS">STAFF_ACCESS</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label small mb-0">Lectura de QR (Cámara o Lector USB / Pegado)</label>
+                <button class="btn btn-link btn-sm p-0 text-info text-decoration-none" onclick="loadLastGeneratedQr()">Cargar último QR emitido</button>
+              </div>
+              <textarea id="valQrInput" rows="2" class="form-control mono" placeholder="Escanea con la cámara o lector USB..."></textarea>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-success fw-semibold flex-grow-1" onclick="validateQr()">
+                <i class="bi bi-check-lg me-1"></i>Validar Acceso
+              </button>
+              <button class="btn btn-outline-info" onclick="startCamera()">
+                <i class="bi bi-camera-video me-1"></i>Cámara
+              </button>
+            </div>
+
+            <video id="qrVideo" class="w-100 rounded-3 mt-3 d-none"></video>
+            <div id="scanOutcome" class="mt-3"></div>
+          </div>
+
+          <!-- Session Scan Log -->
+          <div class="ep-card p-3">
+            <h3 class="h6 fw-bold mb-2"><i class="bi bi-clock-history text-secondary me-1"></i>Últimas Lecturas de esta Sesión</h3>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead><tr><th>Hora</th><th>Titular / DNI</th><th>Zona</th><th>Modo</th><th>Resultado</th></tr></thead>
+                <tbody id="sessionLogBody"><tr><td colspan="5" class="text-secondary small">Aún no hay escaneos en esta sesión</td></tr></tbody>
+              </table>
             </div>
           </div>
-
-          <label>Beneficio / Interacción a validar</label>
-          <select id="valEntitlement">
-            <option value="ENTRY">ENTRY (Ingreso General / Staff)</option>
-            <option value="PHOTO">PHOTO (Interacción Foto)</option>
-            <option value="SIGNATURE">SIGNATURE (Interacción Firma)</option>
-            <option value="STAFF_ACCESS">STAFF_ACCESS (Zona Interna Staff)</option>
-          </select>
-
-          <label>Token QR escaneado</label>
-          <textarea id="valQrInput" rows="3" placeholder="Escanea con cámara o pega aquí el código QR..."></textarea>
-
-          <div class="row">
-            <button class="btn ok" onclick="validateQr()">✓ Validar Acceso</button>
-            <button class="btn sec" onclick="loadLastGeneratedQr()">Usar Último QR</button>
-            <button class="btn sec" onclick="startCamera()">📷 Cámara</button>
-          </div>
-          <video id="qrVideo" style="display:none; width:100%; margin-top:12px; border-radius:12px;"></video>
-          <div id="scanOutcome"></div>
         </div>
 
-        <div class="card">
-          <div class="section-title">
-            <span>Modo Contingencia Offline</span>
-            <span class="badge warn">Respaldo sin red</span>
-          </div>
-          <p class="muted">Descarga el paquete firmado con la clave pública Ed25519 antes del evento para operar si cae el internet y sincronizar al reconectar.</p>
+        <!-- Right: Offline Contingency Panel -->
+        <div class="col-lg-5">
+          <div class="ep-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h2 class="h5 fw-bold mb-0"><i class="bi bi-hdd-network text-warning me-2"></i>Contingencia Offline</h2>
+              <span id="connBadge" class="badge text-bg-success">ONLINE</span>
+            </div>
+            <p class="small text-secondary mb-3">
+              Descarga previamente el paquete firmado con la clave pública Ed25519 del evento para operar sin conexión a internet y sincroniza al restablecer la red.
+            </p>
 
-          <button class="btn block" onclick="downloadBundle()">1. Descargar Paquete Offline del Evento</button>
-          <button class="btn warn block" id="offlineToggleBtn" onclick="toggleOffline()">2. Simular Sin Internet: OFF</button>
-          <div id="bundleInfo" class="mono" style="margin-top:10px;">Sin paquete descargado.</div>
+            <div class="d-grid gap-2 mb-3">
+              <button class="btn btn-outline-primary text-start" onclick="downloadBundle()">
+                <i class="bi bi-cloud-download me-2"></i>1. Descargar Paquete Offline del Evento
+              </button>
+              <button class="btn btn-outline-warning text-start" id="offlineToggleBtn" onclick="toggleOffline()">
+                <i class="bi bi-wifi-off me-2"></i>2. Modo Contingencia Sin Red: OFF
+              </button>
+              <button class="btn btn-success text-start" onclick="syncOffline()">
+                <i class="bi bi-arrow-repeat me-2"></i>3. Sincronizar Cola con Servidor (<span id="queueCount">0</span>)
+              </button>
+            </div>
 
-          <div style="border-top:1px solid var(--border); margin:18px 0;"></div>
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong>Cola pendiente de sincronización</strong>
-            <span id="queueCount" class="badge purple">0</span>
+            <div class="p-2 rounded-3 bg-dark border border-secondary-subtle mono small text-secondary" id="bundleInfo">
+              Sin paquete offline descargado.
+            </div>
+            <div id="syncMsg"></div>
           </div>
-          <button class="btn ok block" onclick="syncOffline()">3. Sincronizar Lote con el Servidor</button>
-          <div id="syncMsg"></div>
         </div>
       </div>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/shared.js"></script>
   <script>
     let offlineMode = false;
     let scansCount = 0;
+    const sessionHistory = [];
     let bundle = JSON.parse(localStorage.getItem("ep_offline_bundle") || "null");
     let queue = JSON.parse(localStorage.getItem("ep_offline_queue") || "[]");
     let localRedeemed = JSON.parse(localStorage.getItem("ep_offline_redeemed") || "{}");
 
     function refreshUI() {
+      EP.renderNavbar("validar", `<span class="badge ${offlineMode ? "text-bg-warning" : "text-bg-success"} py-2">${offlineMode ? "OFFLINE" : "ONLINE"}</span>`);
       const sess = EP.getSession();
-      const badge = document.getElementById("actorBadge");
-      const switchBtn = document.getElementById("switchUserBtn");
       if (sess.token) {
-        badge.className = "badge ok";
-        badge.textContent = `${sess.role} · ${sess.slug || sess.tenantId.slice(0, 8)}`;
-        switchBtn.style.display = "inline-flex";
-        document.getElementById("loginCard").style.display = "none";
-        document.getElementById("scannerWorkspace").style.display = "block";
+        document.getElementById("loginCard").classList.add("d-none");
+        document.getElementById("scannerWorkspace").classList.remove("d-none");
         loadEvents();
       } else {
-        badge.className = "badge warn";
-        badge.textContent = "Sin sesión";
-        switchBtn.style.display = "none";
-        document.getElementById("loginCard").style.display = "block";
-        document.getElementById("scannerWorkspace").style.display = "none";
+        document.getElementById("loginCard").classList.remove("d-none");
+        document.getElementById("scannerWorkspace").classList.add("d-none");
         if (sess.slug) document.getElementById("valSlug").value = sess.slug;
       }
 
-      document.getElementById("connBadge").className = offlineMode ? "badge warn" : "badge ok";
-      document.getElementById("connBadge").textContent = offlineMode ? "CONTINGENCIA OFFLINE" : "ONLINE";
+      document.getElementById("connBadge").className = offlineMode ? "badge text-bg-warning" : "badge text-bg-success";
+      document.getElementById("connBadge").textContent = offlineMode ? "OFFLINE" : "ONLINE";
       document.getElementById("kpiMode").textContent = offlineMode ? "CONTINGENCIA OFFLINE" : "ONLINE EN TIEMPO REAL";
-      document.getElementById("kpiMode").style.color = offlineMode ? "var(--warn)" : "var(--ok)";
-      document.getElementById("offlineToggleBtn").textContent = `2. Simular Sin Internet: ${offlineMode ? "ON" : "OFF"}`;
+      document.getElementById("kpiMode").className = `ep-kpi-val fs-4 ${offlineMode ? "text-warning" : "text-success"}`;
+      document.getElementById("offlineToggleBtn").innerHTML = `<i class="bi bi-wifi-off me-2"></i>2. Modo Contingencia Sin Red: <strong>${offlineMode ? "ON" : "OFF"}</strong>`;
       document.getElementById("queueCount").textContent = String(queue.length);
       document.getElementById("kpiQueue").textContent = String(queue.length);
       document.getElementById("kpiScans").textContent = String(scansCount);
 
       if (bundle) {
-        document.getElementById("bundleInfo").textContent = `Paquete listo: ${bundle.credentials.length} credenciales cargadas.`;
-      }
-      const lastQr = localStorage.getItem("ep_last_qr");
-      if (lastQr && !document.getElementById("valQrInput").value) {
-        document.getElementById("valQrInput").value = lastQr;
+        document.getElementById("bundleInfo").textContent = `Paquete listo: ${bundle.credentials.length} credenciales activas (Ed25519).`;
       }
     }
 
@@ -201,40 +226,55 @@
         const res = await EP.api("/api/v1/auth/login", { method: "POST", auth: false, body: JSON.stringify(body) });
         EP.saveSession(res.access_token, res.role, res.tenant_id, slug);
         refreshUI();
-      } catch (e) {
-        EP.showMsg("valLoginMsg", "err", e.message);
-      }
+      } catch (e) { EP.showMsg("valLoginMsg", "err", e.message); }
     }
 
     async function loadEvents() {
       try {
         const events = await EP.api("/api/v1/registration/public/events", { auth: false });
-        document.getElementById("valEventSelect").innerHTML = events
-          .map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)}</option>`)
-          .join("");
+        const sel = document.getElementById("valEventSelect");
+        const prev = sel.value;
+        sel.innerHTML = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)}</option>`).join("");
+        if (prev && events.some(e => e.id === prev)) sel.value = prev;
       } catch {}
     }
 
     function loadLastGeneratedQr() {
       const q = localStorage.getItem("ep_last_qr");
-      if (!q) return showScanBanner("warn", "SIN QR RECIENTE", "Genera un QR primero en /comprar o /acreditacion.");
+      if (!q) return showScanBanner("warn", "Sin QR reciente", "Emite un ticket en Taquilla o Acreditación Staff primero.");
       document.getElementById("valQrInput").value = q;
+      EP.toast("Último QR cargado en el lector.");
+    }
+
+    function addSessionLog(holder, gate, mode, outcome, ok) {
+      sessionHistory.unshift({ time: new Date().toLocaleTimeString(), holder, gate, mode, outcome, ok });
+      document.getElementById("sessionLogBody").innerHTML = sessionHistory.slice(0, 10).map(r => `
+        <tr>
+          <td class="mono">${r.time}</td>
+          <td class="small">${EP.escapeHtml(r.holder)}</td>
+          <td class="small">${EP.escapeHtml(r.gate)}</td>
+          <td><span class="badge text-bg-secondary">${r.mode}</span></td>
+          <td><span class="badge ${r.ok ? "text-bg-success" : "text-bg-danger"}">${EP.escapeHtml(r.outcome)}</span></td>
+        </tr>`).join("");
     }
 
     function showScanBanner(kind, title, details) {
+      const icon = kind === "ok" ? "bi-check-circle-fill text-success" : kind === "warn" ? "bi-exclamation-triangle-fill text-warning" : "bi-x-octagon-fill text-danger";
       document.getElementById("scanOutcome").innerHTML = `
-        <div class="scan-banner ${kind}">
-          <h2>${EP.escapeHtml(title)}</h2>
-          <div style="white-space:pre-wrap; font-size:0.9rem;">${EP.escapeHtml(details)}</div>
-        </div>
-      `;
+        <div class="ep-scan-result ${kind}">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="bi ${icon} fs-4"></i>
+            <h4 class="h6 fw-bold mb-0 text-white">${EP.escapeHtml(title)}</h4>
+          </div>
+          <div class="small text-light" style="white-space:pre-wrap;">${EP.escapeHtml(details)}</div>
+        </div>`;
     }
 
     async function validateQr() {
       const qrToken = document.getElementById("valQrInput").value.trim();
       const entitlement = document.getElementById("valEntitlement").value;
       const gateId = document.getElementById("valGateId").value;
-      if (!qrToken) return showScanBanner("warn", "QR VACÍO", "Ingresa o escanea un QR primero.");
+      if (!qrToken) return showScanBanner("warn", "Lector vacío", "Escanea o pega un código QR antes de validar.");
 
       if (!offlineMode) {
         try {
@@ -244,36 +284,31 @@
           });
           scansCount += 1;
           refreshUI();
-          showScanBanner(
-            "ok",
-            "✓ ACCESO APROBADO",
+          addSessionLog(`${res.display_name} (${res.dni_last4})`, gateId, "ONLINE", res.outcome, true);
+          showScanBanner("ok", "ACCESO APROBADO",
             `Titular: ${res.display_name} (${res.dni_last4}) · ${res.holder_type}` +
             (res.company_label ? `\nEmpresa: ${res.company_label}` : "") +
-            `\nBeneficio redimido: ${res.entitlement_code}\nRestantes: ${JSON.stringify(res.all_remaining)}`
+            `\nBeneficio redimido: ${res.entitlement_code} · Restantes: ${JSON.stringify(res.all_remaining)}`
           );
         } catch (e) {
-          showScanBanner("err", "✕ ACCESO DENEGADO", e.message);
+          addSessionLog("QR Rechazado", gateId, "ONLINE", "DENEGADO", false);
+          showScanBanner("err", "ACCESO DENEGADO", e.message);
         }
         return;
       }
 
-      if (!bundle) {
-        return showScanBanner("err", "SIN PAQUETE OFFLINE", "Descarga primero el Paquete Offline.");
-      }
-
+      if (!bundle) return showScanBanner("err", "Sin paquete offline", "Descarga primero el paquete offline del evento.");
       try {
         const claims = await EP.verifyEd25519Jws(qrToken, bundle.qr_public_key_pem);
         if (claims.eid !== bundle.event_id) throw new Error("El QR corresponde a otro evento.");
         const snap = bundle.credentials.find(c => c.credential_id === claims.cid);
-        if (snap && snap.status !== "ACTIVE") throw new Error("Credencial REVOCADA.");
+        if (snap && snap.status !== "ACTIVE") throw new Error("Credencial revocada.");
 
         const ent = snap ? snap.entitlements : (claims.ent || {});
         const allowed = Number(ent[entitlement] || 0);
         const snapUsed = Number((snap && snap.redeemed[entitlement]) || 0);
         const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][entitlement]) || 0);
-        if (allowed - snapUsed - locUsed <= 0) {
-          throw new Error(`Beneficio '${entitlement}' ya consumido o no incluido.`);
-        }
+        if (allowed - snapUsed - locUsed <= 0) throw new Error(`Beneficio '${entitlement}' ya consumido o no incluido.`);
 
         localRedeemed[claims.cid] = localRedeemed[claims.cid] || {};
         localRedeemed[claims.cid][entitlement] = locUsed + 1;
@@ -289,13 +324,12 @@
         localStorage.setItem("ep_offline_redeemed", JSON.stringify(localRedeemed));
         localStorage.setItem("ep_offline_queue", JSON.stringify(queue));
         refreshUI();
-        showScanBanner(
-          "warn",
-          "✓ APROBADO OFFLINE (En cola)",
-          `Titular: ${snap ? snap.display_name : "Verificado por Ed25519"} (${claims.d4})\nSe sincronizará al volver el internet.`
-        );
+        const holderLabel = `${snap ? snap.display_name : "Ed25519 OK"} (${claims.d4})`;
+        addSessionLog(holderLabel, gateId, "OFFLINE", "EN COLA", true);
+        showScanBanner("warn", "APROBADO EN CONTINGENCIA OFFLINE", `Titular: ${holderLabel}\nPendiente de sincronización.`);
       } catch (e) {
-        showScanBanner("err", "✕ RECHAZADO OFFLINE", e.message);
+        addSessionLog("QR Inválido", gateId, "OFFLINE", "RECHAZADO", false);
+        showScanBanner("err", "RECHAZADO OFFLINE", e.message);
       }
     }
 
@@ -308,10 +342,8 @@
         localStorage.setItem("ep_offline_bundle", JSON.stringify(bundle));
         localStorage.setItem("ep_offline_redeemed", "{}");
         refreshUI();
-        EP.showMsg("syncMsg", "ok", `Paquete descargado (${bundle.credentials.length} credenciales + clave pública Ed25519).`);
-      } catch (e) {
-        EP.showMsg("syncMsg", "err", e.message);
-      }
+        EP.showMsg("syncMsg", "ok", `Paquete descargado (${bundle.credentials.length} credenciales).`);
+      } catch (e) { EP.showMsg("syncMsg", "err", e.message); }
     }
 
     function toggleOffline() {
@@ -330,24 +362,19 @@
         queue = [];
         localStorage.setItem("ep_offline_queue", "[]");
         refreshUI();
-        EP.showMsg("syncMsg", res.conflicts > 0 ? "warn" : "ok",
-          `Sincronización completada · Aprobados: ${res.granted} · Conflictos detectados: ${res.conflicts}\n` +
-          JSON.stringify(res.results, null, 2)
-        );
-      } catch (e) {
-        EP.showMsg("syncMsg", "err", e.message);
-      }
+        EP.showMsg("syncMsg", res.conflicts > 0 ? "warn" : "ok", `Sincronizado · Aprobados: ${res.granted} · Conflictos: ${res.conflicts}`);
+      } catch (e) { EP.showMsg("syncMsg", "err", e.message); }
     }
 
     async function startCamera() {
       if (!("BarcodeDetector" in window)) {
-        return showScanBanner("warn", "CÁMARA NO SOPORTADA", "Este navegador no incluye BarcodeDetector; pega el QR o usa 'Usar Último QR'.");
+        return showScanBanner("warn", "Cámara no soportada", "Este navegador no incluye BarcodeDetector; usa lector USB o pega el token QR.");
       }
       const video = document.getElementById("qrVideo");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = stream;
-        video.style.display = "block";
+        video.classList.remove("d-none");
         await video.play();
         const detector = new BarcodeDetector({ formats: ["qr_code"] });
         const tick = async () => {
@@ -356,7 +383,7 @@
             if (codes.length) {
               document.getElementById("valQrInput").value = codes[0].rawValue;
               stream.getTracks().forEach(t => t.stop());
-              video.style.display = "none";
+              video.classList.add("d-none");
               await validateQr();
               return;
             }
@@ -364,9 +391,7 @@
           requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
-      } catch (e) {
-        showScanBanner("err", "ERROR DE CÁMARA", e.message);
-      }
+      } catch (e) { showScanBanner("err", "Error de cámara", e.message); }
     }
 
     refreshUI();

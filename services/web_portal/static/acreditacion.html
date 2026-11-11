@@ -1,86 +1,105 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Acreditación Privada de Staff — EventPass</title>
+  <title>Acreditación Corporativa de Staff — EventPass</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/shared.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-logo">⚡</div>
-      <span>EVENTPASS</span>
-    </div>
-    <nav class="nav-links">
-      <a class="nav-link" href="/">Descubrir</a>
-      <a class="nav-link" href="/comprar">Comprar Entradas</a>
-      <a class="nav-link" href="/validar">Validación</a>
-      <a class="nav-link active" href="/acreditacion">Acreditación Staff</a>
-    </nav>
-    <a class="nav-cta" href="/admin">Panel Organizador</a>
-  </header>
+  <div id="epNavbarHost"></div>
 
-  <main class="container">
-    <div class="grid-2">
-      <div class="card">
-        <span class="badge cyan">LINK PRIVADO DE EMPRESA</span>
-        <h2 style="margin-top:10px;">Acreditar Personal / Staff</h2>
-        <label>Token de invitación de la empresa</label>
-        <div class="row">
-          <input id="inviteToken" placeholder="Pega el token o abre el link enviado por el organizador" />
-          <button class="btn sec sm" style="flex:0 0 auto;" onclick="checkInvite()">Consultar Cupo</button>
-        </div>
-
-        <div id="quotaBox" style="display:none; margin-top:14px; padding:12px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border);">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong id="compTitle">Empresa</strong>
-            <span id="compQuotaText" class="badge purple">0 / 6</span>
+  <main class="container py-4">
+    <div class="row g-4">
+      <!-- Left: Staff Accreditation Form -->
+      <div class="col-lg-7">
+        <div class="ep-card p-4 h-100">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-building-check text-info me-2"></i>Acreditación de Personal Corporativo</h1>
+            <span class="badge text-bg-info">LINK PRIVADO</span>
           </div>
-          <div class="progress-track"><div id="quotaBar" class="progress-fill" style="width:0%;"></div></div>
-        </div>
-        <div id="companyBanner"></div>
+          <p class="small text-secondary mb-3">
+            Registra al staff asignado a tu empresa expositora o sponsor usando el token privado enviado por el organizador.
+          </p>
 
-        <div class="row">
-          <div>
-            <label>DNI del Colaborador</label>
-            <input id="staffDni" value="44556677" />
+          <label class="form-label small">Token de Invitación de la Empresa</label>
+          <div class="input-group mb-3">
+            <input id="inviteToken" class="form-control mono" placeholder="Pega el token o abre el enlace recibido..." />
+            <button class="btn btn-outline-info" onclick="checkInvite()">Consultar Cupo</button>
           </div>
-          <div>
-            <label>Nombre Completo</label>
-            <input id="staffName" value="Diego Vargas" />
-          </div>
-        </div>
-        <label>Cargo / Área</label>
-        <input id="staffRoleTitle" value="Productor Técnico" />
 
-        <button class="btn block" onclick="registerStaff()">Acreditar y Emitir Credencial QR</button>
-        <div id="staffMsg"></div>
+          <div id="quotaBox" class="p-3 rounded-3 border border-secondary-subtle bg-dark mb-3 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <strong id="compTitle" class="text-white">Empresa</strong>
+              <span id="compQuotaText" class="badge text-bg-primary">0 / 6</span>
+            </div>
+            <div class="progress" style="height:8px;">
+              <div id="quotaBar" class="progress-bar bg-info" style="width:0%;"></div>
+            </div>
+          </div>
+          <div id="companyBanner"></div>
+
+          <hr class="border-secondary-subtle my-3" />
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small">DNI del Colaborador</label>
+              <input id="staffDni" class="form-control" placeholder="8 dígitos" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-label small">Nombre completo</label>
+              <input id="staffName" class="form-control" placeholder="Nombres y apellidos" />
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Cargo / Área Operativa</label>
+              <input id="staffRoleTitle" class="form-control" placeholder="Ej. Producción / Técnico de Stand / Seguridad" />
+            </div>
+          </div>
+
+          <button class="btn btn-primary w-100 fw-semibold mt-3" onclick="registerStaff()">
+            <i class="bi bi-person-badge me-1"></i>Acreditar y Emitir Credencial QR
+          </button>
+          <div id="staffMsg"></div>
+        </div>
       </div>
 
-      <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
-        <div id="staffQrPlaceholder" class="muted" style="text-align:center; padding:32px;">
-          Al registrar un miembro de tu staff aparecerá aquí su credencial digital con firma Ed25519.
-        </div>
-        <div id="staffTicketWrap" style="display:none;">
-          <div class="digital-ticket">
-            <span class="badge purple">CREDENCIAL OFICIAL STAFF</span>
-            <h2 id="stTicketName" style="margin:10px 0 4px;">Staff</h2>
-            <div id="stTicketComp" class="mono" style="color:var(--cyan);">Empresa</div>
-            <div class="ticket-divider"></div>
-            <div class="qr-frame"><img id="stTicketImg" src="" alt="QR Staff" /></div>
-            <div id="stTicketMeta" class="mono"></div>
-            <div class="ticket-divider"></div>
-            <a id="stDownloadBtn" class="btn block" href="#" download="staff-badge.png">⬇ Descargar Credencial PNG</a>
-            <a class="btn sec block" href="/validar">Validar en Puerta →</a>
+      <!-- Right: Issued Credential Preview -->
+      <div class="col-lg-5">
+        <div class="ep-card ep-card-accent p-4 h-100 d-flex flex-column justify-content-center text-center">
+          <div id="staffQrPlaceholder" class="text-secondary py-5">
+            <i class="bi bi-qr-code fs-1 d-block mb-2 opacity-50"></i>
+            Al acreditar un colaborador aparecerá aquí su credencial oficial con firma Ed25519 descargable.
+          </div>
+
+          <div id="staffTicketWrap" class="d-none">
+            <span class="badge text-bg-primary mb-2">CREDENCIAL OFICIAL STAFF</span>
+            <h2 class="h4 fw-bold text-white mb-0" id="stTicketName">Staff</h2>
+            <div class="mono text-info mb-3" id="stTicketComp">Empresa</div>
+            <div class="d-inline-block bg-white p-3 rounded-4 mb-3">
+              <img id="stTicketImg" src="" alt="QR Staff" style="width:190px; height:190px;" />
+            </div>
+            <div class="mono text-secondary mb-3" id="stTicketMeta"></div>
+            <div class="d-grid gap-2">
+              <a id="stDownloadBtn" class="btn btn-primary" href="#" download="staff-badge.png">
+                <i class="bi bi-download me-1"></i>Descargar Credencial PNG
+              </a>
+              <a class="btn btn-outline-light" href="/validar">
+                <i class="bi bi-upc-scan me-1"></i>Ir a Consola de Puerta
+              </a>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/shared.js"></script>
   <script>
+    EP.renderNavbar("acreditacion");
+
     function init() {
       const t = new URLSearchParams(location.search).get("token");
       if (t) {
@@ -94,21 +113,21 @@
       if (!token) return;
       try {
         const res = await EP.api(`/api/v1/accreditation/invite/${encodeURIComponent(token)}`, { auth: false });
-        document.getElementById("quotaBox").style.display = "block";
+        document.getElementById("quotaBox").classList.remove("d-none");
         document.getElementById("compTitle").textContent = res.company_name;
         document.getElementById("compQuotaText").textContent = `${res.staff_used} / ${res.staff_quota} cupos`;
         const pct = Math.min(100, Math.round((res.staff_used / Math.max(1, res.staff_quota)) * 100));
         document.getElementById("quotaBar").style.width = `${pct}%`;
         document.getElementById("companyBanner").innerHTML = "";
       } catch (e) {
-        document.getElementById("quotaBox").style.display = "none";
+        document.getElementById("quotaBox").classList.add("d-none");
         EP.showMsg("companyBanner", "err", e.message);
       }
     }
 
     async function registerStaff() {
       const token = document.getElementById("inviteToken").value.trim();
-      if (!token) return EP.showMsg("staffMsg", "err", "Ingresa el token de invitación.");
+      if (!token) return EP.showMsg("staffMsg", "err", "Ingresa el token de invitación de la empresa.");
       try {
         const res = await EP.api(`/api/v1/accreditation/invite/${encodeURIComponent(token)}/staff`, {
           method: "POST",
@@ -121,18 +140,16 @@
         });
         localStorage.setItem("ep_last_qr", res.qr_token);
         const imgUrl = await EP.renderQrDataUrl(res.qr_token);
-        document.getElementById("staffQrPlaceholder").style.display = "none";
-        document.getElementById("staffTicketWrap").style.display = "block";
+        document.getElementById("staffQrPlaceholder").classList.add("d-none");
+        document.getElementById("staffTicketWrap").classList.remove("d-none");
         document.getElementById("stTicketName").textContent = res.display_name;
         document.getElementById("stTicketComp").textContent = `${res.company_name} · ENTRY + STAFF_ACCESS`;
         document.getElementById("stTicketImg").src = imgUrl;
         document.getElementById("stTicketMeta").textContent = `DNI ${res.dni_last4} · Restantes: ${res.remaining_quota}`;
         document.getElementById("stDownloadBtn").href = imgUrl;
-        EP.showMsg("staffMsg", "ok", `Staff acreditado correctamente. Cupo restante: ${res.remaining_quota}`);
+        EP.toast(`Staff acreditado. Cupos restantes: ${res.remaining_quota}`);
         await checkInvite();
-      } catch (e) {
-        EP.showMsg("staffMsg", "err", e.message);
-      }
+      } catch (e) { EP.showMsg("staffMsg", "err", e.message); }
     }
 
     init();
