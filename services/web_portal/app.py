@@ -41,12 +41,23 @@ class QRRenderRequest(BaseModel):
 
 
 def _html_page(filename: str) -> HTMLResponse:
-    return HTMLResponse(content=(STATIC_DIR / filename).read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=(STATIC_DIR / filename).read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
 
 
 def create_portal_app() -> FastAPI:
     cfg = get_base_settings()
     app = FastAPI(title="EventPass SaaS Web Portal & BFF", version="1.0.0")
+
+    @app.middleware("http")
+    async def no_stale_static_cache(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     routes_map = {
