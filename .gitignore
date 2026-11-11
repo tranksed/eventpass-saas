@@ -1,0 +1,25 @@
+# Python & Virtualenvs
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+
+# Local runtime databases & generated cryptographic keys (NEVER commit secrets!)
+data/
+*.sqlite3
+*.db
+*.pem
+*.key
+
+# Environment & secret files
+.env
+infra/.env
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

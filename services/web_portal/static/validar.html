@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Validación en Puerta — EventPass</title>
+  <link rel="stylesheet" href="/static/shared.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>EVENTPASS · PUERTA</span>
+      <span id="connBadge" class="badge ok">ONLINE</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link" href="/">Descubrir</a>
+      <a class="nav-link" href="/comprar">Comprar Entradas</a>
+      <a class="nav-link active" href="/validar">Validación</a>
+      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+    </nav>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span id="actorBadge" class="badge warn">Sin sesión</span>
+      <button id="switchUserBtn" class="btn sec sm" style="display:none;" onclick="logoutValidator()">Cambiar cuenta</button>
+      <a class="nav-cta" href="/admin">Panel Organizador</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="loginCard" class="card card-glow" style="max-width:500px; margin:20px auto;">
+      <span class="badge warn">ACCESO PRIVADO · STAFF DE PUERTA</span>
+      <h2 style="margin-top:10px;">Iniciar Sesión en Validador</h2>
+      <p class="muted">Ingresa con tu cuenta de <strong>VALIDATOR</strong>, <strong>SUPERVISOR</strong> o <strong>ADMIN</strong> de la empresa organizadora del evento.</p>
+      <div class="row">
+        <div>
+          <label>Slug de la Empresa</label>
+          <input id="valSlug" placeholder="ej. empresa-..." />
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="valEmail" placeholder="validador@empresa.com" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Contraseña</label>
+          <input id="valPass" type="password" />
+        </div>
+        <div>
+          <label>MFA (si activado)</label>
+          <input id="valMfa" placeholder="6 dígitos" />
+        </div>
+      </div>
+      <button class="btn block" onclick="loginValidator()">Ingresar a Control de Puerta</button>
+      <div id="valLoginMsg"></div>
+    </div>
+
+    <div id="scannerWorkspace" style="display:none;">
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="card" style="padding:16px;">
+          <div class="muted">Validados en esta sesión</div>
+          <div id="kpiScans" style="font-size:1.7rem; font-weight:800; margin-top:4px;">0</div>
+        </div>
+        <div class="card" style="padding:16px;">
+          <div class="muted">Modo de operación</div>
+          <div id="kpiMode" style="font-size:1.25rem; font-weight:800; margin-top:8px; color:var(--ok);">ONLINE EN TIEMPO REAL</div>
+        </div>
+        <div class="card" style="padding:16px;">
+          <div class="muted">Escaneos pendientes offline</div>
+          <div id="kpiQueue" style="font-size:1.7rem; font-weight:800; margin-top:4px;">0</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card card-glow">
+          <div class="section-title">
+            <span>Lector de Credenciales QR</span>
+            <span class="badge cyan">Ed25519 Verificado</span>
+          </div>
+          <div class="row">
+            <div>
+              <label>Evento</label>
+              <select id="valEventSelect"></select>
+            </div>
+            <div>
+              <label>Puerta / Zona</label>
+              <select id="valGateId">
+                <option value="PUERTA_PRINCIPAL">PUERTA_PRINCIPAL</option>
+                <option value="ZONA_FOTO">ZONA_FOTO</option>
+                <option value="ZONA_FIRMAS">ZONA_FIRMAS</option>
+                <option value="ACCESO_STAFF">ACCESO_STAFF</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Beneficio / Interacción a validar</label>
+          <select id="valEntitlement">
+            <option value="ENTRY">ENTRY (Ingreso General / Staff)</option>
+            <option value="PHOTO">PHOTO (Interacción Foto)</option>
+            <option value="SIGNATURE">SIGNATURE (Interacción Firma)</option>
+            <option value="STAFF_ACCESS">STAFF_ACCESS (Zona Interna Staff)</option>
+          </select>
+
+          <label>Token QR escaneado</label>
+          <textarea id="valQrInput" rows="3" placeholder="Escanea con cámara o pega aquí el código QR..."></textarea>
+
+          <div class="row">
+            <button class="btn ok" onclick="validateQr()">✓ Validar Acceso</button>
+            <button class="btn sec" onclick="loadLastGeneratedQr()">Usar Último QR</button>
+            <button class="btn sec" onclick="startCamera()">📷 Cámara</button>
+          </div>
+          <video id="qrVideo" style="display:none; width:100%; margin-top:12px; border-radius:12px;"></video>
+          <div id="scanOutcome"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">
+            <span>Modo Contingencia Offline</span>
+            <span class="badge warn">Respaldo sin red</span>
+          </div>
+          <p class="muted">Descarga el paquete firmado con la clave pública Ed25519 antes del evento para operar si cae el internet y sincronizar al reconectar.</p>
+
+          <button class="btn block" onclick="downloadBundle()">1. Descargar Paquete Offline del Evento</button>
+          <button class="btn warn block" id="offlineToggleBtn" onclick="toggleOffline()">2. Simular Sin Internet: OFF</button>
+          <div id="bundleInfo" class="mono" style="margin-top:10px;">Sin paquete descargado.</div>
+
+          <div style="border-top:1px solid var(--border); margin:18px 0;"></div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>Cola pendiente de sincronización</strong>
+            <span id="queueCount" class="badge purple">0</span>
+          </div>
+          <button class="btn ok block" onclick="syncOffline()">3. Sincronizar Lote con el Servidor</button>
+          <div id="syncMsg"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    let offlineMode = false;
+    let scansCount = 0;
+    let bundle = JSON.parse(localStorage.getItem("ep_offline_bundle") || "null");
+    let queue = JSON.parse(localStorage.getItem("ep_offline_queue") || "[]");
+    let localRedeemed = JSON.parse(localStorage.getItem("ep_offline_redeemed") || "{}");
+
+    function refreshUI() {
+      const sess = EP.getSession();
+      const badge = document.getElementById("actorBadge");
+      const switchBtn = document.getElementById("switchUserBtn");
+      if (sess.token) {
+        badge.className = "badge ok";
+        badge.textContent = `${sess.role} · ${sess.slug || sess.tenantId.slice(0, 8)}`;
+        switchBtn.style.display = "inline-flex";
+        document.getElementById("loginCard").style.display = "none";
+        document.getElementById("scannerWorkspace").style.display = "block";
+        loadEvents();
+      } else {
+        badge.className = "badge warn";
+        badge.textContent = "Sin sesión";
+        switchBtn.style.display = "none";
+        document.getElementById("loginCard").style.display = "block";
+        document.getElementById("scannerWorkspace").style.display = "none";
+        if (sess.slug) document.getElementById("valSlug").value = sess.slug;
+      }
+
+      document.getElementById("connBadge").className = offlineMode ? "badge warn" : "badge ok";
+      document.getElementById("connBadge").textContent = offlineMode ? "CONTINGENCIA OFFLINE" : "ONLINE";
+      document.getElementById("kpiMode").textContent = offlineMode ? "CONTINGENCIA OFFLINE" : "ONLINE EN TIEMPO REAL";
+      document.getElementById("kpiMode").style.color = offlineMode ? "var(--warn)" : "var(--ok)";
+      document.getElementById("offlineToggleBtn").textContent = `2. Simular Sin Internet: ${offlineMode ? "ON" : "OFF"}`;
+      document.getElementById("queueCount").textContent = String(queue.length);
+      document.getElementById("kpiQueue").textContent = String(queue.length);
+      document.getElementById("kpiScans").textContent = String(scansCount);
+
+      if (bundle) {
+        document.getElementById("bundleInfo").textContent = `Paquete listo: ${bundle.credentials.length} credenciales cargadas.`;
+      }
+      const lastQr = localStorage.getItem("ep_last_qr");
+      if (lastQr && !document.getElementById("valQrInput").value) {
+        document.getElementById("valQrInput").value = lastQr;
+      }
+    }
+
+    function logoutValidator() {
+      EP.clearSession();
+      refreshUI();
+    }
+
+    async function loginValidator() {
+      try {
+        const slug = document.getElementById("valSlug").value.trim();
+        const body = {
+          tenant_slug: slug,
+          email: document.getElementById("valEmail").value.trim(),
+          password: document.getElementById("valPass").value,
+          device_id: "PUERTA_WEB_01",
+        };
+        const mfa = document.getElementById("valMfa").value.trim();
+        if (mfa) body.mfa_code = mfa;
+        const res = await EP.api("/api/v1/auth/login", { method: "POST", auth: false, body: JSON.stringify(body) });
+        EP.saveSession(res.access_token, res.role, res.tenant_id, slug);
+        refreshUI();
+      } catch (e) {
+        EP.showMsg("valLoginMsg", "err", e.message);
+      }
+    }
+
+    async function loadEvents() {
+      try {
+        const events = await EP.api("/api/v1/registration/public/events", { auth: false });
+        document.getElementById("valEventSelect").innerHTML = events
+          .map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)}</option>`)
+          .join("");
+      } catch {}
+    }
+
+    function loadLastGeneratedQr() {
+      const q = localStorage.getItem("ep_last_qr");
+      if (!q) return showScanBanner("warn", "SIN QR RECIENTE", "Genera un QR primero en /comprar o /acreditacion.");
+      document.getElementById("valQrInput").value = q;
+    }
+
+    function showScanBanner(kind, title, details) {
+      document.getElementById("scanOutcome").innerHTML = `
+        <div class="scan-banner ${kind}">
+          <h2>${EP.escapeHtml(title)}</h2>
+          <div style="white-space:pre-wrap; font-size:0.9rem;">${EP.escapeHtml(details)}</div>
+        </div>
+      `;
+    }
+
+    async function validateQr() {
+      const qrToken = document.getElementById("valQrInput").value.trim();
+      const entitlement = document.getElementById("valEntitlement").value;
+      const gateId = document.getElementById("valGateId").value;
+      if (!qrToken) return showScanBanner("warn", "QR VACÍO", "Ingresa o escanea un QR primero.");
+
+      if (!offlineMode) {
+        try {
+          const res = await EP.api("/api/v1/accreditation/check-in", {
+            method: "POST",
+            body: JSON.stringify({ qr_token: qrToken, entitlement_code: entitlement, gate_id: gateId }),
+          });
+          scansCount += 1;
+          refreshUI();
+          showScanBanner(
+            "ok",
+            "✓ ACCESO APROBADO",
+            `Titular: ${res.display_name} (${res.dni_last4}) · ${res.holder_type}` +
+            (res.company_label ? `\nEmpresa: ${res.company_label}` : "") +
+            `\nBeneficio redimido: ${res.entitlement_code}\nRestantes: ${JSON.stringify(res.all_remaining)}`
+          );
+        } catch (e) {
+          showScanBanner("err", "✕ ACCESO DENEGADO", e.message);
+        }
+        return;
+      }
+
+      if (!bundle) {
+        return showScanBanner("err", "SIN PAQUETE OFFLINE", "Descarga primero el Paquete Offline.");
+      }
+
+      try {
+        const claims = await EP.verifyEd25519Jws(qrToken, bundle.qr_public_key_pem);
+        if (claims.eid !== bundle.event_id) throw new Error("El QR corresponde a otro evento.");
+        const snap = bundle.credentials.find(c => c.credential_id === claims.cid);
+        if (snap && snap.status !== "ACTIVE") throw new Error("Credencial REVOCADA.");
+
+        const ent = snap ? snap.entitlements : (claims.ent || {});
+        const allowed = Number(ent[entitlement] || 0);
+        const snapUsed = Number((snap && snap.redeemed[entitlement]) || 0);
+        const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][entitlement]) || 0);
+        if (allowed - snapUsed - locUsed <= 0) {
+          throw new Error(`Beneficio '${entitlement}' ya consumido o no incluido.`);
+        }
+
+        localRedeemed[claims.cid] = localRedeemed[claims.cid] || {};
+        localRedeemed[claims.cid][entitlement] = locUsed + 1;
+        queue.push({
+          client_scan_id: `off-${crypto.randomUUID()}`,
+          qr_token: qrToken,
+          entitlement_code: entitlement,
+          gate_id: gateId,
+          device_id: "PUERTA_OFFLINE_01",
+          scanned_at: new Date().toISOString(),
+        });
+        scansCount += 1;
+        localStorage.setItem("ep_offline_redeemed", JSON.stringify(localRedeemed));
+        localStorage.setItem("ep_offline_queue", JSON.stringify(queue));
+        refreshUI();
+        showScanBanner(
+          "warn",
+          "✓ APROBADO OFFLINE (En cola)",
+          `Titular: ${snap ? snap.display_name : "Verificado por Ed25519"} (${claims.d4})\nSe sincronizará al volver el internet.`
+        );
+      } catch (e) {
+        showScanBanner("err", "✕ RECHAZADO OFFLINE", e.message);
+      }
+    }
+
+    async function downloadBundle() {
+      const eventId = document.getElementById("valEventSelect").value;
+      if (!eventId) return EP.showMsg("syncMsg", "err", "Selecciona un evento.");
+      try {
+        bundle = await EP.api(`/api/v1/accreditation/events/${eventId}/offline-bundle`);
+        localRedeemed = {};
+        localStorage.setItem("ep_offline_bundle", JSON.stringify(bundle));
+        localStorage.setItem("ep_offline_redeemed", "{}");
+        refreshUI();
+        EP.showMsg("syncMsg", "ok", `Paquete descargado (${bundle.credentials.length} credenciales + clave pública Ed25519).`);
+      } catch (e) {
+        EP.showMsg("syncMsg", "err", e.message);
+      }
+    }
+
+    function toggleOffline() {
+      offlineMode = !offlineMode;
+      refreshUI();
+    }
+
+    async function syncOffline() {
+      const eventId = document.getElementById("valEventSelect").value;
+      if (!queue.length) return EP.showMsg("syncMsg", "warn", "No hay escaneos pendientes en cola.");
+      try {
+        const res = await EP.api(`/api/v1/accreditation/events/${eventId}/offline-sync`, {
+          method: "POST",
+          body: JSON.stringify({ scans: queue }),
+        });
+        queue = [];
+        localStorage.setItem("ep_offline_queue", "[]");
+        refreshUI();
+        EP.showMsg("syncMsg", res.conflicts > 0 ? "warn" : "ok",
+          `Sincronización completada · Aprobados: ${res.granted} · Conflictos detectados: ${res.conflicts}\n` +
+          JSON.stringify(res.results, null, 2)
+        );
+      } catch (e) {
+        EP.showMsg("syncMsg", "err", e.message);
+      }
+    }
+
+    async function startCamera() {
+      if (!("BarcodeDetector" in window)) {
+        return showScanBanner("warn", "CÁMARA NO SOPORTADA", "Este navegador no incluye BarcodeDetector; pega el QR o usa 'Usar Último QR'.");
+      }
+      const video = document.getElementById("qrVideo");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = stream;
+        video.style.display = "block";
+        await video.play();
+        const detector = new BarcodeDetector({ formats: ["qr_code"] });
+        const tick = async () => {
+          if (video.readyState === 4) {
+            const codes = await detector.detect(video);
+            if (codes.length) {
+              document.getElementById("valQrInput").value = codes[0].rawValue;
+              stream.getTracks().forEach(t => t.stop());
+              video.style.display = "none";
+              await validateQr();
+              return;
+            }
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      } catch (e) {
+        showScanBanner("err", "ERROR DE CÁMARA", e.message);
+      }
+    }
+
+    refreshUI();
+  </script>
+</body>
+</html>

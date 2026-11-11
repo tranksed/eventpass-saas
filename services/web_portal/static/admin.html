@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel General SaaS — EventPass</title>
+  <link rel="stylesheet" href="/static/shared.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>EVENTPASS · PANEL GENERAL</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link" href="/">Descubrir</a>
+      <a class="nav-link" href="/comprar">Taquilla Compras</a>
+      <a class="nav-link" href="/validar">Puerta / Validación</a>
+      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+    </nav>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span id="sessionBadge" class="badge warn">Sin sesión</span>
+      <button class="btn sec sm" onclick="logout()">Cerrar Sesión</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="grid-3" style="margin-bottom:20px;">
+      <div class="card" style="padding:16px;">
+        <div class="muted">Perfil Activo</div>
+        <div id="kpiRole" style="font-size:1.35rem; font-weight:800; margin-top:4px;">Invitado</div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div class="muted">Eventos de la Empresa</div>
+        <div id="kpiEvents" style="font-size:1.55rem; font-weight:800; margin-top:4px;">0</div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div class="muted">Empresas Acreditadas</div>
+        <div id="kpiCompanies" style="font-size:1.55rem; font-weight:800; margin-top:4px;">0</div>
+      </div>
+    </div>
+
+    <div class="admin-layout">
+      <aside class="sidebar">
+        <button class="side-btn active" onclick="showPane('auth', this)">1. Empresa y Sesión</button>
+        <button class="side-btn" onclick="showPane('events', this)">2. Eventos y Entradas</button>
+        <button class="side-btn" onclick="showPane('companies', this)">3. Empresas y Cupos Staff</button>
+        <button class="side-btn" onclick="showPane('team', this)">4. Equipo (3 Perfiles)</button>
+        <button class="side-btn" onclick="showPane('audit', this)">5. Auditoría SHA-256</button>
+      </aside>
+
+      <div>
+        <!-- PANE 1: AUTH -->
+        <section id="pane-auth" class="section-pane active">
+          <div class="grid-2">
+            <div class="card card-glow">
+              <h2>Registrar Empresa SaaS (Tenant)</h2>
+              <div class="row">
+                <div>
+                  <label>Nombre Empresa</label>
+                  <input id="regCompanyName" value="Eventos Globales SAC" />
+                </div>
+                <div>
+                  <label>Slug único</label>
+                  <input id="regCompanySlug" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Nombre Admin</label>
+                  <input id="regAdminName" value="Carlos Admin" />
+                </div>
+                <div>
+                  <label>Email Admin</label>
+                  <input id="regAdminEmail" value="admin@eventos.com" />
+                </div>
+              </div>
+              <label>Contraseña (mín. 8 caracteres)</label>
+              <input id="regAdminPass" type="password" value="UltraSecure!2026" />
+              <button class="btn block" onclick="registerTenant()">Crear Empresa e Iniciar Sesión (ADMIN)</button>
+              <div id="regMsg"></div>
+            </div>
+
+            <div class="card">
+              <h2>Iniciar Sesión Existente</h2>
+              <label>Slug Empresa</label>
+              <input id="loginSlug" placeholder="ej. empresa-..." />
+              <label>Email</label>
+              <input id="loginEmail" placeholder="admin@eventos.com" />
+              <div class="row">
+                <div>
+                  <label>Contraseña</label>
+                  <input id="loginPass" type="password" value="UltraSecure!2026" />
+                </div>
+                <div>
+                  <label>Código MFA (si aplica)</label>
+                  <input id="loginMfa" placeholder="Opcional" />
+                </div>
+              </div>
+              <button class="btn sec block" onclick="loginUser()">Iniciar Sesión</button>
+              <div id="loginMsg"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PANE 2: EVENTS -->
+        <section id="pane-events" class="section-pane">
+          <div class="grid-2">
+            <div class="card">
+              <h2>Crear Evento (Solo ADMIN)</h2>
+              <div class="row">
+                <div>
+                  <label>Nombre del Evento</label>
+                  <input id="evName" value="Ritmo Fest 2026" />
+                </div>
+                <div>
+                  <label>Slug del Evento</label>
+                  <input id="evSlug" />
+                </div>
+              </div>
+              <label>Máximo de compras por DNI (1 a 10)</label>
+              <input id="evMaxDni" type="number" min="1" max="10" value="3" />
+              <button class="btn block" onclick="createEvent()">Crear Evento</button>
+              <div id="evMsg"></div>
+            </div>
+
+            <div class="card">
+              <h2>Agregar Entradas / Interacciones</h2>
+              <label>Evento</label>
+              <select id="adminEventSelect" onchange="loadCompanies()"></select>
+              <div class="row">
+                <div>
+                  <label>Código</label>
+                  <select id="itemCode">
+                    <option value="ENTRY">ENTRY (Entrada)</option>
+                    <option value="PHOTO">PHOTO (Foto)</option>
+                    <option value="SIGNATURE">SIGNATURE (Firma)</option>
+                    <option value="VIP_LOUNGE">VIP_LOUNGE</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Tipo</label>
+                  <select id="itemType">
+                    <option value="ENTRY">ENTRY</option>
+                    <option value="INTERACTION">INTERACTION</option>
+                  </select>
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label>Nombre Comercial</label>
+                  <input id="itemName" value="Entrada General" />
+                </div>
+                <div>
+                  <label>Precio (centavos)</label>
+                  <input id="itemPrice" type="number" value="4500" />
+                </div>
+                <div>
+                  <label>Stock</label>
+                  <input id="itemStock" type="number" value="500" />
+                </div>
+              </div>
+              <button class="btn ok block" onclick="createCatalogItem()">Agregar al Catálogo</button>
+              <div id="itemMsg"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PANE 3: ACCREDITED COMPANIES -->
+        <section id="pane-companies" class="section-pane">
+          <div class="card" style="margin-bottom:20px;">
+            <h2>Generar Link Privado de Acreditación de Staff</h2>
+            <p class="muted">Cupo inicial <strong>6</strong> · Supervisor amplía hasta <strong>10</strong> · Admin asigna cupo personalizado.</p>
+            <div class="row">
+              <div>
+                <label>Evento</label>
+                <select id="compEventSelect"></select>
+              </div>
+              <div>
+                <label>Empresa Representada</label>
+                <input id="accCompName" value="Sony Pictures Partners" />
+              </div>
+              <div>
+                <label>Email Contacto</label>
+                <input id="accCompEmail" value="ops@partner.com" />
+              </div>
+            </div>
+            <button class="btn" onclick="createAccreditedCompany()">Crear Empresa y Generar Link Privado</button>
+            <div id="compMsg"></div>
+          </div>
+
+          <div class="card">
+            <h2>Empresas Acreditadas y Cupos</h2>
+            <table>
+              <thead><tr><th>Empresa</th><th>Usado / Cupo</th><th>Modificar Cupo</th></tr></thead>
+              <tbody id="companiesTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- PANE 4: TEAM -->
+        <section id="pane-team" class="section-pane">
+          <div class="grid-2">
+            <div class="card">
+              <h2>Crear Usuario del Equipo (Solo ADMIN)</h2>
+              <label>Nombre Completo</label>
+              <input id="newUserName" value="Sofía Supervisora" />
+              <label>Email</label>
+              <input id="newUserEmail" value="supervisor@eventos.com" />
+              <div class="row">
+                <div>
+                  <label>Contraseña</label>
+                  <input id="newUserPass" type="password" value="TeamPass!2026" />
+                </div>
+                <div>
+                  <label>Perfil</label>
+                  <select id="newUserRole">
+                    <option value="SUPERVISOR">SUPERVISOR (hasta 10 staff)</option>
+                    <option value="VALIDATOR">VALIDATOR (puerta online/offline)</option>
+                    <option value="ADMIN">ADMIN (acceso total)</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn block" onclick="createTeamUser()">Crear Usuario</button>
+              <div id="teamMsg"></div>
+            </div>
+
+            <div class="card">
+              <div class="section-title">
+                <span>Usuarios de la Empresa</span>
+                <button class="btn sec sm" onclick="loadTeamUsers()">↻ Actualizar</button>
+              </div>
+              <table>
+                <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th></tr></thead>
+                <tbody id="usersTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PANE 5: AUDIT -->
+        <section id="pane-audit" class="section-pane">
+          <div class="card">
+            <div class="section-title">
+              <span>Auditoría Inmutable (Hash-Chain SHA-256)</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn sec sm" onclick="loadAuditLogs()">↻ Cargar</button>
+                <button class="btn ok sm" onclick="verifyAuditChain()">✓ Verificar SHA-256</button>
+              </div>
+            </div>
+            <div id="auditStatus"></div>
+            <table>
+              <thead><tr><th>Seq</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Detalle</th><th>Hash</th></tr></thead>
+              <tbody id="auditTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    function init() {
+      const rnd = Math.random().toString(36).slice(2, 7);
+      document.getElementById("regCompanySlug").value = `empresa-${rnd}`;
+      document.getElementById("evSlug").value = `ritmo-${rnd}`;
+      refreshSession();
+    }
+
+    function showPane(name, btn) {
+      document.querySelectorAll(".section-pane").forEach(p => p.classList.remove("active"));
+      document.querySelectorAll(".side-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById(`pane-${name}`).classList.add("active");
+      btn.classList.add("active");
+      if (name === "events" || name === "companies") loadEvents();
+      if (name === "companies") loadCompanies();
+      if (name === "team") loadTeamUsers();
+      if (name === "audit") loadAuditLogs();
+    }
+
+    function refreshSession() {
+      const s = EP.getSession();
+      const b = document.getElementById("sessionBadge");
+      if (s.token) {
+        b.className = "badge ok";
+        b.textContent = `${s.role} · ${s.slug || s.tenantId.slice(0, 8)}`;
+        document.getElementById("kpiRole").textContent = s.role;
+        if (s.slug) document.getElementById("loginSlug").value = s.slug;
+        loadEvents();
+        loadCompanies();
+      } else {
+        b.className = "badge warn";
+        b.textContent = "Sin sesión";
+        document.getElementById("kpiRole").textContent = "Invitado";
+      }
+    }
+
+    function logout() {
+      EP.clearSession();
+      refreshSession();
+    }
+
+    async function registerTenant() {
+      try {
+        const res = await EP.api("/api/v1/auth/tenants/register", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            company_name: document.getElementById("regCompanyName").value,
+            company_slug: document.getElementById("regCompanySlug").value,
+            admin_full_name: document.getElementById("regAdminName").value,
+            admin_email: document.getElementById("regAdminEmail").value,
+            admin_password: document.getElementById("regAdminPass").value,
+          }),
+        });
+        EP.saveSession(res.tokens.access_token, res.tokens.role, res.tenant_id, res.company_slug);
+        document.getElementById("loginSlug").value = res.company_slug;
+        document.getElementById("loginEmail").value = res.user.email;
+        EP.showMsg("regMsg", "ok", `Empresa '${res.company_name}' creada. Continúa en '2. Eventos y Entradas'.`);
+        refreshSession();
+      } catch (e) { EP.showMsg("regMsg", "err", e.message); }
+    }
+
+    async function loginUser() {
+      try {
+        const slug = document.getElementById("loginSlug").value.trim();
+        const body = {
+          tenant_slug: slug,
+          email: document.getElementById("loginEmail").value.trim(),
+          password: document.getElementById("loginPass").value,
+        };
+        const mfa = document.getElementById("loginMfa").value.trim();
+        if (mfa) body.mfa_code = mfa;
+        const res = await EP.api("/api/v1/auth/login", { method: "POST", auth: false, body: JSON.stringify(body) });
+        EP.saveSession(res.access_token, res.role, res.tenant_id, slug);
+        EP.showMsg("loginMsg", "ok", `Sesión iniciada como ${res.role}.`);
+        refreshSession();
+      } catch (e) { EP.showMsg("loginMsg", "err", e.message); }
+    }
+
+    async function loadEvents() {
+      if (!EP.getSession().token) return;
+      try {
+        const events = await EP.api("/api/v1/registration/events");
+        document.getElementById("kpiEvents").textContent = String(events.length);
+        const opts = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)} (DNI max ${e.max_purchases_per_dni})</option>`).join("");
+        document.getElementById("adminEventSelect").innerHTML = opts;
+        document.getElementById("compEventSelect").innerHTML = opts;
+      } catch {}
+    }
+
+    async function createEvent() {
+      try {
+        const now = new Date();
+        const res = await EP.api("/api/v1/registration/events", {
+          method: "POST",
+          body: JSON.stringify({
+            name: document.getElementById("evName").value,
+            slug: document.getElementById("evSlug").value,
+            starts_at: new Date(now.getTime() + 3600 * 1000).toISOString(),
+            ends_at: new Date(now.getTime() + 72 * 3600 * 1000).toISOString(),
+            max_purchases_per_dni: Number(document.getElementById("evMaxDni").value),
+          }),
+        });
+        EP.showMsg("evMsg", "ok", `Evento '${res.name}' creado (Límite DNI: ${res.max_purchases_per_dni}).`);
+        await loadEvents();
+      } catch (e) { EP.showMsg("evMsg", "err", e.message); }
+    }
+
+    async function createCatalogItem() {
+      const eventId = document.getElementById("adminEventSelect").value;
+      if (!eventId) return EP.showMsg("itemMsg", "err", "Crea o selecciona un evento primero.");
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/items`, {
+          method: "POST",
+          body: JSON.stringify({
+            code: document.getElementById("itemCode").value,
+            name: document.getElementById("itemName").value,
+            item_type: document.getElementById("itemType").value,
+            price_cents: Number(document.getElementById("itemPrice").value),
+            stock_total: Number(document.getElementById("itemStock").value),
+          }),
+        });
+        EP.showMsg("itemMsg", "ok", `Ítem '${res.code}' agregado (Stock: ${res.stock_available}). Ya disponible en /comprar.`);
+      } catch (e) { EP.showMsg("itemMsg", "err", e.message); }
+    }
+
+    async function createAccreditedCompany() {
+      const eventId = document.getElementById("compEventSelect").value;
+      if (!eventId) return EP.showMsg("compMsg", "err", "Crea o selecciona un evento primero.");
+      try {
+        const res = await EP.api("/api/v1/accreditation/companies", {
+          method: "POST",
+          body: JSON.stringify({
+            event_id: eventId,
+            company_name: document.getElementById("accCompName").value,
+            contact_email: document.getElementById("accCompEmail").value,
+          }),
+        });
+        const inviteLink = `${location.origin}/acreditacion?token=${encodeURIComponent(res.invite_token)}`;
+        document.getElementById("compMsg").innerHTML = `
+          <div class="alert ok">
+            Empresa creada (Cupo inicial: ${res.staff_quota}).<br/>
+            <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <a href="${inviteLink}" target="_blank" style="color:#fff; text-decoration:underline; word-break:break-all;">${EP.escapeHtml(inviteLink)}</a>
+              <button class="btn sec sm" onclick="navigator.clipboard.writeText('${inviteLink}')">Copiar Link</button>
+            </div>
+          </div>
+        `;
+        await loadCompanies();
+      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
+    }
+
+    async function loadCompanies() {
+      if (!EP.getSession().token) return;
+      try {
+        const rows = await EP.api("/api/v1/accreditation/companies");
+        document.getElementById("kpiCompanies").textContent = String(rows.length);
+        document.getElementById("companiesTable").innerHTML = rows.map(c => `
+          <tr>
+            <td><strong>${EP.escapeHtml(c.company_name)}</strong></td>
+            <td><span class="badge purple">${c.staff_used} / ${c.staff_quota}</span></td>
+            <td>
+              <div class="row" style="gap:8px; align-items:center;">
+                <input id="q-${c.company_id}" type="number" min="1" max="500" value="${Math.min(10, c.staff_quota + 2)}" style="max-width:85px;" />
+                <button class="btn sec sm" onclick="updateQuota('${c.company_id}')">Actualizar</button>
+              </div>
+            </td>
+          </tr>
+        `).join("");
+      } catch {}
+    }
+
+    async function updateQuota(companyId) {
+      const quota = Number(document.getElementById(`q-${companyId}`).value);
+      try {
+        const res = await EP.api(`/api/v1/accreditation/companies/${companyId}/quota`, {
+          method: "PATCH",
+          body: JSON.stringify({ staff_quota: quota }),
+        });
+        EP.showMsg("compMsg", "ok", `Cupo actualizado a ${res.staff_quota} para ${res.company_name}.`);
+        loadCompanies();
+      } catch (e) { EP.showMsg("compMsg", "err", e.message); }
+    }
+
+    async function createTeamUser() {
+      try {
+        const res = await EP.api("/api/v1/auth/users", {
+          method: "POST",
+          body: JSON.stringify({
+            full_name: document.getElementById("newUserName").value,
+            email: document.getElementById("newUserEmail").value,
+            password: document.getElementById("newUserPass").value,
+            role: document.getElementById("newUserRole").value,
+          }),
+        });
+        EP.showMsg("teamMsg", "ok", `Usuario creado: ${res.email} (${res.role}).`);
+        loadTeamUsers();
+      } catch (e) { EP.showMsg("teamMsg", "err", e.message); }
+    }
+
+    async function loadTeamUsers() {
+      if (!EP.getSession().token) return;
+      try {
+        const rows = await EP.api("/api/v1/auth/users");
+        document.getElementById("usersTable").innerHTML = rows.map(u => `
+          <tr><td>${EP.escapeHtml(u.full_name)}</td><td>${EP.escapeHtml(u.email)}</td><td><span class="badge cyan">${u.role}</span></td></tr>
+        `).join("");
+      } catch {}
+    }
+
+    async function loadAuditLogs() {
+      if (!EP.getSession().token) return;
+      try {
+        const rows = await EP.api("/api/v1/audit/events?limit=25");
+        document.getElementById("auditTable").innerHTML = rows.map(r => `
+          <tr>
+            <td>${r.seq}</td>
+            <td>${EP.escapeHtml(r.service)}</td>
+            <td><strong>${EP.escapeHtml(r.action)}</strong></td>
+            <td><span class="badge">${EP.escapeHtml(r.actor_role)}</span></td>
+            <td class="mono">${escapeTrunc(JSON.stringify(r.metadata))}</td>
+            <td class="mono">${r.entry_hash.slice(0, 12)}...</td>
+          </tr>
+        `).join("");
+      } catch (e) { EP.showMsg("auditStatus", "err", e.message); }
+    }
+
+    function escapeTrunc(s) {
+      return EP.escapeHtml(s.length > 60 ? s.slice(0, 60) + "..." : s);
+    }
+
+    async function verifyAuditChain() {
+      try {
+        const res = await EP.api("/api/v1/audit/verify-chain");
+        EP.showMsg("auditStatus", res.intact ? "ok" : "err",
+          res.intact
+            ? `Integridad criptográfica VERIFICADA: ${res.total_entries} registros intactos.`
+            : `ALERTA: Cadena rota en seq ${res.broken_at_seq}`
+        );
+      } catch (e) { EP.showMsg("auditStatus", "err", e.message); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

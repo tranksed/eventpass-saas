@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comprar Entradas — EventPass</title>
+  <link rel="stylesheet" href="/static/shared.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>EVENTPASS</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link" href="/">Descubrir</a>
+      <a class="nav-link active" href="/comprar">Comprar Entradas</a>
+      <a class="nav-link" href="/validar">Validación</a>
+      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+    </nav>
+    <a class="nav-cta" href="/admin">Panel Organizador</a>
+  </header>
+
+  <main class="container">
+    <!-- Barra de selección rápida / búsqueda -->
+    <div class="card" style="padding:14px 18px; margin-bottom:20px;">
+      <div class="row" style="align-items:center;">
+        <div style="flex:2;">
+          <label style="margin-top:0;">Evento seleccionado</label>
+          <select id="buyerEventSelect" onchange="loadCatalog()"></select>
+        </div>
+        <div style="flex:0 0 auto;">
+          <button class="btn sec sm" onclick="loadEvents()">↻ Actualizar Eventos</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="checkout-grid">
+      <!-- COLUMNA IZQUIERDA: INFO DEL EVENTO -->
+      <div class="card">
+        <div class="event-banner">
+          <span class="badge ok" style="align-self:flex-start; margin-bottom:auto;">VENTA ACTIVA</span>
+          <h2 id="heroEventTitle">Selecciona un evento</h2>
+        </div>
+
+        <div class="meta-tile">
+          <div class="meta-icon">📅</div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--muted);">Fecha del evento</div>
+            <div id="heroEventDate" style="font-weight:700; font-size:0.88rem;">—</div>
+          </div>
+        </div>
+
+        <div class="meta-tile">
+          <div class="meta-icon">🛡️</div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--muted);">Regla de seguridad</div>
+            <div id="heroEventLimit" style="font-weight:700; font-size:0.88rem;">Registro vinculado al DNI</div>
+          </div>
+        </div>
+
+        <div class="meta-tile">
+          <div class="meta-icon">🎟️</div>
+          <div>
+            <div style="font-size:0.75rem; color:var(--muted);">Entrega digital</div>
+            <div style="font-weight:700; font-size:0.88rem;">QR Cifrado Ed25519</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMNA CENTRAL: SELECCIÓN DE ENTRADAS / INTERACCIONES + DNI -->
+      <div>
+        <div class="card" style="margin-bottom:20px;">
+          <div class="section-title">
+            <span>Selecciona tus entradas e interacciones</span>
+            <span class="badge purple">Paso 1</span>
+          </div>
+          <div id="catalogContainer" class="tier-grid">
+            <div class="muted">Cargando catálogo...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">
+            <span>Formulario de asistente</span>
+            <span class="badge cyan">Paso 2 · Obligatorio</span>
+          </div>
+          <p class="muted" style="margin-top:0;">Tu DNI se cifra con AES-256-GCM y controla el límite máximo configurado por el organizador.</p>
+
+          <label>DNI / Documento de Identidad</label>
+          <input id="buyerDni" placeholder="Ej. 72345678" value="72345678" />
+
+          <div class="row">
+            <div>
+              <label>Nombre completo</label>
+              <input id="buyerName" placeholder="Tu nombre completo" value="Lucía Mendoza" />
+            </div>
+            <div>
+              <label>Correo electrónico</label>
+              <input id="buyerEmail" placeholder="correo@ejemplo.com" value="lucia@example.com" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMNA DERECHA: RESUMEN DE COMPRA + PAGO -->
+      <div>
+        <div class="card card-glow" style="margin-bottom:18px;">
+          <div class="section-title">
+            <span>Resumen de Compra</span>
+            <span class="timer-box" id="reserveTimer">10:00</span>
+          </div>
+          <div id="summaryItems" class="muted" style="padding:8px 0; border-bottom:1px solid var(--border);">
+            Aún no seleccionas entradas.
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+            <span class="muted">Total a pagar</span>
+            <span id="summaryTotal" style="font-size:1.55rem; font-weight:800;">$0.00</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">
+            <span>Métodos de pago</span>
+            <span class="badge ok">HMAC Seguro</span>
+          </div>
+          <div class="pay-methods">
+            <div class="pay-pill active" onclick="selectPayMethod(this)">💳 Tarjeta Visa / MC</div>
+            <div class="pay-pill" onclick="selectPayMethod(this)">📱 Yape / Plin</div>
+            <div class="pay-pill" onclick="selectPayMethod(this)">🅿️ PayPal / Stripe</div>
+            <div class="pay-pill" onclick="selectPayMethod(this)">⚡ Pasarela Demo</div>
+          </div>
+
+          <button class="btn block" id="confirmBtn" onclick="confirmAndPay()">Confirmar y Pagar</button>
+          <div id="buyerMsg"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL TICKET DIGITAL EXITOSO (COMO EN LA IMAGEN DE REFERENCIA) -->
+  <div id="ticketModal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="digital-ticket">
+        <button class="modal-close" onclick="closeTicketModal()">✕</button>
+        <span class="badge ok">¡Compra Exitosa!</span>
+        <div class="muted" style="margin-top:6px;">Ticket Digital Verificable</div>
+        <h2 id="modalEventName" style="margin:10px 0 4px; font-size:1.3rem;">EVENTO</h2>
+        <div id="modalEntitlements" class="mono" style="color:var(--cyan);">ENTRY</div>
+
+        <div class="ticket-divider"></div>
+
+        <div class="qr-frame">
+          <img id="modalQrImg" src="" alt="QR Ticket" />
+        </div>
+        <div class="muted" style="font-size:0.8rem;">Muestra este QR al ingresar o en zonas de Foto/Firma</div>
+        <div id="modalCredId" class="mono" style="margin-top:6px;"></div>
+
+        <div class="ticket-divider"></div>
+
+        <a id="modalDownloadBtn" class="btn block" href="#" download="ticket-eventpass.png">⬇ Descargar Ticket PNG</a>
+        <a class="btn sec block" href="/validar">Probar este QR en Validación →</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    let catalogItems = [];
+    let quantities = {};
+    let countdownInterval = null;
+
+    function selectPayMethod(el) {
+      document.querySelectorAll(".pay-pill").forEach(p => p.classList.remove("active"));
+      el.classList.add("active");
+    }
+
+    function startCountdown(seconds = 600) {
+      if (countdownInterval) clearInterval(countdownInterval);
+      let rem = seconds;
+      const tick = () => {
+        const m = String(Math.floor(rem / 60)).padStart(2, "0");
+        const s = String(rem % 60).padStart(2, "0");
+        document.getElementById("reserveTimer").textContent = `${m}:${s}`;
+        if (rem > 0) rem -= 1;
+      };
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+
+    async function loadEvents() {
+      const sel = document.getElementById("buyerEventSelect");
+      try {
+        const events = await EP.api("/api/v1/registration/public/events", { auth: false });
+        if (!events.length) {
+          sel.innerHTML = `<option value="">Sin eventos publicados</option>`;
+          document.getElementById("catalogContainer").innerHTML =
+            `<div class="muted">Aún no hay eventos. Crea uno desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+          return;
+        }
+        sel.innerHTML = events.map(e =>
+          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}">${EP.escapeHtml(e.name)}</option>`
+        ).join("");
+        const urlEvent = new URLSearchParams(location.search).get("event");
+        if (urlEvent && [...sel.options].some(o => o.value === urlEvent)) {
+          sel.value = urlEvent;
+        }
+        await loadCatalog();
+      } catch (e) {
+        EP.showMsg("buyerMsg", "err", e.message);
+      }
+    }
+
+    async function loadCatalog() {
+      const sel = document.getElementById("buyerEventSelect");
+      const eventId = sel.value;
+      if (!eventId) return;
+      const opt = sel.selectedOptions[0];
+      document.getElementById("heroEventTitle").textContent = opt.textContent;
+      document.getElementById("heroEventDate").textContent = new Date(opt.dataset.start).toLocaleString();
+      document.getElementById("heroEventLimit").textContent = `Máx. ${opt.dataset.limit} por DNI`;
+
+      try {
+        catalogItems = await EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false });
+        quantities = {};
+        catalogItems.forEach((it, idx) => {
+          quantities[it.id] = (it.code === "ENTRY" || idx === 0) && it.stock_available > 0 ? 1 : 0;
+        });
+        renderCatalog();
+        renderSummary();
+      } catch (e) {
+        document.getElementById("catalogContainer").innerHTML = `<div class="muted">${EP.escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function changeQty(itemId, delta) {
+      const item = catalogItems.find(x => x.id === itemId);
+      if (!item) return;
+      const next = Math.max(0, Math.min(10, Math.min(item.stock_available, (quantities[itemId] || 0) + delta)));
+      quantities[itemId] = next;
+      renderCatalog();
+      renderSummary();
+    }
+
+    function renderCatalog() {
+      const box = document.getElementById("catalogContainer");
+      if (!catalogItems.length) {
+        box.innerHTML = `<div class="muted">Este evento no tiene entradas ni interacciones todavía. Agrégalas en <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+        return;
+      }
+      box.innerHTML = catalogItems.map(i => {
+        const qty = quantities[i.id] || 0;
+        const badgeClass = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "ok" : "warn") : "err";
+        const badgeText = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "Disponible" : "Interacción") : "Agotado";
+        return `
+          <div class="tier-card ${qty > 0 ? "selected" : ""}">
+            <div class="tier-head">
+              <div class="tier-name">${EP.escapeHtml(i.name)}</div>
+              <span class="badge ${badgeClass}">${badgeText}</span>
+            </div>
+            <div class="tier-price">$${(i.price_cents / 100).toFixed(2)}</div>
+            <div class="mono" style="margin-top:2px;">${EP.escapeHtml(i.code)} · Stock: ${i.stock_available}</div>
+            <div class="stepper">
+              <button class="step-btn" onclick="changeQty('${i.id}', -1)">−</button>
+              <span class="step-val">${qty}</span>
+              <button class="step-btn" onclick="changeQty('${i.id}', 1)">+</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderSummary() {
+      const lines = catalogItems.filter(i => (quantities[i.id] || 0) > 0);
+      const box = document.getElementById("summaryItems");
+      if (!lines.length) {
+        box.innerHTML = "Selecciona al menos 1 entrada o interacción.";
+        document.getElementById("summaryTotal").textContent = "$0.00";
+        return;
+      }
+      let totalCents = 0;
+      box.innerHTML = lines.map(i => {
+        const q = quantities[i.id];
+        const sub = i.price_cents * q;
+        totalCents += sub;
+        return `<div style="display:flex; justify-content:space-between; margin:6px 0; font-size:0.86rem;">
+          <span>${q} × ${EP.escapeHtml(i.name)}</span>
+          <strong>$${(sub / 100).toFixed(2)}</strong>
+        </div>`;
+      }).join("");
+      document.getElementById("summaryTotal").textContent = `$${(totalCents / 100).toFixed(2)}`;
+    }
+
+    async function confirmAndPay() {
+      const eventId = document.getElementById("buyerEventSelect").value;
+      const items = Object.entries(quantities)
+        .filter(([, q]) => q > 0)
+        .map(([item_id, quantity]) => ({ item_id, quantity }));
+      if (!eventId || !items.length) {
+        return EP.showMsg("buyerMsg", "err", "Selecciona un evento y al menos 1 entrada o interacción.");
+      }
+
+      const btn = document.getElementById("confirmBtn");
+      btn.disabled = true;
+      btn.textContent = "Procesando reserva y pago...";
+      try {
+        const order = await EP.api(`/api/v1/registration/events/${eventId}/orders`, {
+          method: "POST",
+          auth: false,
+          headers: { "Idempotency-Key": `ui-${crypto.randomUUID()}` },
+          body: JSON.stringify({
+            dni: document.getElementById("buyerDni").value,
+            full_name: document.getElementById("buyerName").value,
+            email: document.getElementById("buyerEmail").value,
+            items,
+          }),
+        });
+        startCountdown(600);
+
+        const paid = await EP.api("/bff/simulate-payment", {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            order_id: order.order_id,
+            payment_reference: `GW-${Date.now()}`,
+            status: "PAID",
+          }),
+        });
+
+        localStorage.setItem("ep_last_qr", paid.qr_token);
+        const qrImgUrl = await EP.renderQrDataUrl(paid.qr_token);
+        const boughtCodes = catalogItems
+          .filter(i => (quantities[i.id] || 0) > 0)
+          .map(i => `${quantities[i.id]}× ${i.code}`)
+          .join(" · ");
+
+        document.getElementById("modalEventName").textContent =
+          document.getElementById("buyerEventSelect").selectedOptions[0].textContent;
+        document.getElementById("modalEntitlements").textContent = boughtCodes;
+        document.getElementById("modalQrImg").src = qrImgUrl;
+        document.getElementById("modalCredId").textContent = `DNI ${order.dni_last4} · ID ${paid.credential_id.slice(0, 12)}...`;
+        document.getElementById("modalDownloadBtn").href = qrImgUrl;
+        document.getElementById("ticketModal").classList.add("open");
+        EP.showMsg("buyerMsg", "ok", `¡Compra confirmada! Ticket QR emitido.`);
+        await loadCatalog();
+      } catch (e) {
+        EP.showMsg("buyerMsg", "err", e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Confirmar y Pagar";
+      }
+    }
+
+    function closeTicketModal() {
+      document.getElementById("ticketModal").classList.remove("open");
+    }
+
+    loadEvents();
+  </script>
+</body>
+</html>

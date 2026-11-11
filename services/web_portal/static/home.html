@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EventPass SaaS — Plataforma de Eventos y Acreditación</title>
+  <link rel="stylesheet" href="/static/shared.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>EVENTPASS</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link active" href="/">Descubrir</a>
+      <a class="nav-link" href="/comprar">Comprar Entradas</a>
+      <a class="nav-link" href="/validar">Validación en Puerta</a>
+      <a class="nav-link" href="/acreditacion">Acreditación Staff</a>
+    </nav>
+    <a class="nav-cta" href="/admin">Panel Organizador</a>
+  </header>
+
+  <main class="container">
+    <div class="card card-glow" style="margin-bottom:24px; padding:28px;">
+      <div class="row" style="align-items:center; justify-content:space-between;">
+        <div style="flex:2; min-width:280px;">
+          <span class="badge cyan">SAAS MULTI-TENANT · ALTA SEGURIDAD</span>
+          <h1 style="font-size:2rem; margin:12px 0 8px;">Experiencias en vivo con acreditación blindada</h1>
+          <p class="muted" style="margin:0; max-width:650px;">
+            Compra entradas, fotos y firmas enlazadas a tu DNI, acredita el staff de empresas aliadas con cupos controlados y valida en puerta online u offline con firmas Ed25519.
+          </p>
+        </div>
+        <div style="flex:0 0 auto; display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="btn" style="margin-top:0;" href="/comprar">🎟️ Ir a Taquilla</a>
+          <a class="btn sec" style="margin-top:0;" href="/validar">📱 Ir a Puerta</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <span>Eventos Disponibles</span>
+      <a class="badge purple" href="/comprar">Ver taquilla completa →</a>
+    </div>
+    <div id="featuredEvents" class="grid-3" style="margin-bottom:28px;">
+      <div class="card muted">Cargando eventos activos...</div>
+    </div>
+
+    <div class="section-title"><span>Módulos de la Plataforma</span></div>
+    <div class="grid-2">
+      <div class="card">
+        <span class="badge ok">PÚBLICO · PARTICIPANTES</span>
+        <h3 style="margin-top:10px;">🎟️ Taquilla y Registro por DNI</h3>
+        <p class="muted">Selección interactiva de entradas, fotos y firmas con reserva temporal, pago HMAC y pase QR digital descargable.</p>
+        <a class="btn" href="/comprar">Abrir Taquilla →</a>
+      </div>
+
+      <div class="card">
+        <span class="badge warn">PRIVADO · PUERTA</span>
+        <h3 style="margin-top:10px;">📱 Validación Online y Contingencia Offline</h3>
+        <p class="muted">Control de ingreso para compradores y staff. Valida firmas Ed25519 incluso sin internet y sincroniza al reconectar.</p>
+        <a class="btn ok" href="/validar">Abrir Módulo Puerta →</a>
+      </div>
+
+      <div class="card">
+        <span class="badge purple">ORGANIZADOR · ADMIN / SUPERVISOR</span>
+        <h3 style="margin-top:10px;">⚙️ Panel General SaaS</h3>
+        <p class="muted">Gestiona tu empresa, usuarios (Admin, Supervisor, Validador), límites por DNI (1–10), cupos de staff y auditoría SHA-256.</p>
+        <a class="btn sec" href="/admin">Abrir Panel General →</a>
+      </div>
+
+      <div class="card">
+        <span class="badge cyan">LINK PRIVADO · EMPRESAS</span>
+        <h3 style="margin-top:10px;">🏢 Acreditación de Staff Corporativo</h3>
+        <p class="muted">Portal exclusivo por token para empresas expositoras (cupo default 6, Supervisor hasta 10, Admin personalizado).</p>
+        <a class="btn sec" href="/acreditacion">Abrir Acreditación Staff →</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    async function loadFeatured() {
+      const box = document.getElementById("featuredEvents");
+      try {
+        const events = await EP.api("/api/v1/registration/public/events", { auth: false });
+        if (!events.length) {
+          box.innerHTML = `<div class="card muted">Aún no hay eventos creados. Crea el primero desde <a href="/admin" style="color:var(--cyan); text-decoration:underline;">Panel Organizador</a>.</div>`;
+          return;
+        }
+        box.innerHTML = events.slice(0, 6).map(e => `
+          <div class="card" style="padding:16px;">
+            <div class="event-banner" style="height:115px; margin-bottom:12px;">
+              <span class="badge cyan" style="align-self:flex-start; margin-bottom:auto;">DNI máx ${e.max_purchases_per_dni}</span>
+              <h2 style="font-size:1.08rem;">${EP.escapeHtml(e.name)}</h2>
+            </div>
+            <div class="mono">Inicio: ${new Date(e.starts_at).toLocaleDateString()}</div>
+            <a class="btn block" href="/comprar?event=${encodeURIComponent(e.id)}">Comprar Entradas</a>
+          </div>
+        `).join("");
+      } catch {
+        box.innerHTML = `<div class="card muted">No se pudieron cargar los eventos.</div>`;
+      }
+    }
+    loadFeatured();
+  </script>
+</body>
+</html>

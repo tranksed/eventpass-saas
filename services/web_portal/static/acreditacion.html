@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acreditación Privada de Staff — EventPass</title>
+  <link rel="stylesheet" href="/static/shared.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⚡</div>
+      <span>EVENTPASS</span>
+    </div>
+    <nav class="nav-links">
+      <a class="nav-link" href="/">Descubrir</a>
+      <a class="nav-link" href="/comprar">Comprar Entradas</a>
+      <a class="nav-link" href="/validar">Validación</a>
+      <a class="nav-link active" href="/acreditacion">Acreditación Staff</a>
+    </nav>
+    <a class="nav-cta" href="/admin">Panel Organizador</a>
+  </header>
+
+  <main class="container">
+    <div class="grid-2">
+      <div class="card">
+        <span class="badge cyan">LINK PRIVADO DE EMPRESA</span>
+        <h2 style="margin-top:10px;">Acreditar Personal / Staff</h2>
+        <label>Token de invitación de la empresa</label>
+        <div class="row">
+          <input id="inviteToken" placeholder="Pega el token o abre el link enviado por el organizador" />
+          <button class="btn sec sm" style="flex:0 0 auto;" onclick="checkInvite()">Consultar Cupo</button>
+        </div>
+
+        <div id="quotaBox" style="display:none; margin-top:14px; padding:12px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong id="compTitle">Empresa</strong>
+            <span id="compQuotaText" class="badge purple">0 / 6</span>
+          </div>
+          <div class="progress-track"><div id="quotaBar" class="progress-fill" style="width:0%;"></div></div>
+        </div>
+        <div id="companyBanner"></div>
+
+        <div class="row">
+          <div>
+            <label>DNI del Colaborador</label>
+            <input id="staffDni" value="44556677" />
+          </div>
+          <div>
+            <label>Nombre Completo</label>
+            <input id="staffName" value="Diego Vargas" />
+          </div>
+        </div>
+        <label>Cargo / Área</label>
+        <input id="staffRoleTitle" value="Productor Técnico" />
+
+        <button class="btn block" onclick="registerStaff()">Acreditar y Emitir Credencial QR</button>
+        <div id="staffMsg"></div>
+      </div>
+
+      <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+        <div id="staffQrPlaceholder" class="muted" style="text-align:center; padding:32px;">
+          Al registrar un miembro de tu staff aparecerá aquí su credencial digital con firma Ed25519.
+        </div>
+        <div id="staffTicketWrap" style="display:none;">
+          <div class="digital-ticket">
+            <span class="badge purple">CREDENCIAL OFICIAL STAFF</span>
+            <h2 id="stTicketName" style="margin:10px 0 4px;">Staff</h2>
+            <div id="stTicketComp" class="mono" style="color:var(--cyan);">Empresa</div>
+            <div class="ticket-divider"></div>
+            <div class="qr-frame"><img id="stTicketImg" src="" alt="QR Staff" /></div>
+            <div id="stTicketMeta" class="mono"></div>
+            <div class="ticket-divider"></div>
+            <a id="stDownloadBtn" class="btn block" href="#" download="staff-badge.png">⬇ Descargar Credencial PNG</a>
+            <a class="btn sec block" href="/validar">Validar en Puerta →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/shared.js"></script>
+  <script>
+    function init() {
+      const t = new URLSearchParams(location.search).get("token");
+      if (t) {
+        document.getElementById("inviteToken").value = t;
+        checkInvite();
+      }
+    }
+
+    async function checkInvite() {
+      const token = document.getElementById("inviteToken").value.trim();
+      if (!token) return;
+      try {
+        const res = await EP.api(`/api/v1/accreditation/invite/${encodeURIComponent(token)}`, { auth: false });
+        document.getElementById("quotaBox").style.display = "block";
+        document.getElementById("compTitle").textContent = res.company_name;
+        document.getElementById("compQuotaText").textContent = `${res.staff_used} / ${res.staff_quota} cupos`;
+        const pct = Math.min(100, Math.round((res.staff_used / Math.max(1, res.staff_quota)) * 100));
+        document.getElementById("quotaBar").style.width = `${pct}%`;
+        document.getElementById("companyBanner").innerHTML = "";
+      } catch (e) {
+        document.getElementById("quotaBox").style.display = "none";
+        EP.showMsg("companyBanner", "err", e.message);
+      }
+    }
+
+    async function registerStaff() {
+      const token = document.getElementById("inviteToken").value.trim();
+      if (!token) return EP.showMsg("staffMsg", "err", "Ingresa el token de invitación.");
+      try {
+        const res = await EP.api(`/api/v1/accreditation/invite/${encodeURIComponent(token)}/staff`, {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({
+            dni: document.getElementById("staffDni").value,
+            full_name: document.getElementById("staffName").value,
+            role_title: document.getElementById("staffRoleTitle").value,
+          }),
+        });
+        localStorage.setItem("ep_last_qr", res.qr_token);
+        const imgUrl = await EP.renderQrDataUrl(res.qr_token);
+        document.getElementById("staffQrPlaceholder").style.display = "none";
+        document.getElementById("staffTicketWrap").style.display = "block";
+        document.getElementById("stTicketName").textContent = res.display_name;
+        document.getElementById("stTicketComp").textContent = `${res.company_name} · ENTRY + STAFF_ACCESS`;
+        document.getElementById("stTicketImg").src = imgUrl;
+        document.getElementById("stTicketMeta").textContent = `DNI ${res.dni_last4} · Restantes: ${res.remaining_quota}`;
+        document.getElementById("stDownloadBtn").href = imgUrl;
+        EP.showMsg("staffMsg", "ok", `Staff acreditado correctamente. Cupo restante: ${res.remaining_quota}`);
+        await checkInvite();
+      } catch (e) {
+        EP.showMsg("staffMsg", "err", e.message);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

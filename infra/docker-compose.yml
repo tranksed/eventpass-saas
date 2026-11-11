@@ -1,0 +1,231 @@
+services:
+  # =========================================================================
+  # Isolated Databases (Database-per-Service Pattern)
+  # =========================================================================
+  auth-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_svc_user
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+    volumes:
+      - auth_pgdata:/var/lib/postgresql/data
+    networks:
+      - private_data
+
+  registration-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: registration_db
+      POSTGRES_USER: reg_svc_user
+      POSTGRES_PASSWORD: ${REG_DB_PASSWORD}
+    volumes:
+      - reg_pgdata:/var/lib/postgresql/data
+    networks:
+      - private_data
+
+  accreditation-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: accreditation_db
+      POSTGRES_USER: accred_svc_user
+      POSTGRES_PASSWORD: ${ACCRED_DB_PASSWORD}
+    volumes:
+      - accred_pgdata:/var/lib/postgresql/data
+    networks:
+      - private_data
+
+  audit-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: audit_db
+      POSTGRES_USER: audit_svc_user
+      POSTGRES_PASSWORD: ${AUDIT_DB_PASSWORD}
+    volumes:
+      - audit_pgdata:/var/lib/postgresql/data
+    networks:
+      - private_data
+
+  # Connection pooler (critical for 10k/48h burst scaling with FastAPI workers)
+  pgbouncer-registration:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://reg_svc_user:${REG_DB_PASSWORD}@registration-db:5432/registration_db
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 30
+    depends_on:
+      - registration-db
+    networks:
+      - private_data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    networks:
+      - private_data
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: eventpass
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    networks:
+      - private_data
+
+  # =========================================================================
+  # Python Microservices
+  # =========================================================================
+  auth-service:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: services.auth_service.app:create_auth_app
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+asyncpg://auth_svc_user:${AUTH_DB_PASSWORD}@auth-db:5432/auth_db
+      PII_MASTER_KEY_B64: ${PII_MASTER_KEY_B64}
+      DNI_BLIND_INDEX_PEPPER: ${DNI_BLIND_INDEX_PEPPER}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      AUDIT_SERVICE_URL: http://audit-service:8000
+      KEYS_DIR: /app/data/keys
+    volumes:
+      - shared_public_keys:/app/data/keys
+    depends_on:
+      - auth-db
+    networks:
+      - service_mesh
+      - private_data
+
+  registration-service:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: services.registration_service.app:create_registration_app
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+asyncpg://reg_svc_user:${REG_DB_PASSWORD}@pgbouncer-registration:5432/registration_db
+      PII_MASTER_KEY_B64: ${PII_MASTER_KEY_B64}
+      DNI_BLIND_INDEX_PEPPER: ${DNI_BLIND_INDEX_PEPPER}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      ACCREDITATION_SERVICE_URL: http://accreditation-service:8000
+      AUDIT_SERVICE_URL: http://audit-service:8000
+      KEYS_DIR: /app/data/keys
+    volumes:
+      - shared_public_keys:/app/data/keys:ro
+    depends_on:
+      - pgbouncer-registration
+      - auth-service
+    networks:
+      - service_mesh
+      - private_data
+
+  accreditation-service:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: services.accreditation_service.app:create_accreditation_app
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+asyncpg://accred_svc_user:${ACCRED_DB_PASSWORD}@accreditation-db:5432/accreditation_db
+      PII_MASTER_KEY_B64: ${PII_MASTER_KEY_B64}
+      DNI_BLIND_INDEX_PEPPER: ${DNI_BLIND_INDEX_PEPPER}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      AUDIT_SERVICE_URL: http://audit-service:8000
+      KEYS_DIR: /app/data/keys
+    volumes:
+      - shared_public_keys:/app/data/keys
+    depends_on:
+      - accreditation-db
+      - auth-service
+    networks:
+      - service_mesh
+      - private_data
+
+  audit-service:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: services.audit_service.app:create_audit_app
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: postgresql+asyncpg://audit_svc_user:${AUDIT_DB_PASSWORD}@audit-db:5432/audit_db
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      KEYS_DIR: /app/data/keys
+    volumes:
+      - shared_public_keys:/app/data/keys:ro
+    depends_on:
+      - audit-db
+      - auth-service
+    networks:
+      - service_mesh
+      - private_data
+
+  web-portal:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: services.web_portal.app:create_portal_app
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      REGISTRATION_SERVICE_URL: http://registration-service:8000
+      ACCREDITATION_SERVICE_URL: http://accreditation-service:8000
+      AUDIT_SERVICE_URL: http://audit-service:8000
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+    depends_on:
+      - auth-service
+      - registration-service
+      - accreditation-service
+      - audit-service
+    networks:
+      - service_mesh
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_HTTP_PORT:-8088}:80"
+    volumes:
+      - ../gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web-portal
+      - auth-service
+      - registration-service
+      - accreditation-service
+      - audit-service
+    networks:
+      - public_edge
+      - service_mesh
+
+volumes:
+  auth_pgdata:
+  reg_pgdata:
+  accred_pgdata:
+  audit_pgdata:
+  shared_public_keys:
+
+networks:
+  public_edge:
+  service_mesh:
+    internal: true
+  private_data:
+    internal: true
