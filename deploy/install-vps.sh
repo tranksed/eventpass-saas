@@ -5,7 +5,8 @@
 # - Instala Docker Engine & Compose v2, UFW y curl/openssl
 # - Genera secretos criptográficos únicos en infra/.env (si no existen)
 # - Construye y levanta los 5 servicios Python + NGINX + 4 PostgreSQL + PgBouncer
-# - Verifica HTTP 200 en /, /admin, /comprar, /validar, /acreditacion, /reclamos
+# - Registra el comando global `eventpass-update` en /usr/local/bin
+# - Verifica HTTP 200 en /, /admin, /superadmin, /comprar, /validar, /acreditacion, /reclamos
 # =============================================================================
 set -euo pipefail
 
@@ -107,6 +108,8 @@ ACCRED_DB_PASSWORD=$(openssl rand -hex 20)
 AUDIT_DB_PASSWORD=$(openssl rand -hex 20)
 REDIS_PASSWORD=$(openssl rand -hex 20)
 RABBITMQ_PASSWORD=$(openssl rand -hex 20)
+SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
+SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:-}
 EOF
   chmod 600 "${ENV_FILE}"
   echo "    Secretos generados en ${ENV_FILE} (permisos 600)."
@@ -145,10 +148,13 @@ if [[ "${READY}" -ne 1 ]]; then
   exit 1
 fi
 
-for route in "/" "/comprar" "/validar" "/acreditacion" "/admin" "/reclamos"; do
+for route in "/" "/comprar" "/validar" "/acreditacion" "/admin" "/superadmin" "/reclamos"; do
   code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${CHOSEN_PORT}${route}")
   echo "    HTTP ${code} -> ${route}"
 done
+
+chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh"
+ln -sf "${APP_DIR}/deploy/update-vps.sh" /usr/local/bin/eventpass-update
 
 PUBLIC_IP=$(curl -fsSL https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 BASE_URL="http://${PUBLIC_IP}"
@@ -165,10 +171,12 @@ echo "  Taquilla y Cortesías : ${BASE_URL}/comprar"
 echo "  Consola de Puerta    : ${BASE_URL}/validar"
 echo "  Acreditación Staff   : ${BASE_URL}/acreditacion"
 echo "  Dashboard Organizador: ${BASE_URL}/admin"
+echo "  Consola SuperAdmin   : ${BASE_URL}/superadmin"
 echo "  Libro Reclamaciones  : ${BASE_URL}/reclamos"
 echo ""
 echo "  Comandos útiles:"
-echo "    Ver estado   : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} ps"
-echo "    Ver logs     : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} logs -f"
-echo "    Cambiar pto. : sudo bash ${APP_DIR}/deploy/install-vps.sh --port 9000"
+echo "    Actualizar VPS: sudo eventpass-update"
+echo "    Ver estado    : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} ps"
+echo "    Ver logs      : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} logs -f"
+echo "    Cambiar pto.  : sudo bash ${APP_DIR}/deploy/install-vps.sh --port 9000"
 echo "====================================================================="

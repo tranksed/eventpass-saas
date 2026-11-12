@@ -19,11 +19,15 @@ from shared_kernel.crypto import verify_jwt
 
 
 class Role(StrEnum):
-    """Three-tier RBAC roles per tenant company."""
+    """Three-tier RBAC roles per tenant company plus platform-wide SUPERADMIN."""
 
+    SUPERADMIN = "SUPERADMIN"
     ADMIN = "ADMIN"
     SUPERVISOR = "SUPERVISOR"
     VALIDATOR = "VALIDATOR"
+
+
+PLATFORM_TENANT_ID = "__platform__"
 
 
 @dataclass(frozen=True)

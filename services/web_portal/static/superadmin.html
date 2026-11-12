@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperAdmin Global — EventPass SaaS</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/static/shared.css?v=3" rel="stylesheet" />
+</head>
+<body>
+  <div id="epNavbarHost"></div>
+
+  <main class="container-fluid px-3 px-lg-4 py-4">
+    <!-- AUTH / INITIAL SETUP GATE -->
+    <section id="saAuthGate" class="row justify-content-center py-4">
+      <div class="col-lg-6 col-xl-5">
+        <div class="ep-card p-4">
+          <div class="text-center mb-3">
+            <span class="badge text-bg-danger bg-opacity-75 mb-2 px-3 py-2">
+              <i class="bi bi-shield-lock-fill me-1"></i>SOLO ADMINISTRADOR DE PLATAFORMA
+            </span>
+            <h1 class="h4 fw-bold">Consola SuperAdmin Global</h1>
+            <p class="text-secondary small mb-0">
+              Administra todas las empresas (tenants), eventos globales, ingresos, acreditaciones e impersonación 1-click.
+            </p>
+          </div>
+
+          <div id="saSetupCard" class="d-none">
+            <div class="alert alert-warning small">
+              <i class="bi bi-stars me-1"></i><strong>Primer inicio:</strong> Todavía no existe una cuenta SuperAdmin en este servidor. Créala ahora para activar el control maestro.
+            </div>
+            <form onsubmit="event.preventDefault(); setupSuperAdmin();">
+              <div class="mb-2">
+                <label class="form-label small">Nombre completo</label>
+                <input id="saSetupName" class="form-control" placeholder="SuperAdmin Plataforma" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">Correo SuperAdmin</label>
+                <input id="saSetupEmail" type="email" class="form-control" placeholder="superadmin@eventpass.pe" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label small">Contraseña maestra (mín. 10 caracteres, mayúscula, número y símbolo)</label>
+                <input id="saSetupPass" type="password" class="form-control" minlength="10" required />
+              </div>
+              <button type="submit" id="btnSaSetup" class="btn btn-warning w-100 fw-semibold">
+                <i class="bi bi-shield-plus me-1"></i>Inicializar SuperAdmin Maestro
+              </button>
+              <div id="saSetupMsg"></div>
+            </form>
+          </div>
+
+          <form id="saLoginCard" class="d-none" onsubmit="event.preventDefault(); loginSuperAdmin();">
+            <div class="mb-2">
+              <label class="form-label small">Correo SuperAdmin</label>
+              <input id="saLoginEmail" type="email" class="form-control" placeholder="superadmin@eventpass.pe" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Contraseña</label>
+              <input id="saLoginPass" type="password" class="form-control" placeholder="••••••••••" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label small">MFA (opcional)</label>
+              <input id="saLoginMfa" class="form-control" placeholder="6 dígitos" />
+            </div>
+            <button type="submit" id="btnSaLogin" class="btn btn-primary w-100 fw-semibold">
+              <i class="bi bi-unlock-fill me-1"></i>Ingresar como SuperAdmin
+            </button>
+            <div id="saLoginMsg"></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUPERADMIN CONSOLE -->
+    <section id="saShell" class="d-none">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+          <h1 class="h4 fw-bold mb-0"><i class="bi bi-shield-lock text-danger me-2"></i>Control Maestro Multi-Tenant</h1>
+          <small class="text-secondary">Visión global de tenants, taquilla, acreditación staff y auditoría criptográfica</small>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="loadPlatformData()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Actualizar Todo
+          </button>
+          <button type="button" class="btn btn-outline-danger btn-sm" onclick="logoutSa()">
+            <i class="bi bi-box-arrow-right me-1"></i>Cerrar Sesión
+          </button>
+        </div>
+      </div>
+
+      <div id="saGlobalMsg" class="mb-3"></div>
+
+      <!-- GLOBAL KPIS -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Empresas Tenants</div><div class="ep-kpi-val" id="kpiTenants">0</div><div class="ep-kpi-sub" id="kpiTenantsActive">0 activas</div></div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Eventos Globales</div><div class="ep-kpi-val" id="kpiSaEvents">0</div><div class="ep-kpi-sub" id="kpiSaEventsActive">0 activos</div></div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Ingresos Plataforma</div><div class="ep-kpi-val" id="kpiSaRevenue">S/ 0.00</div><div class="ep-kpi-sub" id="kpiSaOrders">0 órdenes</div></div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Entradas Vendidas</div><div class="ep-kpi-val" id="kpiSaSold">0</div><div class="ep-kpi-sub">Total histórico</div></div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Acreditación Staff</div><div class="ep-kpi-val" id="kpiSaCreds">0</div><div class="ep-kpi-sub" id="kpiSaStaff">0/0 staff · 0 check-ins</div></div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+          <div class="ep-kpi"><div class="ep-kpi-label">Reclamos</div><div class="ep-kpi-val" id="kpiSaComplaints">0</div><div class="ep-kpi-sub">Libro Virtual</div></div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <!-- CREATE TENANT -->
+        <div class="col-lg-4">
+          <form class="ep-card p-3 h-100" onsubmit="event.preventDefault(); createTenantFromSa();">
+            <h5 class="h6 fw-bold mb-3"><i class="bi bi-building-add text-success me-1"></i>Crear Nueva Empresa (Tenant)</h5>
+            <div class="mb-2">
+              <label class="form-label small">Nombre Comercial</label>
+              <input id="saCompName" class="form-control form-control-sm" placeholder="Ej. Festival Norte SAC" required oninput="autoSaSlug()" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Slug URL</label>
+              <input id="saCompSlug" class="form-control form-control-sm" placeholder="ej. festival-norte" pattern="[a-z0-9-]+" required oninput="this.dataset.manual='1'" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Administrador Titular</label>
+              <input id="saAdminName" class="form-control form-control-sm" placeholder="Nombre completo" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Correo Administrador</label>
+              <input id="saAdminEmail" type="email" class="form-control form-control-sm" placeholder="admin@cliente.pe" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label small">Contraseña inicial</label>
+              <input id="saAdminPass" type="password" class="form-control form-control-sm" minlength="10" required />
+            </div>
+            <button type="submit" id="btnSaCreateTenant" class="btn btn-success btn-sm w-100 fw-semibold">
+              <i class="bi bi-plus-circle me-1"></i>Provisionar Empresa
+            </button>
+            <div id="saTenantMsg"></div>
+          </form>
+        </div>
+
+        <!-- TENANTS TABLE -->
+        <div class="col-lg-8">
+          <div class="ep-card p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="h6 fw-bold mb-0"><i class="bi bi-buildings text-info me-1"></i>Empresas Registradas (Tenants)</h5>
+              <span class="small text-secondary">Impersonar abre el panel <code>/admin</code> de la empresa con rol ADMIN</span>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead>
+                  <tr><th>Empresa</th><th>Slug</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody id="saTenantsTable"><tr><td colspan="5" class="text-secondary">Cargando...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GLOBAL EVENTS TABLE -->
+      <div class="ep-card p-3 mb-4">
+        <h5 class="h6 fw-bold mb-2"><i class="bi bi-calendar2-week text-primary me-1"></i>Todos los Eventos en la Plataforma</h5>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle mb-0">
+            <thead>
+              <tr><th>Evento</th><th>Slug</th><th>Sede</th><th>Vend. / Cap.</th><th>Ingresos</th><th>Estado</th><th>Control</th></tr>
+            </thead>
+            <tbody id="saEventsTable"><tr><td colspan="7" class="text-secondary">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CROSS-TENANT AUDIT -->
+      <div class="ep-card p-3">
+        <h5 class="h6 fw-bold mb-2"><i class="bi bi-journal-code text-warning me-1"></i>Auditoría Global Multi-Tenant (Últimos 50 eventos)</h5>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm align-middle mb-0 small">
+            <thead>
+              <tr><th>Seq</th><th>Tenant</th><th>Servicio</th><th>Acción</th><th>Rol</th><th>Hash</th><th>Fecha</th></tr>
+            </thead>
+            <tbody id="saAuditTable"><tr><td colspan="7" class="text-secondary">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/static/shared.js?v=3"></script>
+  <script>
+    function slugifySa(val) {
+      return String(val || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+    }
+    function autoSaSlug() {
+      const target = document.getElementById("saCompSlug");
+      if (!target || target.dataset.manual === "1") return;
+      target.value = slugifySa(document.getElementById("saCompName").value);
+    }
+
+    async function initSuperAdminPage() {
+      if (typeof EP.renderNavbar === "function") EP.renderNavbar("superadmin");
+      const s = EP.getSession();
+      if (s.token && s.role === "SUPERADMIN") {
+        document.getElementById("saAuthGate").classList.add("d-none");
+        document.getElementById("saShell").classList.remove("d-none");
+        await loadPlatformData();
+        return;
+      }
+      document.getElementById("saAuthGate").classList.remove("d-none");
+      document.getElementById("saShell").classList.add("d-none");
+      try {
+        const st = await EP.api("/api/v1/auth/superadmin/status", { auth: false });
+        document.getElementById("saSetupCard").classList.toggle("d-none", Boolean(st.initialized));
+        document.getElementById("saLoginCard").classList.toggle("d-none", !st.initialized);
+      } catch (e) {
+        document.getElementById("saLoginCard").classList.remove("d-none");
+        EP.showMsg("saLoginMsg", "err", e.message);
+      }
+    }
+
+    async function setupSuperAdmin() {
+      document.getElementById("saSetupMsg").innerHTML = "";
+      try {
+        const res = await EP.api("/api/v1/auth/superadmin/setup", {
+          method: "POST", auth: false,
+          body: JSON.stringify({
+            full_name: document.getElementById("saSetupName").value.trim(),
+            email: document.getElementById("saSetupEmail").value.trim(),
+            password: document.getElementById("saSetupPass").value,
+          }),
+        });
+        EP.saveSession(res.access_token, res.role, res.tenant_id, "platform");
+        EP.toast("SuperAdmin maestro inicializado.");
+        await initSuperAdminPage();
+      } catch (e) { EP.showMsg("saSetupMsg", "err", e.message); }
+    }
+
+    async function loginSuperAdmin() {
+      document.getElementById("saLoginMsg").innerHTML = "";
+      try {
+        const body = {
+          email: document.getElementById("saLoginEmail").value.trim(),
+          password: document.getElementById("saLoginPass").value,
+        };
+        const mfa = document.getElementById("saLoginMfa").value.trim();
+        if (mfa) body.mfa_code = mfa;
+        const res = await EP.api("/api/v1/auth/superadmin/login", { method: "POST", auth: false, body: JSON.stringify(body) });
+        EP.saveSession(res.access_token, res.role, res.tenant_id, "platform");
+        EP.toast("Sesión SuperAdmin iniciada.");
+        await initSuperAdminPage();
+      } catch (e) { EP.showMsg("saLoginMsg", "err", e.message); }
+    }
+
+    function logoutSa() {
+      EP.clearSession();
+      initSuperAdminPage();
+    }
+
+    async function loadPlatformData() {
+      document.getElementById("saGlobalMsg").innerHTML = "";
+      try {
+        const [tenants, reg, acc, audit] = await Promise.all([
+          EP.api("/api/v1/auth/superadmin/tenants"),
+          EP.api("/api/v1/registration/superadmin/overview"),
+          EP.api("/api/v1/accreditation/superadmin/overview"),
+          EP.api("/api/v1/audit/superadmin/events?limit=50").catch(() => []),
+        ]);
+
+        document.getElementById("kpiTenants").textContent = tenants.length;
+        document.getElementById("kpiTenantsActive").textContent = `${tenants.filter(t => t.is_active).length} activas`;
+        document.getElementById("kpiSaEvents").textContent = reg.total_events;
+        document.getElementById("kpiSaEventsActive").textContent = `${reg.active_events} activos`;
+        document.getElementById("kpiSaRevenue").textContent = `S/ ${(reg.total_revenue_cents / 100).toFixed(2)}`;
+        document.getElementById("kpiSaOrders").textContent = `${reg.total_orders_paid} pagadas`;
+        document.getElementById("kpiSaSold").textContent = reg.total_tickets_sold;
+        document.getElementById("kpiSaCreds").textContent = acc.total_credentials;
+        document.getElementById("kpiSaStaff").textContent = `${acc.total_staff_used}/${acc.total_staff_quota} staff · ${acc.total_checkins} check-ins`;
+        document.getElementById("kpiSaComplaints").textContent = reg.total_complaints;
+
+        document.getElementById("saTenantsTable").innerHTML = tenants.length
+          ? tenants.map(t => `
+            <tr>
+              <td><strong>${EP.escapeHtml(t.name)}</strong></td>
+              <td class="mono">${EP.escapeHtml(t.slug)}</td>
+              <td>${t.users_count}</td>
+              <td><span class="badge ${t.is_active ? "text-bg-success" : "text-bg-danger"}">${t.is_active ? "ACTIVA" : "SUSPENDIDA"}</span></td>
+              <td class="d-flex gap-1 flex-wrap">
+                <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateTenant('${t.id}')"><i class="bi bi-box-arrow-in-right me-1"></i>Entrar /admin</button>
+                <button type="button" class="btn ${t.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleTenant('${t.id}', ${!t.is_active})">${t.is_active ? "Suspender" : "Reactivar"}</button>
+              </td>
+            </tr>`).join("")
+          : `<tr><td colspan="5" class="text-secondary">Aún no hay empresas registradas.</td></tr>`;
+
+        document.getElementById("saEventsTable").innerHTML = reg.events.length
+          ? reg.events.map(e => `
+            <tr>
+              <td><strong>${EP.escapeHtml(e.name)}</strong></td>
+              <td class="mono small">${EP.escapeHtml(e.slug)}</td>
+              <td class="small text-secondary">${EP.escapeHtml(e.venue || "-")}</td>
+              <td>${e.tickets_sold} / ${e.tickets_capacity}</td>
+              <td>S/ ${(e.revenue_cents / 100).toFixed(2)}</td>
+              <td><span class="badge ${e.is_active ? "text-bg-success" : "text-bg-secondary"}">${e.is_active ? "ACTIVO" : "PAUSADO"}</span></td>
+              <td>
+                <button type="button" class="btn ${e.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleEvent('${e.id}', ${!e.is_active})">${e.is_active ? "Pausar" : "Activar"}</button>
+              </td>
+            </tr>`).join("")
+          : `<tr><td colspan="7" class="text-secondary">Sin eventos creados todavía.</td></tr>`;
+
+        document.getElementById("saAuditTable").innerHTML = audit.length
+          ? audit.map(r => `
+            <tr>
+              <td>${r.seq}</td>
+              <td class="mono">${EP.escapeHtml(r.tenant_id.slice(0, 12))}</td>
+              <td>${EP.escapeHtml(r.service)}</td>
+              <td><strong>${EP.escapeHtml(r.action)}</strong></td>
+              <td><span class="badge text-bg-secondary">${EP.escapeHtml(r.actor_role)}</span></td>
+              <td class="mono">${r.entry_hash.slice(0, 12)}...</td>
+              <td>${new Date(r.created_at).toLocaleString()}</td>
+            </tr>`).join("")
+          : `<tr><td colspan="7" class="text-secondary">Sin registros de auditoría.</td></tr>`;
+      } catch (e) {
+        if (String(e.message).startsWith("401:") || String(e.message).startsWith("403:")) {
+          EP.clearSession();
+          initSuperAdminPage();
+          return;
+        }
+        EP.showMsg("saGlobalMsg", "err", e.message);
+      }
+    }
+
+    async function createTenantFromSa() {
+      document.getElementById("saTenantMsg").innerHTML = "";
+      const slugInput = document.getElementById("saCompSlug");
+      const slug = slugifySa(slugInput.value || document.getElementById("saCompName").value);
+      slugInput.value = slug;
+      try {
+        const res = await EP.api("/api/v1/auth/superadmin/tenants", {
+          method: "POST",
+          body: JSON.stringify({
+            company_name: document.getElementById("saCompName").value.trim(),
+            company_slug: slug,
+            admin_full_name: document.getElementById("saAdminName").value.trim(),
+            admin_email: document.getElementById("saAdminEmail").value.trim(),
+            admin_password: document.getElementById("saAdminPass").value,
+          }),
+        });
+        EP.showMsg("saTenantMsg", "ok", `Empresa '${EP.escapeHtml(res.company_name)}' creada.`);
+        EP.toast(`Tenant '${res.company_slug}' provisionado.`);
+        document.getElementById("saCompName").value = "";
+        slugInput.value = "";
+        delete slugInput.dataset.manual;
+        document.getElementById("saAdminName").value = "";
+        document.getElementById("saAdminEmail").value = "";
+        document.getElementById("saAdminPass").value = "";
+        await loadPlatformData();
+      } catch (e) { EP.showMsg("saTenantMsg", "err", e.message); }
+    }
+
+    async function toggleTenant(tenantId, nextActive) {
+      try {
+        await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/status`, {
+          method: "PATCH", body: JSON.stringify({ is_active: nextActive }),
+        });
+        EP.toast(nextActive ? "Empresa reactivada." : "Empresa suspendida.");
+        await loadPlatformData();
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    async function impersonateTenant(tenantId) {
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/impersonate`, { method: "POST" });
+        EP.saveSession(res.access_token, "ADMIN", res.tenant_id, res.tenant_slug);
+        location.href = "/admin";
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    async function toggleEvent(eventId, nextActive) {
+      try {
+        await EP.api(`/api/v1/registration/superadmin/events/${eventId}/status`, {
+          method: "PATCH", body: JSON.stringify({ is_active: nextActive }),
+        });
+        EP.toast(nextActive ? "Evento activado." : "Evento pausado.");
+        await loadPlatformData();
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    initSuperAdminPage();
+  </script>
+</body>
+</html>

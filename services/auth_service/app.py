@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pyotp
 from fastapi import Depends, FastAPI, HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.auth_service.config import AuthSettings
@@ -17,9 +17,12 @@ from services.auth_service.schemas import (
     EnableMFARequest,
     LoginRequest,
     RefreshRequest,
+    SuperAdminLoginRequest,
+    SuperAdminSetupRequest,
     TenantRegisterRequest,
     TenantRegisterResponse,
     TokenResponse,
+    UpdateTenantStatusRequest,
     UserSummary,
 )
 from shared_kernel.audit_client import AuditClient
@@ -67,11 +70,41 @@ def create_auth_app(
     require_any_staff = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR, Role.VALIDATOR)
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
     require_admin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN)
+    require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
+
+    async def _create_superadmin_account(
+        db: AsyncSession, *, email: str, full_name: str, password: str
+    ) -> User:
+        platform_tenant = await db.scalar(select(Tenant).where(Tenant.slug == "platform"))
+        if platform_tenant is None:
+            platform_tenant = Tenant(id="__platform__", name="EventPass Platform", slug="platform", is_active=True)
+            db.add(platform_tenant)
+            await db.flush()
+        sa_user = User(
+            tenant_id=platform_tenant.id,
+            email=email.lower(),
+            full_name=full_name,
+            password_hash=hash_password(password),
+            role=Role.SUPERADMIN.value,
+        )
+        db.add(sa_user)
+        await db.commit()
+        return sa_user
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        if cfg.superadmin_password and len(cfg.superadmin_password) >= 8:
+            async with session_factory() as db:
+                existing_sa = await db.scalar(select(User).where(User.role == Role.SUPERADMIN.value))
+                if existing_sa is None:
+                    await _create_superadmin_account(
+                        db,
+                        email=cfg.superadmin_email,
+                        full_name="Platform SuperAdmin",
+                        password=cfg.superadmin_password,
+                    )
         yield
         await engine.dispose()
 
@@ -135,6 +168,8 @@ def create_auth_app(
         payload: TenantRegisterRequest,
         db: AsyncSession = Depends(get_db),
     ) -> TenantRegisterResponse:
+        if payload.company_slug == "platform":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Reserved tenant slug.")
         existing_slug = await db.scalar(select(Tenant).where(Tenant.slug == payload.company_slug))
         if existing_slug is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Company slug already exists.")
@@ -301,6 +336,8 @@ def create_auth_app(
         db: AsyncSession = Depends(get_db),
     ) -> UserSummary:
         """ADMIN-only endpoint to create ADMIN, SUPERVISOR, or VALIDATOR accounts inside their tenant."""
+        if payload.role == Role.SUPERADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign SUPERADMIN inside tenant.")
         existing = await db.scalar(
             select(User).where(User.tenant_id == actor.tenant_id, User.email == payload.email.lower())
         )
@@ -356,6 +393,158 @@ def create_auth_app(
             )
             for u in rows
         ]
+
+    # ------------------------------------------------------------------
+    # Platform SuperAdmin Management
+    # ------------------------------------------------------------------
+    @app.get("/api/v1/auth/superadmin/status")
+    async def superadmin_status(db: AsyncSession = Depends(get_db)) -> dict[str, bool]:
+        count = await db.scalar(select(func.count(User.id)).where(User.role == Role.SUPERADMIN.value))
+        return {"initialized": bool(count and count > 0)}
+
+    @app.post("/api/v1/auth/superadmin/setup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+    async def setup_first_superadmin(
+        payload: SuperAdminSetupRequest,
+        db: AsyncSession = Depends(get_db),
+    ) -> TokenResponse:
+        existing_sa = await db.scalar(select(User).where(User.role == Role.SUPERADMIN.value))
+        if existing_sa is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="SuperAdmin already initialized.")
+        sa_user = await _create_superadmin_account(
+            db, email=payload.email, full_name=payload.full_name, password=payload.password
+        )
+        return await _issue_session_tokens(db, sa_user, device_id="superadmin-console")
+
+    @app.post("/api/v1/auth/superadmin/login", response_model=TokenResponse)
+    async def superadmin_login(
+        payload: SuperAdminLoginRequest,
+        db: AsyncSession = Depends(get_db),
+    ) -> TokenResponse:
+        user = await db.scalar(
+            select(User).where(
+                User.role == Role.SUPERADMIN.value,
+                User.email == payload.email.lower(),
+                User.is_active.is_(True),
+            )
+        )
+        if user is None or not verify_password(payload.password, user.password_hash):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid SuperAdmin credentials.")
+        if user.mfa_enabled:
+            if not payload.mfa_code or not user.mfa_secret_enc:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFA code required.")
+            secret = pii_crypto.decrypt(user.mfa_secret_enc, aad=user.id)
+            if not pyotp.TOTP(secret).verify(payload.mfa_code, valid_window=1):
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid MFA code.")
+        return await _issue_session_tokens(db, user, device_id="superadmin-console")
+
+    @app.get("/api/v1/auth/superadmin/tenants")
+    async def superadmin_list_tenants(
+        _: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict]:
+        tenants = (
+            await db.scalars(
+                select(Tenant).where(Tenant.slug != "platform").order_by(Tenant.created_at.desc())
+            )
+        ).all()
+        counts_rows = (
+            await db.execute(select(User.tenant_id, func.count(User.id)).group_by(User.tenant_id))
+        ).all()
+        counts_map = {tid: cnt for tid, cnt in counts_rows}
+        return [
+            {
+                "id": t.id,
+                "name": t.name,
+                "slug": t.slug,
+                "is_active": t.is_active,
+                "users_count": int(counts_map.get(t.id, 0)),
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in tenants
+        ]
+
+    @app.post("/api/v1/auth/superadmin/tenants", status_code=status.HTTP_201_CREATED)
+    async def superadmin_create_tenant(
+        payload: TenantRegisterRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> TenantRegisterResponse:
+        res = await register_tenant(payload, db)
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_CREATED_TENANT",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=res.tenant_id,
+            metadata={"slug": res.company_slug},
+        )
+        return res
+
+    @app.patch("/api/v1/auth/superadmin/tenants/{tenant_id}/status")
+    async def superadmin_update_tenant_status(
+        tenant_id: str,
+        payload: UpdateTenantStatusRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict:
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        tenant.is_active = payload.is_active
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_TENANT_STATUS",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            metadata={"is_active": tenant.is_active},
+        )
+        return {"id": tenant.id, "slug": tenant.slug, "is_active": tenant.is_active}
+
+    @app.post("/api/v1/auth/superadmin/tenants/{tenant_id}/impersonate")
+    async def superadmin_impersonate_tenant(
+        tenant_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict:
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        admin_user = await db.scalar(
+            select(User).where(User.tenant_id == tenant.id, User.role == Role.ADMIN.value, User.is_active.is_(True))
+        )
+        if admin_user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active tenant admin not found.")
+        access_token, _ = issue_jwt(
+            jwt_priv_key,
+            subject=admin_user.id,
+            tenant_id=tenant.id,
+            role=Role.ADMIN.value,
+            ttl_minutes=cfg.access_token_ttl_minutes,
+            token_type="access",
+            extra_claims={"impersonated_by": actor.user_id},
+        )
+        await audit.record(
+            tenant_id=tenant.id,
+            service=cfg.service_name,
+            action="SUPERADMIN_IMPERSONATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            metadata={"slug": tenant.slug},
+        )
+        return {
+            "access_token": access_token,
+            "tenant_id": tenant.id,
+            "tenant_slug": tenant.slug,
+            "role": Role.ADMIN.value,
+        }
 
     return app
 

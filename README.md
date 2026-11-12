@@ -9,7 +9,7 @@ Plataforma SaaS en Python (**FastAPI + SQLAlchemy 2.0 Async + Ed25519 + AES-256-
 | Servicio | Puerto Interno | Base de Datos | Responsabilidad |
 | :--- | :---: | :--- | :--- |
 | **`web-portal`** | `8000` | — | Aplicativo Web unificado (Bootstrap 5.3 + Chart.js), BFF de QR PNG y simulador HMAC de pasarela. |
-| **`auth-service`** | `8001` | `auth_db` | Multi-tenant por empresa, RBAC de 3 niveles (`ADMIN`, `SUPERVISOR`, `VALIDATOR`), MFA TOTP y JWT Ed25519 (`EdDSA`). |
+| **`auth-service`** | `8001` | `auth_db` | Multi-tenant por empresa, RBAC (`SUPERADMIN`, `ADMIN`, `SUPERVISOR`, `VALIDATOR`), impersonación SuperAdmin, MFA TOTP y JWT Ed25519 (`EdDSA`). |
 | **`registration-service`** | `8002` | `registration_db` (vía PgBouncer) | Eventos (`America/Lima`), catálogo (`ENTRY`, `INTERACTION`), límite configurable por DNI (`1..10`), códigos RR.PP., Guest List, envíos masivos Excel/CSV, Libro de Reclamaciones y exportación `.xlsx`. |
 | **`accreditation-service`** | `8003` | `accreditation_db` | Empresas acreditadas con link privado de staff (cupo default `6`, Supervisor hasta `10`, Admin personalizado), QR Ed25519, check-in atómico, **contingencia offline + sync** y métricas de puerta. |
 | **`audit-service`** | `8004` | `audit_db` | Bitácora inmutable (*append-only*) con **encadenamiento criptográfico SHA-256** (`verify-chain`). |
@@ -26,6 +26,7 @@ Plataforma SaaS en Python (**FastAPI + SQLAlchemy 2.0 Async + Ed25519 + AES-256-
 | `/validar` | **Consola de Puerta (Online / Offline)** | Acceso privado por rol, lector de QR (cámara o USB/pegado), historial de sesión, descarga de paquete Ed25519 y sincronización offline anti-duplicados. |
 | `/acreditacion` | **Portal Corporativo de Staff** | Registro mediante enlace privado por empresa expositora con control de cupo en tiempo real y descarga de credencial QR. |
 | `/admin` (`/dashboard`) | **Dashboard Organizador (Bootstrap 5)** | 8 KPIs en vivo, 4 gráficos Chart.js, exportación `.xlsx`, gestión de eventos/catálogo, códigos RR.PP., Guest List en 1 clic, carga masiva Excel/CSV, **Acreditaciones Staff**, usuarios RBAC, auditoría SHA-256 y Reclamos. |
+| `/superadmin` | **Consola SuperAdmin Global** | Acceso maestro de plataforma (`SUPERADMIN`): KPIs globales multi-tenant, alta/suspensión de empresas, impersonación 1-click hacia `/admin`, pausa de eventos globales y auditoría global. |
 | `/reclamos` | **Libro de Reclamaciones Virtual** | Registro público conforme a Perú (INDECOPI) con código de seguimiento `LR-...`. |
 
 ---
@@ -48,13 +49,20 @@ sudo bash deploy/install-vps.sh --port 8088
 
 ### Actualizar una instalación existente en el VPS
 
+El instalador registra el comando global `eventpass-update` (que ejecuta `deploy/update-vps.sh`), el cual descarga los cambios desde GitHub, reconstruye los contenedores sin perder tus secretos (`infra/.env`) ni base de datos, y verifica HTTP `200` en todas las rutas:
+
 ```bash
-cd eventpass-saas
-git pull origin main
-sudo bash deploy/install-vps.sh --port 8088
+sudo eventpass-update
 ```
 
-> Tus secretos y contraseñas de base de datos en `infra/.env` se preservan automáticamente al volver a ejecutar `install-vps.sh`.
+O manualmente dentro del repositorio:
+
+```bash
+cd eventpass-saas
+sudo bash deploy/update-vps.sh
+```
+
+> Si ya habías instalado antes de existir `eventpass-update`, ejecuta `cd eventpass-saas && git pull origin main && sudo bash deploy/update-vps.sh` una sola vez; luego ya podrás usar `sudo eventpass-update` desde cualquier directorio. También puedes configurar `SUPERADMIN_PASSWORD` en `infra/.env` o inicializar la primera cuenta directamente ingresando a `/superadmin`.
 
 ---
 

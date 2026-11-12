@@ -151,6 +151,7 @@ def create_registration_app(
 
     require_admin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN)
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
+    require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -1446,6 +1447,87 @@ def create_registration_app(
             }
             for r in rows
         ]
+
+    @app.get("/api/v1/registration/superadmin/overview")
+    async def superadmin_registration_overview(
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Cross-tenant event, revenue, and ticket sales summary for platform SuperAdmin."""
+        events = (await db.scalars(select(Event).order_by(Event.created_at.desc()))).all()
+        catalogs = (await db.scalars(select(CatalogItem))).all()
+        paid_orders = (await db.scalars(select(Order).where(Order.status == "PAID"))).all()
+        complaints_count = int((await db.scalar(select(func.count(ComplaintRecord.id)))) or 0)
+
+        sold_by_event: dict[str, int] = defaultdict(int)
+        cap_by_event: dict[str, int] = defaultdict(int)
+        for item in catalogs:
+            sold_by_event[item.event_id] += int(item.quantity_sold or 0)
+            cap_by_event[item.event_id] += int(item.capacity or 0)
+
+        orders_by_event: dict[str, int] = defaultdict(int)
+        rev_by_event: dict[str, int] = defaultdict(int)
+        for o in paid_orders:
+            orders_by_event[o.event_id] += 1
+            rev_by_event[o.event_id] += int(o.total_cents or 0)
+
+        total_revenue_cents = sum(rev_by_event.values())
+        total_tickets_sold = sum(sold_by_event.values())
+        active_events = sum(1 for e in events if e.is_active)
+
+        return {
+            "total_events": len(events),
+            "active_events": active_events,
+            "total_orders_paid": len(paid_orders),
+            "total_revenue_cents": total_revenue_cents,
+            "total_tickets_sold": total_tickets_sold,
+            "total_complaints": complaints_count,
+            "events": [
+                {
+                    "id": e.id,
+                    "tenant_id": e.tenant_id,
+                    "name": e.name,
+                    "slug": e.slug,
+                    "venue": e.venue,
+                    "is_active": e.is_active,
+                    "max_purchases_per_dni": e.max_purchases_per_dni,
+                    "orders_paid": orders_by_event[e.id],
+                    "revenue_cents": rev_by_event[e.id],
+                    "tickets_sold": sold_by_event[e.id],
+                    "tickets_capacity": cap_by_event[e.id],
+                    "starts_at": _as_utc(e.starts_at).isoformat(),
+                }
+                for e in events
+            ],
+        }
+
+    @app.patch("/api/v1/registration/superadmin/events/{event_id}/status")
+    async def superadmin_update_event_status(
+        event_id: str,
+        payload: dict[str, Any],
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> EventResponse:
+        """Pause or activate any tenant event from the SuperAdmin console."""
+        event = await db.scalar(select(Event).where(Event.id == event_id))
+        if event is None:
+            raise HTTPException(status_code=404, detail="Evento no encontrado")
+        if "is_active" not in payload or not isinstance(payload["is_active"], bool):
+            raise HTTPException(status_code=422, detail="Campo booleano 'is_active' requerido")
+        event.is_active = payload["is_active"]
+        await db.commit()
+        await db.refresh(event)
+        await audit.record(
+            tenant_id=event.tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_EVENT_STATUS_UPDATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="event",
+            resource_id=event.id,
+            metadata={"is_active": event.is_active},
+        )
+        return _event_to_response(event)
 
     return app
 

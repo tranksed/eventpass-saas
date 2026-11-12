@@ -69,6 +69,7 @@ def create_audit_app(settings: AuditSettings | None = None) -> FastAPI:
 
     require_internal = make_internal_service_dependency(lambda: cfg.internal_service_token)
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
+    require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -175,6 +176,33 @@ def create_audit_app(settings: AuditSettings | None = None) -> FastAPI:
                 return {"intact": False, "broken_at_seq": r.seq, "total_entries": len(rows)}
             expected_prev = r.entry_hash
         return {"intact": True, "total_entries": len(rows)}
+
+    @app.get("/api/v1/audit/superadmin/events")
+    async def list_superadmin_audit_events(
+        limit: int = Query(default=50, ge=1, le=500),
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict[str, Any]]:
+        """Return latest cross-tenant audit ledger events for platform SuperAdmin."""
+        rows = (
+            await db.scalars(select(AuditEntry).order_by(AuditEntry.seq.desc()).limit(limit))
+        ).all()
+        return [
+            {
+                "seq": r.seq,
+                "tenant_id": r.tenant_id,
+                "service": r.service,
+                "action": r.action,
+                "actor_id": r.actor_id,
+                "actor_role": r.actor_role,
+                "resource_type": r.resource_type,
+                "resource_id": r.resource_id,
+                "metadata": json.loads(r.metadata_json),
+                "entry_hash": r.entry_hash,
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in rows
+        ]
 
     return app
 

@@ -16,3 +16,5 @@ class AuthSettings(BaseServiceSettings):
     refresh_token_ttl_minutes: int = Field(default=60 * 24 * 7)
     max_failed_login_attempts: int = Field(default=5)
     lockout_minutes: int = Field(default=15)
+    superadmin_email: str = Field(default="superadmin@eventpass.pe")
+    superadmin_password: str = Field(default="")

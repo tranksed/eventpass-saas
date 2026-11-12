@@ -95,6 +95,7 @@ def create_accreditation_app(
             yield sess
 
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
+    require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
     require_validator_module = make_role_dependency(
         lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR, Role.VALIDATOR
     )
@@ -917,6 +918,24 @@ def create_accreditation_app(
                     for c in companies
                 ],
             },
+        }
+
+    @app.get("/api/v1/accreditation/superadmin/overview")
+    async def superadmin_accreditation_overview(
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Cross-tenant credentials, check-ins, and staff quota summary for SuperAdmin."""
+        creds = (await db.scalars(select(Credential))).all()
+        checkins_count = len((await db.scalars(select(CheckInLog.id))).all())
+        companies = (await db.scalars(select(AccreditedCompany))).all()
+        return {
+            "total_credentials": len(creds),
+            "active_credentials": sum(1 for c in creds if c.status == "ACTIVE"),
+            "total_checkins": checkins_count,
+            "total_companies": len(companies),
+            "total_staff_quota": sum(int(c.staff_quota or 0) for c in companies),
+            "total_staff_used": sum(int(c.staff_used or 0) for c in companies),
         }
 
     return app

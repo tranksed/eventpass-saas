@@ -95,6 +95,10 @@ def create_portal_app() -> FastAPI:
     async def reclamos() -> HTMLResponse:
         return _html_page("reclamos.html")
 
+    @app.get("/superadmin", response_class=HTMLResponse)
+    async def superadmin() -> HTMLResponse:
+        return _html_page("superadmin.html")
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "web-portal"}

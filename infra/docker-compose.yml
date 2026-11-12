@@ -98,6 +98,8 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       AUDIT_SERVICE_URL: http://audit-service:8000
       KEYS_DIR: /app/data/keys
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
     volumes:
       - shared_public_keys:/app/data/keys
     depends_on:
@@ -147,6 +149,8 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       AUDIT_SERVICE_URL: http://audit-service:8000
       KEYS_DIR: /app/data/keys
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
     volumes:
       - shared_public_keys:/app/data/keys
     depends_on:

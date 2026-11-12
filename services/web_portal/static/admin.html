@@ -36,59 +36,59 @@
           </ul>
 
           <div class="tab-content mx-auto" style="max-width:560px;">
-            <div class="tab-pane fade show active" id="pane-login">
+            <form class="tab-pane fade show active" id="pane-login" onsubmit="event.preventDefault(); loginUser();">
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label small">Slug de Empresa</label>
-                  <input id="loginSlug" class="form-control" placeholder="ej. mi-productora" />
+                  <input id="loginSlug" class="form-control" placeholder="ej. mi-productora" required />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Correo Corporativo</label>
-                  <input id="loginEmail" type="email" class="form-control" placeholder="admin@empresa.pe" />
+                  <input id="loginEmail" type="email" class="form-control" placeholder="admin@empresa.pe" required />
                 </div>
                 <div class="col-md-8">
                   <label class="form-label small">Contraseña</label>
-                  <input id="loginPass" type="password" class="form-control" placeholder="••••••••••" />
+                  <input id="loginPass" type="password" class="form-control" placeholder="••••••••••" required />
                 </div>
                 <div class="col-md-4">
                   <label class="form-label small">MFA (opcional)</label>
                   <input id="loginMfa" class="form-control" placeholder="6 dígitos" />
                 </div>
               </div>
-              <button class="btn btn-primary w-100 fw-semibold mt-3" onclick="loginUser()">
+              <button type="submit" id="btnLogin" class="btn btn-primary w-100 fw-semibold mt-3">
                 <i class="bi bi-unlock me-1"></i>Entrar al Dashboard
               </button>
               <div id="loginMsg"></div>
-            </div>
+            </form>
 
-            <div class="tab-pane fade" id="pane-register">
+            <form class="tab-pane fade" id="pane-register" onsubmit="event.preventDefault(); registerTenant();">
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label small">Nombre de la Empresa</label>
-                  <input id="regCompanyName" class="form-control" placeholder="Ej. Productora Andina SAC" />
+                  <input id="regCompanyName" class="form-control" placeholder="Ej. Productora Andina SAC" required oninput="autoSlug('regCompanyName','regCompanySlug')" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Slug Único URL</label>
-                  <input id="regCompanySlug" class="form-control" placeholder="ej. andina-live" />
+                  <input id="regCompanySlug" class="form-control" placeholder="ej. andina-live" required oninput="this.dataset.manual='1'" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Nombre Administrador</label>
-                  <input id="regAdminName" class="form-control" placeholder="Nombre completo" />
+                  <input id="regAdminName" class="form-control" placeholder="Nombre completo" required />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label small">Correo Administrador</label>
-                  <input id="regAdminEmail" type="email" class="form-control" placeholder="admin@empresa.pe" />
+                  <input id="regAdminEmail" type="email" class="form-control" placeholder="admin@empresa.pe" required />
                 </div>
                 <div class="col-12">
                   <label class="form-label small">Contraseña (mín. 10 caracteres, mayúscula, número y símbolo)</label>
-                  <input id="regAdminPass" type="password" class="form-control" placeholder="Mínimo 10 caracteres" />
+                  <input id="regAdminPass" type="password" class="form-control" placeholder="Mínimo 10 caracteres" minlength="10" required />
                 </div>
               </div>
-              <button class="btn btn-success w-100 fw-semibold mt-3" onclick="registerTenant()">
+              <button type="submit" id="btnRegister" class="btn btn-success w-100 fw-semibold mt-3">
                 <i class="bi bi-check2-circle me-1"></i>Crear Tenant y Acceder
               </button>
               <div id="regMsg"></div>
-            </div>
+            </form>
           </div>
         </div>
       </div>
@@ -99,7 +99,8 @@
   <div id="appShell" class="d-none">
     <div class="d-lg-flex">
       <!-- Responsive Sidebar (Offcanvas on mobile, fixed column on lg+) -->
-      <aside class="offcanvas-lg offcanvas-start ep-sidebar p-3 d-flex flex-column justify-content-between" tabindex="-1" id="adminSidebar">
+      <aside class="offcanvas-lg offcanvas-start ep-sidebar p-3" tabindex="-1" id="adminSidebar">
+        <div class="offcanvas-body d-flex flex-column justify-content-between p-0 w-100 h-100">
         <div>
           <div class="d-lg-none d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary-subtle">
             <span class="fw-bold">Menú Organizador</span>
@@ -115,33 +116,33 @@
 
           <div class="ep-section-label">Analítica y Gestión</div>
           <div class="d-grid gap-1">
-            <button class="ep-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+            <button type="button" class="ep-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
               <i class="bi bi-speedometer2 text-info"></i> 1. Dashboard & Métricas
             </button>
-            <button class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
+            <button type="button" class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
               <i class="bi bi-calendar-event text-primary"></i> 2. Eventos y Entradas
             </button>
           </div>
 
           <div class="ep-section-label">Comercial y Acceso</div>
           <div class="d-grid gap-1">
-            <button class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
+            <button type="button" class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
               <i class="bi bi-ticket-perforated text-warning"></i> 3. Códigos y RR.PP.
             </button>
-            <button class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
+            <button type="button" class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
               <i class="bi bi-person-check text-success"></i> 4. Guest List
             </button>
-            <button class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
+            <button type="button" class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
               <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos Excel
             </button>
           </div>
 
           <div class="ep-section-label">Acreditación y Seguridad</div>
           <div class="d-grid gap-1">
-            <button class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
+            <button type="button" class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
               <i class="bi bi-building-check text-primary"></i> 6. Acreditaciones Staff
             </button>
-            <button class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
+            <button type="button" class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
               <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
             </button>
           </div>
@@ -149,9 +150,10 @@
 
         <div class="pt-3 mt-4 border-top border-secondary-subtle">
           <div class="small text-secondary mb-2"><i class="bi bi-clock me-1"></i>America/Lima · Ed25519</div>
-          <button class="btn btn-outline-danger btn-sm w-100" onclick="logout()">
+          <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="logout()">
             <i class="bi bi-box-arrow-right me-1"></i>Cerrar Sesión
           </button>
+        </div>
         </div>
       </aside>
 
@@ -221,40 +223,42 @@
           <h2 class="h4 fw-bold mb-3"><i class="bi bi-calendar-event text-primary me-2"></i>Eventos y Catálogo de Taquilla</h2>
           <div class="row g-3 mb-4">
             <div class="col-lg-6">
-              <div class="ep-card p-3 h-100">
+              <form class="ep-card p-3 h-100" onsubmit="event.preventDefault(); createEvent();">
                 <h5 class="h6 fw-bold mb-3">Crear Evento</h5>
                 <div class="row g-2">
-                  <div class="col-md-7"><label class="form-label small">Nombre</label><input id="evName" class="form-control form-control-sm" placeholder="Ej. Lima Tech Summit 2026" /></div>
-                  <div class="col-md-5"><label class="form-label small">Slug URL</label><input id="evSlug" class="form-control form-control-sm" placeholder="ej. lima-tech-2026" /></div>
+                  <div class="col-md-7"><label class="form-label small">Nombre del evento *</label><input id="evName" class="form-control form-control-sm" placeholder="Ej. Lima Tech Summit 2026" required oninput="autoSlug('evName','evSlug')" /></div>
+                  <div class="col-md-5"><label class="form-label small">Slug URL *</label><input id="evSlug" class="form-control form-control-sm" placeholder="ej. lima-tech-2026" pattern="[a-z0-9-]+" oninput="this.dataset.manual='1'" /></div>
                   <div class="col-md-7"><label class="form-label small">Sede / Venue</label><input id="evVenue" class="form-control form-control-sm" placeholder="Ej. Arena 1 Costa Verde, Lima" /></div>
                   <div class="col-md-3"><label class="form-label small">Color</label><input id="evBrandColor" type="color" class="form-control form-control-color form-control-sm w-100" value="#7c3aed" /></div>
                   <div class="col-md-2"><label class="form-label small">Máx DNI</label><input id="evMaxDni" type="number" min="1" max="10" class="form-control form-control-sm" value="4" /></div>
                   <div class="col-md-5"><label class="form-label small">Zona Horaria</label><input id="evTz" class="form-control form-control-sm" value="America/Lima" /></div>
                   <div class="col-md-7"><label class="form-label small">Descripción corta</label><input id="evDesc" class="form-control form-control-sm" placeholder="Detalles clave del evento" /></div>
                 </div>
-                <button class="btn btn-primary btn-sm mt-3" onclick="createEvent()"><i class="bi bi-plus-circle me-1"></i>Crear Evento</button>
+                <button type="submit" id="btnCreateEvent" class="btn btn-primary btn-sm mt-3"><i class="bi bi-plus-circle me-1"></i>Crear Evento</button>
                 <div id="evMsg"></div>
-              </div>
+              </form>
             </div>
 
             <div class="col-lg-6">
               <div class="ep-card p-3 h-100">
-                <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción (Evento Activo)</h5>
-                <div class="row g-2">
-                  <div class="col-md-4"><label class="form-label small">Código (MAYÚS)</label><input id="itemCode" class="form-control form-control-sm" placeholder="ENTRY / PHOTO" /></div>
-                  <div class="col-md-5"><label class="form-label small">Nombre visible</label><input id="itemName" class="form-control form-control-sm" placeholder="Ej. Entrada General" /></div>
-                  <div class="col-md-3"><label class="form-label small">Tipo</label><select id="itemType" class="form-select form-select-sm"><option value="ENTRY">ENTRY</option><option value="INTERACTION">INTERACTION</option></select></div>
-                  <div class="col-md-6"><label class="form-label small">Precio (centavos, ej. 8000 = S/ 80)</label><input id="itemPrice" type="number" min="0" class="form-control form-control-sm" placeholder="8000" /></div>
-                  <div class="col-md-6"><label class="form-label small">Stock total</label><input id="itemStock" type="number" min="1" class="form-control form-control-sm" placeholder="500" /></div>
-                </div>
-                <button class="btn btn-success btn-sm mt-3" onclick="createCatalogItem()"><i class="bi bi-bag-plus me-1"></i>Publicar Ítem en Taquilla</button>
-                <div id="itemMsg"></div>
+                <form onsubmit="event.preventDefault(); createCatalogItem();">
+                  <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción (Evento Activo)</h5>
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="form-label small">Código (MAYÚS)</label><input id="itemCode" class="form-control form-control-sm" placeholder="ENTRY / PHOTO" required /></div>
+                    <div class="col-md-5"><label class="form-label small">Nombre visible</label><input id="itemName" class="form-control form-control-sm" placeholder="Ej. Entrada General" required /></div>
+                    <div class="col-md-3"><label class="form-label small">Tipo</label><select id="itemType" class="form-select form-select-sm"><option value="ENTRY">ENTRY</option><option value="INTERACTION">INTERACTION</option></select></div>
+                    <div class="col-md-6"><label class="form-label small">Precio (centavos, ej. 8000 = S/ 80)</label><input id="itemPrice" type="number" min="0" class="form-control form-control-sm" placeholder="8000" value="5000" required /></div>
+                    <div class="col-md-6"><label class="form-label small">Stock total</label><input id="itemStock" type="number" min="1" class="form-control form-control-sm" placeholder="500" value="100" required /></div>
+                  </div>
+                  <button type="submit" id="btnCreateItem" class="btn btn-success btn-sm mt-3"><i class="bi bi-bag-plus me-1"></i>Publicar Ítem en Taquilla</button>
+                  <div id="itemMsg"></div>
+                </form>
 
                 <hr class="border-secondary-subtle my-3" />
                 <label class="form-label small">Actualizar límite máximo por DNI del evento activo (1 a 10)</label>
                 <div class="input-group input-group-sm">
                   <input id="editMaxDni" type="number" min="1" max="10" class="form-control" value="4" />
-                  <button class="btn btn-outline-warning" onclick="updateEventDniLimit()">Actualizar Límite</button>
+                  <button type="button" class="btn btn-outline-warning" onclick="updateEventDniLimit()">Actualizar Límite</button>
                 </div>
               </div>
             </div>
@@ -470,6 +474,34 @@
     const charts = {};
     let cachedCodes = [];
 
+    function slugify(val) {
+      return String(val || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+    }
+
+    function autoSlug(sourceId, targetId) {
+      const target = document.getElementById(targetId);
+      if (!target || target.dataset.manual === "1") return;
+      target.value = slugify(document.getElementById(sourceId).value);
+    }
+
+    function setBtnLoading(btnId, busy, busyLabel) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      if (busy) {
+        btn.dataset.origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${busyLabel || "Procesando..."}`;
+      } else {
+        btn.disabled = false;
+        if (btn.dataset.origHtml) btn.innerHTML = btn.dataset.origHtml;
+      }
+    }
+
     function switchTab(tabName, btn) {
       document.querySelectorAll(".ep-tab").forEach(s => s.classList.add("d-none"));
       document.getElementById(`tab-${tabName}`).classList.remove("d-none");
@@ -478,6 +510,11 @@
       else {
         const match = document.querySelector(`.ep-nav-btn[data-tab="${tabName}"]`);
         if (match) match.classList.add("active");
+      }
+      const offcanvasEl = document.getElementById("adminSidebar");
+      if (offcanvasEl && typeof bootstrap !== "undefined") {
+        const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (inst) inst.hide();
       }
       if (tabName === "dashboard") loadDashboardMetrics();
       if (tabName === "events") loadEventsAndItemsTable();
@@ -505,10 +542,21 @@
     function refreshSession() {
       if (typeof EP.renderNavbar === "function") EP.renderNavbar("admin");
       const s = EP.getSession();
+      if (s.token && s.role === "SUPERADMIN") {
+        document.getElementById("authGateScreen").classList.remove("d-none");
+        document.getElementById("appShell").classList.add("d-none");
+        EP.showMsg("loginMsg", "warn", 'Sesión SuperAdmin activa. Ve a <a href="/superadmin" class="alert-link">/superadmin</a> para impersonar una empresa o inicia sesión como Admin del tenant.');
+        return;
+      }
       if (s.token) {
         document.getElementById("authGateScreen").classList.add("d-none");
         document.getElementById("appShell").classList.remove("d-none");
-        loadEvents().then(ok => { if (ok !== false) { loadDashboardMetrics(); loadCompanies(); } });
+        const tabParam = new URLSearchParams(location.search).get("tab");
+        if (tabParam && document.getElementById(`tab-${tabParam}`)) {
+          loadEvents().then(ok => { if (ok !== false) { loadCompanies(); switchTab(tabParam); } });
+        } else {
+          loadEvents().then(ok => { if (ok !== false) { loadDashboardMetrics(); loadCompanies(); } });
+        }
       } else {
         document.getElementById("authGateScreen").classList.remove("d-none");
         document.getElementById("appShell").classList.add("d-none");
@@ -521,15 +569,23 @@
     }
 
     async function registerTenant() {
+      document.getElementById("regMsg").innerHTML = "";
+      const companyName = document.getElementById("regCompanyName").value.trim();
+      const companySlug = slugify(document.getElementById("regCompanySlug").value || companyName);
+      if (companySlug.length < 3) {
+        return EP.showMsg("regMsg", "err", "Ingresa un slug válido (mínimo 3 caracteres alfanuméricos).");
+      }
+      document.getElementById("regCompanySlug").value = companySlug;
+      setBtnLoading("btnRegister", true, "Creando...");
       try {
         const res = await EP.api("/api/v1/auth/tenants/register", {
           method: "POST",
           auth: false,
           body: JSON.stringify({
-            company_name: document.getElementById("regCompanyName").value,
-            company_slug: document.getElementById("regCompanySlug").value,
-            admin_full_name: document.getElementById("regAdminName").value,
-            admin_email: document.getElementById("regAdminEmail").value,
+            company_name: companyName,
+            company_slug: companySlug,
+            admin_full_name: document.getElementById("regAdminName").value.trim(),
+            admin_email: document.getElementById("regAdminEmail").value.trim(),
             admin_password: document.getElementById("regAdminPass").value,
           }),
         });
@@ -537,12 +593,18 @@
         EP.toast(`Empresa '${res.company_name}' creada.`);
         refreshSession();
         switchTab("events");
-      } catch (e) { EP.showMsg("regMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("regMsg", "err", e.message);
+      } finally {
+        setBtnLoading("btnRegister", false);
+      }
     }
 
     async function loginUser() {
+      document.getElementById("loginMsg").innerHTML = "";
+      setBtnLoading("btnLogin", true, "Ingresando...");
       try {
-        const slug = document.getElementById("loginSlug").value.trim();
+        const slug = document.getElementById("loginSlug").value.trim().toLowerCase();
         const body = { tenant_slug: slug, email: document.getElementById("loginEmail").value.trim(), password: document.getElementById("loginPass").value };
         const mfa = document.getElementById("loginMfa").value.trim();
         if (mfa) body.mfa_code = mfa;
@@ -551,7 +613,11 @@
         EP.toast(`Sesión iniciada (${res.role}).`);
         refreshSession();
         switchTab("dashboard");
-      } catch (e) { EP.showMsg("loginMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("loginMsg", "err", e.message);
+      } finally {
+        setBtnLoading("btnLogin", false);
+      }
     }
 
     async function loadEvents() {
@@ -615,28 +681,52 @@
     }
 
     async function createEvent() {
+      document.getElementById("evMsg").innerHTML = "";
+      const name = document.getElementById("evName").value.trim();
+      let slug = slugify(document.getElementById("evSlug").value || name);
+      if (slug.length < 3) {
+        return EP.showMsg("evMsg", "err", "Ingresa un nombre válido (al menos 3 caracteres alfanuméricos para el slug).");
+      }
+      document.getElementById("evSlug").value = slug;
+      const maxDniRaw = parseInt(document.getElementById("evMaxDni").value || "4", 10);
+      const maxDni = Number.isFinite(maxDniRaw) ? Math.min(10, Math.max(1, maxDniRaw)) : 4;
+      document.getElementById("evMaxDni").value = String(maxDni);
+
+      setBtnLoading("btnCreateEvent", true, "Creando...");
       try {
         const now = new Date();
         const res = await EP.api("/api/v1/registration/events", {
           method: "POST",
           body: JSON.stringify({
-            name: document.getElementById("evName").value,
-            slug: document.getElementById("evSlug").value,
-            venue: document.getElementById("evVenue").value || "Lima, Perú",
-            description: document.getElementById("evDesc").value,
-            brand_color: document.getElementById("evBrandColor").value,
-            timezone_name: document.getElementById("evTz").value || "America/Lima",
+            name,
+            slug,
+            venue: document.getElementById("evVenue").value.trim() || "Lima, Perú",
+            description: document.getElementById("evDesc").value.trim(),
+            brand_color: document.getElementById("evBrandColor").value || "#7c3aed",
+            timezone_name: document.getElementById("evTz").value.trim() || "America/Lima",
             starts_at: new Date(now.getTime() + 1800 * 1000).toISOString(),
             ends_at: new Date(now.getTime() + 96 * 3600 * 1000).toISOString(),
-            max_purchases_per_dni: Number(document.getElementById("evMaxDni").value),
+            max_purchases_per_dni: maxDni,
           }),
         });
+        document.getElementById("evName").value = "";
+        const slugInput = document.getElementById("evSlug");
+        slugInput.value = "";
+        delete slugInput.dataset.manual;
+        document.getElementById("evDesc").value = "";
+        EP.showMsg("evMsg", "ok", `Evento '${EP.escapeHtml(res.name)}' creado y seleccionado (${EP.escapeHtml(res.slug)}).`);
         EP.toast(`Evento '${res.name}' creado.`);
         await loadEvents();
         document.getElementById("globalEventSelect").value = res.id;
+        document.getElementById("editMaxDni").value = String(res.max_purchases_per_dni);
         await loadEventsAndItemsTable();
         await loadDashboardMetrics();
-      } catch (e) { EP.showMsg("evMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("evMsg", "err", e.message);
+        EP.toast(e.message, "err");
+      } finally {
+        setBtnLoading("btnCreateEvent", false);
+      }
     }
 
     async function updateEventDniLimit() {
@@ -645,7 +735,7 @@
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/dni-limit`, {
           method: "PATCH",
-          body: JSON.stringify({ max_purchases_per_dni: Number(document.getElementById("editMaxDni").value) }),
+          body: JSON.stringify({ max_purchases_per_dni: Number(document.getElementById("editMaxDni").value || 4) }),
         });
         EP.toast(`Límite por DNI actualizado a ${res.max_purchases_per_dni}.`);
         await loadEvents();
@@ -654,23 +744,36 @@
     }
 
     async function createCatalogItem() {
+      document.getElementById("itemMsg").innerHTML = "";
       const eventId = currentEventId();
       if (!eventId) return EP.showMsg("itemMsg", "err", "Selecciona o crea un evento primero.");
+      const code = document.getElementById("itemCode").value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "_");
+      const name = document.getElementById("itemName").value.trim();
+      if (code.length < 2 || name.length < 2) {
+        return EP.showMsg("itemMsg", "err", "Ingresa un código (ej. ENTRY) y nombre válido.");
+      }
+      setBtnLoading("btnCreateItem", true, "Publicando...");
       try {
         const res = await EP.api(`/api/v1/registration/events/${eventId}/items`, {
           method: "POST",
           body: JSON.stringify({
-            code: document.getElementById("itemCode").value.trim().toUpperCase(),
-            name: document.getElementById("itemName").value,
+            code,
+            name,
             item_type: document.getElementById("itemType").value,
-            price_cents: Number(document.getElementById("itemPrice").value),
-            stock_total: Number(document.getElementById("itemStock").value),
+            price_cents: Math.max(0, Number(document.getElementById("itemPrice").value || 0)),
+            stock_total: Math.max(1, Number(document.getElementById("itemStock").value || 100)),
           }),
         });
+        EP.showMsg("itemMsg", "ok", `Ítem '${EP.escapeHtml(res.code)}' publicado en taquilla.`);
         EP.toast(`Ítem '${res.code}' publicado.`);
         await loadEventsAndItemsTable();
         await loadDashboardMetrics();
-      } catch (e) { EP.showMsg("itemMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("itemMsg", "err", e.message);
+        EP.toast(e.message, "err");
+      } finally {
+        setBtnLoading("btnCreateItem", false);
+      }
     }
 
     function upsertChart(id, cfg) {
@@ -978,7 +1081,7 @@
       try {
         const rows = await EP.api("/api/v1/registration/complaints");
         document.getElementById("complaintsTable").innerHTML = rows.length
-          ? rows.map(c => `<tr><td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td><td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td><td>${EP.escapeHtml(c.full_name)}</td><td class="mono">****${EP.escapeHtml(c.dni_last4)}</td><td class="small">${EP.escapeHtml(c.detail)}</td><td class="small">${new Date(c.created_at).toLocaleString()}</td></tr>`).join("")
+          ? rows.map(c => `<tr><td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td><td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td><td><span class="badge text-bg-secondary">${EP.escapeHtml(c.status || "REGISTERED")}</span></td><td class="mono">****${EP.escapeHtml(c.dni_last4)}</td><td class="small">${EP.escapeHtml(c.detail)}</td><td class="small">${new Date(c.created_at).toLocaleString()}</td></tr>`).join("")
           : `<tr><td colspan="6" class="text-secondary">Sin reclamos</td></tr>`;
       } catch {}
     }

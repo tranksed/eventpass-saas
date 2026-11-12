@@ -70,6 +70,7 @@ const EP = {
       { key: "acreditacion", href: "/acreditacion", icon: "bi-building-check", label: "Staff" },
       { key: "admin", href: "/admin", icon: "bi-speedometer2", label: "Dashboard" },
       { key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" },
+      { key: "superadmin", href: "/superadmin", icon: "bi-shield-lock", label: "SuperAdmin" },
     ];
     const navItems = links.map(l => `
       <li class="nav-item">

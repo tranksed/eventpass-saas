@@ -743,3 +743,132 @@ async def test_rrpp_codes_guest_list_bulk_metrics_and_complaints(saas_cluster):
     comp_list = await reg.get("/api/v1/registration/complaints", headers=_bearer(admin_token))
     assert comp_list.status_code == 200
     assert len(comp_list.json()) == 1
+
+
+async def test_superadmin_platform_control_and_impersonation(saas_cluster):
+    """Verify SuperAdmin setup/login, tenant provisioning, suspend/reactivate, impersonation to create event, and global overviews."""
+    auth: httpx.AsyncClient = saas_cluster["auth"]
+    reg: httpx.AsyncClient = saas_cluster["reg"]
+    accred: httpx.AsyncClient = saas_cluster["accred"]
+    audit: httpx.AsyncClient = saas_cluster["audit"]
+
+    # 1. Status starts uninitialized; first setup succeeds; second setup -> 409
+    st0 = (await auth.get("/api/v1/auth/superadmin/status")).json()
+    assert st0["initialized"] is False
+
+    setup_res = await auth.post(
+        "/api/v1/auth/superadmin/setup",
+        json={
+            "email": "root@eventpass.pe",
+            "full_name": "Master Platform Admin",
+            "password": "SuperMaster!Password99",
+        },
+    )
+    assert setup_res.status_code == 201, setup_res.text
+
+    dup_setup = await auth.post(
+        "/api/v1/auth/superadmin/setup",
+        json={
+            "email": "other@eventpass.pe",
+            "full_name": "Rogue",
+            "password": "SuperMaster!Password99",
+        },
+    )
+    assert dup_setup.status_code == 409
+
+    # 2. Login & create tenant via SuperAdmin
+    login_res = await auth.post(
+        "/api/v1/auth/superadmin/login",
+        json={"email": "root@eventpass.pe", "password": "SuperMaster!Password99"},
+    )
+    assert login_res.status_code == 200
+    sa_token = login_res.json()["access_token"]
+
+    sa_tenant = await auth.post(
+        "/api/v1/auth/superadmin/tenants",
+        headers=_bearer(sa_token),
+        json={
+            "company_name": "SuperManaged SAC",
+            "company_slug": "supermanaged",
+            "admin_email": "owner@supermanaged.pe",
+            "admin_full_name": "Owner SuperManaged",
+            "admin_password": "StrongPassword!123",
+        },
+    )
+    assert sa_tenant.status_code == 201
+    tenant_id = sa_tenant.json()["tenant_id"]
+
+    # 3. Suspend blocks tenant login; reactivate restores it
+    susp = await auth.patch(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/status",
+        headers=_bearer(sa_token),
+        json={"is_active": False},
+    )
+    assert susp.status_code == 200
+    assert (
+        await auth.post(
+            "/api/v1/auth/login",
+            json={
+                "tenant_slug": "supermanaged",
+                "email": "owner@supermanaged.pe",
+                "password": "StrongPassword!123",
+            },
+        )
+    ).status_code == 401
+
+    react = await auth.patch(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/status",
+        headers=_bearer(sa_token),
+        json={"is_active": True},
+    )
+    assert react.status_code == 200
+
+    # 4. Impersonate -> ADMIN token creates Event -> shows in global overviews & pause toggle
+    imp = await auth.post(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/impersonate",
+        headers=_bearer(sa_token),
+    )
+    assert imp.status_code == 200
+    imp_token = imp.json()["access_token"]
+
+    now = datetime.now(timezone.utc)
+    ev_res = await reg.post(
+        "/api/v1/registration/events",
+        headers=_bearer(imp_token),
+        json={
+            "name": "Festival Impersonado",
+            "slug": "festival-impersonado",
+            "venue": "Costa Verde, Lima",
+            "timezone_name": "America/Lima",
+            "starts_at": (now + timedelta(hours=2)).isoformat(),
+            "ends_at": (now + timedelta(days=2)).isoformat(),
+            "max_purchases_per_dni": 6,
+        },
+    )
+    assert ev_res.status_code == 201, ev_res.text
+    event_id = ev_res.json()["id"]
+
+    # Normal ADMIN cannot call superadmin endpoints -> 403
+    assert (await reg.get("/api/v1/registration/superadmin/overview", headers=_bearer(imp_token))).status_code == 403
+
+    # SuperAdmin overviews succeed
+    sa_reg = await reg.get("/api/v1/registration/superadmin/overview", headers=_bearer(sa_token))
+    assert sa_reg.status_code == 200
+    assert any(e["id"] == event_id for e in sa_reg.json()["events"])
+
+    sa_ev_pause = await reg.patch(
+        f"/api/v1/registration/superadmin/events/{event_id}/status",
+        headers=_bearer(sa_token),
+        json={"is_active": False},
+    )
+    assert sa_ev_pause.status_code == 200
+    assert sa_ev_pause.json()["is_active"] is False
+
+    sa_acc = await accred.get("/api/v1/accreditation/superadmin/overview", headers=_bearer(sa_token))
+    assert sa_acc.status_code == 200
+    assert "total_credentials" in sa_acc.json()
+
+    sa_audit = await audit.get("/api/v1/audit/superadmin/events?limit=20", headers=_bearer(sa_token))
+    assert sa_audit.status_code == 200
+    assert len(sa_audit.json()) >= 1
+

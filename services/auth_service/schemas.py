@@ -69,3 +69,19 @@ class TenantRegisterResponse(BaseModel):
     company_slug: str
     user: UserSummary
     tokens: TokenResponse
+
+
+class SuperAdminSetupRequest(StrictModel):
+    full_name: str = Field(default="Platform SuperAdmin", min_length=2, max_length=150)
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class SuperAdminLoginRequest(StrictModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    mfa_code: str | None = Field(default=None, min_length=6, max_length=8)
+
+
+class UpdateTenantStatusRequest(StrictModel):
+    is_active: bool
