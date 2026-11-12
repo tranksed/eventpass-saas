@@ -15,6 +15,7 @@ import hmac
 import os
 import re
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -118,43 +119,84 @@ class PIIEncryptor:
 
 
 def ensure_ed25519_keypair(keys_dir: Path, name: str) -> tuple[Ed25519PrivateKey, Ed25519PublicKey]:
-    """Load or generate an Ed25519 keypair under `keys_dir/{name}_private.pem`."""
+    """Load or generate an Ed25519 keypair under `keys_dir/{name}_private.pem` safely across workers."""
     keys_dir.mkdir(parents=True, exist_ok=True)
     priv_path = keys_dir / f"{name}_private.pem"
     pub_path = keys_dir / f"{name}_public.pem"
+    lock_path = keys_dir / f".{name}.lock"
 
-    if priv_path.exists() and pub_path.exists():
-        private_key = serialization.load_pem_private_key(priv_path.read_bytes(), password=None)
-        public_key = serialization.load_pem_public_key(pub_path.read_bytes())
-        assert isinstance(private_key, Ed25519PrivateKey)
-        assert isinstance(public_key, Ed25519PublicKey)
+    def _load_existing() -> tuple[Ed25519PrivateKey, Ed25519PublicKey] | None:
+        if priv_path.exists() and pub_path.exists() and priv_path.stat().st_size > 0 and pub_path.stat().st_size > 0:
+            private_key = serialization.load_pem_private_key(priv_path.read_bytes(), password=None)
+            public_key = serialization.load_pem_public_key(pub_path.read_bytes())
+            assert isinstance(private_key, Ed25519PrivateKey)
+            assert isinstance(public_key, Ed25519PublicKey)
+            return private_key, public_key
+        return None
+
+    loaded = _load_existing()
+    if loaded is not None:
+        return loaded
+
+    lock_file = None
+    try:
+        try:
+            import fcntl
+
+            lock_file = open(lock_path, "w", encoding="utf-8")
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        except ImportError:
+            pass
+
+        loaded = _load_existing()
+        if loaded is not None:
+            return loaded
+
+        private_key = Ed25519PrivateKey.generate()
+        public_key = private_key.public_key()
+        priv_tmp = keys_dir / f".{name}_private.{os.getpid()}.tmp"
+        pub_tmp = keys_dir / f".{name}_public.{os.getpid()}.tmp"
+        priv_tmp.write_bytes(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+        pub_tmp.write_bytes(
+            public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        )
+        os.replace(priv_tmp, priv_path)
+        os.replace(pub_tmp, pub_path)
         return private_key, public_key
+    finally:
+        if lock_file is not None:
+            try:
+                import fcntl
 
-    private_key = Ed25519PrivateKey.generate()
-    public_key = private_key.public_key()
-    priv_path.write_bytes(
-        private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-    )
-    pub_path.write_bytes(
-        public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-    )
-    return private_key, public_key
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            lock_file.close()
 
 
 def load_ed25519_public_key(keys_dir: Path, name: str) -> Ed25519PublicKey:
     """Load only the Ed25519 public key (used by verifier services & offline bundles)."""
     pub_path = keys_dir / f"{name}_public.pem"
     if not pub_path.exists():
-        # Ensure pair exists in shared local dev/test mode if auth hasn't booted yet
-        _, pub = ensure_ed25519_keypair(keys_dir, name)
-        return pub
+        # In multi-container startup with :ro volume, wait briefly for auth-service to write the key
+        if keys_dir.exists() and not os.access(keys_dir, os.W_OK):
+            for _ in range(40):
+                if pub_path.exists() and pub_path.stat().st_size > 0:
+                    break
+                time.sleep(0.5)
+        if not pub_path.exists():
+            # Ensure pair exists in shared local dev/test mode if auth hasn't booted yet
+            _, pub = ensure_ed25519_keypair(keys_dir, name)
+            return pub
     public_key = serialization.load_pem_public_key(pub_path.read_bytes())
     assert isinstance(public_key, Ed25519PublicKey)
     return public_key

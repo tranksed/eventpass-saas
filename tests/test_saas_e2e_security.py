@@ -848,13 +848,24 @@ async def test_superadmin_platform_control_and_impersonation(saas_cluster):
     assert ev_res.status_code == 201, ev_res.text
     event_id = ev_res.json()["id"]
 
+    # Add catalog item so overview stock_total / stock_sold aggregation is exercised
+    item_res = await reg.post(
+        f"/api/v1/registration/events/{event_id}/items",
+        headers=_bearer(imp_token),
+        json={"code": "ENTRY", "name": "General", "item_type": "ENTRY", "price_cents": 8000, "stock_total": 100},
+    )
+    assert item_res.status_code == 201, item_res.text
+
     # Normal ADMIN cannot call superadmin endpoints -> 403
     assert (await reg.get("/api/v1/registration/superadmin/overview", headers=_bearer(imp_token))).status_code == 403
 
     # SuperAdmin overviews succeed
     sa_reg = await reg.get("/api/v1/registration/superadmin/overview", headers=_bearer(sa_token))
     assert sa_reg.status_code == 200
-    assert any(e["id"] == event_id for e in sa_reg.json()["events"])
+    matched = [e for e in sa_reg.json()["events"] if e["id"] == event_id]
+    assert len(matched) == 1
+    assert matched[0]["tickets_capacity"] == 100
+    assert matched[0]["tickets_sold"] == 0
 
     sa_ev_pause = await reg.patch(
         f"/api/v1/registration/superadmin/events/{event_id}/status",

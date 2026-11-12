@@ -40,8 +40,8 @@
                 <input id="saSetupEmail" type="email" class="form-control" placeholder="superadmin@eventpass.pe" required />
               </div>
               <div class="mb-3">
-                <label class="form-label small">Contraseña maestra (mín. 10 caracteres, mayúscula, número y símbolo)</label>
-                <input id="saSetupPass" type="password" class="form-control" minlength="10" required />
+                <label class="form-label small">Contraseña maestra (mín. 8 caracteres)</label>
+                <input id="saSetupPass" type="password" class="form-control" minlength="8" required />
               </div>
               <button type="submit" id="btnSaSetup" class="btn btn-warning w-100 fw-semibold">
                 <i class="bi bi-shield-plus me-1"></i>Inicializar SuperAdmin Maestro
@@ -124,7 +124,7 @@
             </div>
             <div class="mb-2">
               <label class="form-label small">Slug URL</label>
-              <input id="saCompSlug" class="form-control form-control-sm" placeholder="ej. festival-norte" pattern="[a-z0-9-]+" required oninput="this.dataset.manual='1'" />
+              <input id="saCompSlug" class="form-control form-control-sm" placeholder="ej. festival-norte" oninput="this.dataset.manual='1'" />
             </div>
             <div class="mb-2">
               <label class="form-label small">Administrador Titular</label>
@@ -135,8 +135,8 @@
               <input id="saAdminEmail" type="email" class="form-control form-control-sm" placeholder="admin@cliente.pe" required />
             </div>
             <div class="mb-3">
-              <label class="form-label small">Contraseña inicial</label>
-              <input id="saAdminPass" type="password" class="form-control form-control-sm" minlength="10" required />
+              <label class="form-label small">Contraseña inicial (mín. 8 caracteres)</label>
+              <input id="saAdminPass" type="password" class="form-control form-control-sm" minlength="8" required />
             </div>
             <button type="submit" id="btnSaCreateTenant" class="btn btn-success btn-sm w-100 fw-semibold">
               <i class="bi bi-plus-circle me-1"></i>Provisionar Empresa
@@ -226,8 +226,22 @@
       }
     }
 
+    function setSaBtnLoading(btnId, busy, busyLabel) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      if (busy) {
+        btn.dataset.origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${busyLabel || "Procesando..."}`;
+      } else {
+        btn.disabled = false;
+        if (btn.dataset.origHtml) btn.innerHTML = btn.dataset.origHtml;
+      }
+    }
+
     async function setupSuperAdmin() {
       document.getElementById("saSetupMsg").innerHTML = "";
+      setSaBtnLoading("btnSaSetup", true, "Inicializando...");
       try {
         const res = await EP.api("/api/v1/auth/superadmin/setup", {
           method: "POST", auth: false,
@@ -240,11 +254,17 @@
         EP.saveSession(res.access_token, res.role, res.tenant_id, "platform");
         EP.toast("SuperAdmin maestro inicializado.");
         await initSuperAdminPage();
-      } catch (e) { EP.showMsg("saSetupMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("saSetupMsg", "err", e.message);
+        EP.toast(e.message, "err");
+      } finally {
+        setSaBtnLoading("btnSaSetup", false);
+      }
     }
 
     async function loginSuperAdmin() {
       document.getElementById("saLoginMsg").innerHTML = "";
+      setSaBtnLoading("btnSaLogin", true, "Ingresando...");
       try {
         const body = {
           email: document.getElementById("saLoginEmail").value.trim(),
@@ -256,7 +276,12 @@
         EP.saveSession(res.access_token, res.role, res.tenant_id, "platform");
         EP.toast("Sesión SuperAdmin iniciada.");
         await initSuperAdminPage();
-      } catch (e) { EP.showMsg("saLoginMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("saLoginMsg", "err", e.message);
+        EP.toast(e.message, "err");
+      } finally {
+        setSaBtnLoading("btnSaLogin", false);
+      }
     }
 
     function logoutSa() {
@@ -267,12 +292,14 @@
     async function loadPlatformData() {
       document.getElementById("saGlobalMsg").innerHTML = "";
       try {
+        const errors = [];
         const [tenants, reg, acc, audit] = await Promise.all([
           EP.api("/api/v1/auth/superadmin/tenants"),
-          EP.api("/api/v1/registration/superadmin/overview"),
-          EP.api("/api/v1/accreditation/superadmin/overview"),
+          EP.api("/api/v1/registration/superadmin/overview").catch(err => { errors.push(err.message); return { total_events: 0, active_events: 0, total_orders_paid: 0, total_revenue_cents: 0, total_tickets_sold: 0, total_complaints: 0, events: [] }; }),
+          EP.api("/api/v1/accreditation/superadmin/overview").catch(err => { errors.push(err.message); return { total_credentials: 0, total_staff_used: 0, total_staff_quota: 0, total_checkins: 0 }; }),
           EP.api("/api/v1/audit/superadmin/events?limit=50").catch(() => []),
         ]);
+        if (errors.length) EP.showMsg("saGlobalMsg", "warn", `Aviso parcial al cargar métricas: ${errors.join(" | ")}`);
 
         document.getElementById("kpiTenants").textContent = tenants.length;
         document.getElementById("kpiTenantsActive").textContent = `${tenants.filter(t => t.is_active).length} activas`;
@@ -340,7 +367,11 @@
       document.getElementById("saTenantMsg").innerHTML = "";
       const slugInput = document.getElementById("saCompSlug");
       const slug = slugifySa(slugInput.value || document.getElementById("saCompName").value);
+      if (slug.length < 2) {
+        return EP.showMsg("saTenantMsg", "err", "El slug debe tener al menos 2 caracteres alfanuméricos.");
+      }
       slugInput.value = slug;
+      setSaBtnLoading("btnSaCreateTenant", true, "Provisionando...");
       try {
         const res = await EP.api("/api/v1/auth/superadmin/tenants", {
           method: "POST",
@@ -361,7 +392,12 @@
         document.getElementById("saAdminEmail").value = "";
         document.getElementById("saAdminPass").value = "";
         await loadPlatformData();
-      } catch (e) { EP.showMsg("saTenantMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("saTenantMsg", "err", e.message);
+        EP.toast(e.message, "err");
+      } finally {
+        setSaBtnLoading("btnSaCreateTenant", false);
+      }
     }
 
     async function toggleTenant(tenantId, nextActive) {

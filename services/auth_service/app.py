@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import pyotp
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.auth_service.config import AuthSettings
@@ -36,7 +37,7 @@ from shared_kernel.crypto import (
     public_key_to_pem,
     verify_password,
 )
-from shared_kernel.database import Base, create_service_db, get_db_session
+from shared_kernel.database import Base, create_service_db, get_db_session, init_db_schema
 from shared_kernel.security import (
     CurrentActor,
     Role,
@@ -77,9 +78,15 @@ def create_auth_app(
     ) -> User:
         platform_tenant = await db.scalar(select(Tenant).where(Tenant.slug == "platform"))
         if platform_tenant is None:
-            platform_tenant = Tenant(id="__platform__", name="EventPass Platform", slug="platform", is_active=True)
-            db.add(platform_tenant)
-            await db.flush()
+            try:
+                async with db.begin_nested():
+                    platform_tenant = Tenant(id="__platform__", name="EventPass Platform", slug="platform", is_active=True)
+                    db.add(platform_tenant)
+                    await db.flush()
+            except IntegrityError:
+                platform_tenant = await db.scalar(select(Tenant).where(Tenant.slug == "platform"))
+        if platform_tenant is None:
+            raise HTTPException(status_code=500, detail="Could not resolve platform tenant.")
         sa_user = User(
             tenant_id=platform_tenant.id,
             email=email.lower(),
@@ -93,18 +100,20 @@ def create_auth_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await init_db_schema(engine, Base.metadata)
         if cfg.superadmin_password and len(cfg.superadmin_password) >= 8:
             async with session_factory() as db:
-                existing_sa = await db.scalar(select(User).where(User.role == Role.SUPERADMIN.value))
-                if existing_sa is None:
-                    await _create_superadmin_account(
-                        db,
-                        email=cfg.superadmin_email,
-                        full_name="Platform SuperAdmin",
-                        password=cfg.superadmin_password,
-                    )
+                try:
+                    existing_sa = await db.scalar(select(User).where(User.role == Role.SUPERADMIN.value))
+                    if existing_sa is None:
+                        await _create_superadmin_account(
+                            db,
+                            email=cfg.superadmin_email,
+                            full_name="Platform SuperAdmin",
+                            password=cfg.superadmin_password,
+                        )
+                except IntegrityError:
+                    await db.rollback()
         yield
         await engine.dispose()
 

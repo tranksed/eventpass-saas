@@ -62,14 +62,19 @@ chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh"
 CHOSEN_PORT="$(grep -E '^APP_HTTP_PORT=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- || echo "8088")"
 CHOSEN_PORT="${CHOSEN_PORT:-8088}"
 
+grep -q '^SUPERADMIN_EMAIL=' "${ENV_FILE}" || echo 'SUPERADMIN_EMAIL=superadmin@eventpass.pe' >> "${ENV_FILE}"
+grep -q '^SUPERADMIN_PASSWORD=' "${ENV_FILE}" || echo 'SUPERADMIN_PASSWORD=' >> "${ENV_FILE}"
+
 echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}) ==="
 cd "${INFRA_DIR}"
 docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
 
-echo "=== [3/4] Esperando /health del gateway en http://127.0.0.1:${CHOSEN_PORT} ==="
+echo "=== [3/4] Esperando /health y DB de microservicios en http://127.0.0.1:${CHOSEN_PORT} ==="
 READY=0
-for i in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/health" >/dev/null 2>&1; then
+for i in $(seq 1 40); do
+  if curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/health" >/dev/null 2>&1 \
+    && curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/api/v1/auth/superadmin/status" >/dev/null 2>&1 \
+    && curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/api/v1/registration/public/events" >/dev/null 2>&1; then
     READY=1
     break
   fi
@@ -77,15 +82,15 @@ for i in $(seq 1 30); do
 done
 
 if [[ "${READY}" -ne 1 ]]; then
-  echo "[!] El gateway no respondió /health tras la actualización."
+  echo "[!] Los servicios o sus bases de datos no respondieron a tiempo tras la actualización."
   docker compose --env-file "${ENV_FILE}" ps
-  docker compose --env-file "${ENV_FILE}" logs --tail=40 web-portal auth-service registration-service api-gateway
+  docker compose --env-file "${ENV_FILE}" logs --tail=50 web-portal auth-service registration-service accreditation-service audit-service api-gateway
   exit 1
 fi
 
-echo "=== [4/4] Verificando rutas HTTP del Aplicativo Web ==="
+echo "=== [4/4] Verificando rutas HTTP y API del Aplicativo Web ==="
 FAILED=0
-for route in "/" "/comprar" "/validar" "/acreditacion" "/admin" "/superadmin" "/reclamos"; do
+for route in "/" "/comprar" "/validar" "/acreditacion" "/admin" "/superadmin" "/reclamos" "/api/v1/auth/superadmin/status" "/api/v1/registration/public/events"; do
   code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${CHOSEN_PORT}${route}")
   echo "    HTTP ${code} -> ${route}"
   if [[ "${code}" != "200" ]]; then

@@ -9,6 +9,11 @@ services:
       POSTGRES_DB: auth_db
       POSTGRES_USER: auth_svc_user
       POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_svc_user -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
     networks:
@@ -21,6 +26,11 @@ services:
       POSTGRES_DB: registration_db
       POSTGRES_USER: reg_svc_user
       POSTGRES_PASSWORD: ${REG_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reg_svc_user -d registration_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - reg_pgdata:/var/lib/postgresql/data
     networks:
@@ -33,6 +43,11 @@ services:
       POSTGRES_DB: accreditation_db
       POSTGRES_USER: accred_svc_user
       POSTGRES_PASSWORD: ${ACCRED_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U accred_svc_user -d accreditation_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - accred_pgdata:/var/lib/postgresql/data
     networks:
@@ -45,6 +60,11 @@ services:
       POSTGRES_DB: audit_db
       POSTGRES_USER: audit_svc_user
       POSTGRES_PASSWORD: ${AUDIT_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit_svc_user -d audit_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - audit_pgdata:/var/lib/postgresql/data
     networks:
@@ -60,7 +80,8 @@ services:
       MAX_CLIENT_CONN: 500
       DEFAULT_POOL_SIZE: 30
     depends_on:
-      - registration-db
+      registration-db:
+        condition: service_healthy
     networks:
       - private_data
 
@@ -100,10 +121,16 @@ services:
       KEYS_DIR: /app/data/keys
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - shared_public_keys:/app/data/keys
     depends_on:
-      - auth-db
+      auth-db:
+        condition: service_healthy
     networks:
       - service_mesh
       - private_data
@@ -128,8 +155,12 @@ services:
     volumes:
       - shared_public_keys:/app/data/keys:ro
     depends_on:
-      - pgbouncer-registration
-      - auth-service
+      pgbouncer-registration:
+        condition: service_started
+      registration-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     networks:
       - service_mesh
       - private_data
@@ -149,13 +180,13 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       AUDIT_SERVICE_URL: http://audit-service:8000
       KEYS_DIR: /app/data/keys
-      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
-      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
     volumes:
-      - shared_public_keys:/app/data/keys
+      - shared_public_keys:/app/data/keys:ro
     depends_on:
-      - accreditation-db
-      - auth-service
+      accreditation-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     networks:
       - service_mesh
       - private_data
@@ -175,8 +206,10 @@ services:
     volumes:
       - shared_public_keys:/app/data/keys:ro
     depends_on:
-      - audit-db
-      - auth-service
+      audit-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     networks:
       - service_mesh
       - private_data

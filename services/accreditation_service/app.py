@@ -59,7 +59,7 @@ from shared_kernel.crypto import (
     sign_qr_credential,
     verify_qr_credential,
 )
-from shared_kernel.database import Base, create_service_db, get_db_session
+from shared_kernel.database import Base, create_service_db, get_db_session, init_db_schema
 from shared_kernel.security import (
     CurrentActor,
     Role,
@@ -103,8 +103,7 @@ def create_accreditation_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await init_db_schema(engine, Base.metadata)
         yield
         await engine.dispose()
 

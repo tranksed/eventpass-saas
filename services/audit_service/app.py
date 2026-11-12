@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from services.audit_service.config import AuditSettings
 from services.audit_service.models import AuditEntry
 from shared_kernel.crypto import load_ed25519_public_key
-from shared_kernel.database import Base, create_service_db, get_db_session
+from shared_kernel.database import Base, create_service_db, get_db_session, init_db_schema
 from shared_kernel.security import (
     CurrentActor,
     Role,
@@ -73,8 +73,7 @@ def create_audit_app(settings: AuditSettings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+        await init_db_schema(engine, Base.metadata)
         yield
         await engine.dispose()
 

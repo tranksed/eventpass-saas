@@ -81,7 +81,7 @@ from shared_kernel.crypto import (
     normalize_dni,
     verify_webhook_signature,
 )
-from shared_kernel.database import Base, create_service_db, get_db_session
+from shared_kernel.database import Base, create_service_db, get_db_session, init_db_schema
 from shared_kernel.security import (
     CurrentActor,
     Role,
@@ -113,7 +113,7 @@ def _event_to_response(e: Event) -> EventResponse:
 
 
 async def _ensure_schema_columns(conn) -> None:
-    """Safely add newly introduced columns on existing dev SQLite/Postgres databases."""
+    """Safely add newly introduced columns on existing dev SQLite/Postgres databases using SAVEPOINTs."""
     alter_statements = [
         "ALTER TABLE events ADD COLUMN venue VARCHAR(180) NOT NULL DEFAULT 'Centro de Convenciones, Lima'",
         "ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''",
@@ -125,8 +125,10 @@ async def _ensure_schema_columns(conn) -> None:
     ]
     for stmt in alter_statements:
         try:
-            await conn.execute(text(stmt))
+            async with conn.begin_nested():
+                await conn.execute(text(stmt))
         except Exception:
+            # Column already exists; nested savepoint rollback preserves outer PostgreSQL transaction
             pass
 
 
@@ -155,9 +157,7 @@ def create_registration_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            await _ensure_schema_columns(conn)
+        await init_db_schema(engine, Base.metadata, post_init=_ensure_schema_columns)
         yield
         await engine.dispose()
 
@@ -1462,8 +1462,8 @@ def create_registration_app(
         sold_by_event: dict[str, int] = defaultdict(int)
         cap_by_event: dict[str, int] = defaultdict(int)
         for item in catalogs:
-            sold_by_event[item.event_id] += int(item.quantity_sold or 0)
-            cap_by_event[item.event_id] += int(item.capacity or 0)
+            sold_by_event[item.event_id] += int(item.stock_sold or 0)
+            cap_by_event[item.event_id] += int(item.stock_total or 0)
 
         orders_by_event: dict[str, int] = defaultdict(int)
         rev_by_event: dict[str, int] = defaultdict(int)
