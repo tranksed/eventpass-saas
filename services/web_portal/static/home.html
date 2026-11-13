@@ -24,22 +24,13 @@
             Arquitectura preparada para picos de 10,000+ usuarios en 48h con control estricto por DNI, códigos RR.PP., Guest List, envíos masivos Excel y validación Ed25519 online u offline.
           </p>
         </div>
-        <div class="col-lg-4 d-flex flex-column gap-2">
+        <div class="col-lg-4 d-flex flex-column gap-2" id="heroActions">
           <a href="/comprar" class="btn btn-primary fw-semibold py-2">
             <i class="bi bi-ticket-perforated me-2"></i>Ir a Taquilla y Cortesías
           </a>
-          <div class="row g-2">
-            <div class="col-6">
-              <a href="/validar" class="btn btn-outline-success w-100 btn-sm py-2">
-                <i class="bi bi-upc-scan me-1"></i>Puerta QR
-              </a>
-            </div>
-            <div class="col-6">
-              <a href="/admin" class="btn btn-outline-light w-100 btn-sm py-2">
-                <i class="bi bi-speedometer2 me-1"></i>Dashboard
-              </a>
-            </div>
-          </div>
+          <a href="/admin" class="btn btn-outline-info w-100 btn-sm py-2">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Acceso Organizadores
+          </a>
         </div>
       </div>
     </section>
@@ -97,92 +88,8 @@
 
     <!-- Platform Modules Grid -->
     <section class="mb-5">
-      <h2 class="h5 fw-bold mb-3"><i class="bi bi-layers text-warning me-2"></i>Módulos del Aplicativo</h2>
-      <div class="row g-3">
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-ticket-detailed fs-4 text-primary"></i>
-                <span class="badge text-bg-primary bg-opacity-25 text-primary">PÚBLICO</span>
-              </div>
-              <h3 class="h6 fw-bold">Taquilla & Interacciones</h3>
-              <p class="small text-secondary">Reserva temporal de stock, pasarela HMAC-SHA256 y control estricto por DNI cifrado AES-256-GCM.</p>
-            </div>
-            <a href="/comprar" class="btn btn-outline-primary btn-sm mt-2">Abrir Taquilla</a>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-tags fs-4 text-warning"></i>
-                <span class="badge text-bg-warning bg-opacity-25 text-warning">RR.PP.</span>
-              </div>
-              <h3 class="h6 fw-bold">Códigos y Guest List</h3>
-              <p class="small text-secondary">Canje de cortesías nominativas vinculadas al DNI y solicitudes de Guest List aprobables en 1 clic.</p>
-            </div>
-            <a href="/comprar?tab=code" class="btn btn-outline-warning btn-sm mt-2">Canjear / Guest List</a>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-building-check fs-4 text-info"></i>
-                <span class="badge text-bg-info bg-opacity-25 text-info">EMPRESAS</span>
-              </div>
-              <h3 class="h6 fw-bold">Acreditación de Staff</h3>
-              <p class="small text-secondary">Link privado por empresa representada (cupo base 6, Supervisor hasta 10, Admin personalizado).</p>
-            </div>
-            <a href="/acreditacion" class="btn btn-outline-info btn-sm mt-2">Abrir Acreditación</a>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-upc-scan fs-4 text-success"></i>
-                <span class="badge text-bg-success bg-opacity-25 text-success">PUERTA</span>
-              </div>
-              <h3 class="h6 fw-bold">Consola Online / Offline</h3>
-              <p class="small text-secondary">Control de acceso por puerta y beneficio con verificación local Ed25519 sin red y sincronización anti-duplicados.</p>
-            </div>
-            <a href="/validar" class="btn btn-outline-success btn-sm mt-2">Abrir Consola Puerta</a>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-speedometer2 fs-4 text-primary"></i>
-                <span class="badge text-bg-secondary">ORGANIZADOR</span>
-              </div>
-              <h3 class="h6 fw-bold">Dashboard & Excel Masivo</h3>
-              <p class="small text-secondary">Métricas en tiempo real con Chart.js, importación Excel/CSV en background y exportación completa a <code>.xlsx</code>.</p>
-            </div>
-            <a href="/admin" class="btn btn-outline-light btn-sm mt-2">Abrir Dashboard</a>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
-            <div>
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <i class="bi bi-journal-bookmark fs-4 text-danger"></i>
-                <span class="badge text-bg-danger bg-opacity-25 text-danger">PERÚ</span>
-              </div>
-              <h3 class="h6 fw-bold">Libro de Reclamaciones</h3>
-              <p class="small text-secondary">Registro público virtual con código de seguimiento vinculado al evento y visible en el panel organizador.</p>
-            </div>
-            <a href="/reclamos" class="btn btn-outline-danger btn-sm mt-2">Ir a Reclamos</a>
-          </div>
-        </div>
-      </div>
+      <h2 class="h5 fw-bold mb-3"><i class="bi bi-layers text-warning me-2"></i>Módulos de la Plataforma</h2>
+      <div class="row g-3" id="modulesGrid"></div>
     </section>
 
     <!-- FAQ Accordion -->
@@ -243,38 +150,231 @@
     EP.renderNavbar("home");
     let allEvents = [];
 
+    function initHomePage() {
+      const sess = EP.getSession();
+      const role = (sess.role || "").toUpperCase();
+      const isAuth = !!sess.token;
+
+      const heroActions = document.getElementById("heroActions");
+      if (heroActions) {
+        if (isAuth) {
+          heroActions.innerHTML = `
+            <a href="/admin" class="btn btn-primary fw-semibold py-2">
+              <i class="bi bi-speedometer2 me-2"></i>Ir al Dashboard (${EP.escapeHtml(role)})
+            </a>
+            <div class="row g-2">
+              <div class="col-6">
+                <a href="/validar" class="btn btn-outline-success w-100 btn-sm py-2">
+                  <i class="bi bi-upc-scan me-1"></i>Puerta QR
+                </a>
+              </div>
+              <div class="col-6">
+                <a href="/comprar" class="btn btn-outline-info w-100 btn-sm py-2">
+                  <i class="bi bi-ticket-perforated me-1"></i>Taquilla
+                </a>
+              </div>
+            </div>
+          `;
+        } else {
+          heroActions.innerHTML = `
+            <a href="/comprar" class="btn btn-primary fw-semibold py-2">
+              <i class="bi bi-ticket-perforated me-2"></i>Comprar Entradas
+            </a>
+            <a href="/admin" class="btn btn-outline-info w-100 btn-sm py-2">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Acceso Organizadores
+            </a>
+          `;
+        }
+      }
+
+      const grid = document.getElementById("modulesGrid");
+      if (grid) {
+        let cardsHtml = `
+          <div class="col-md-6 col-lg-4">
+            <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <i class="bi bi-ticket-detailed fs-4 text-primary"></i>
+                  <span class="badge text-bg-primary bg-opacity-25 text-primary">PÚBLICO</span>
+                </div>
+                <h3 class="h6 fw-bold">Taquilla & Entradas</h3>
+                <p class="small text-secondary">Venta de entradas e interacciones con control estricto por DNI y pasarelas de pago seguras.</p>
+              </div>
+              <a href="/comprar" class="btn btn-outline-primary btn-sm mt-2">Abrir Taquilla</a>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-lg-4">
+            <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <i class="bi bi-tags fs-4 text-warning"></i>
+                  <span class="badge text-bg-warning bg-opacity-25 text-warning">PÚBLICO / RR.PP.</span>
+                </div>
+                <h3 class="h6 fw-bold">Códigos y Guest List</h3>
+                <p class="small text-secondary">Canje de cortesías y solicitudes de lista de invitados con validación inmediata de cupo.</p>
+              </div>
+              <a href="/comprar?tab=code" class="btn btn-outline-warning btn-sm mt-2">Canjear Códigos</a>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-lg-4">
+            <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between">
+              <div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <i class="bi bi-journal-bookmark fs-4 text-danger"></i>
+                  <span class="badge text-bg-danger bg-opacity-25 text-danger">PERÚ</span>
+                </div>
+                <h3 class="h6 fw-bold">Libro de Reclamaciones</h3>
+                <p class="small text-secondary">Libro virtual con código de reclamo trazable y notificación directa a la organización.</p>
+              </div>
+              <a href="/reclamos" class="btn btn-outline-danger btn-sm mt-2">Ir a Reclamos</a>
+            </div>
+          </div>
+        `;
+
+        if (isAuth && (role === "ADMIN" || role === "SUPERVISOR" || role === "SUPERADMIN")) {
+          cardsHtml += `
+            <div class="col-md-6 col-lg-4">
+              <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between border-primary">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <i class="bi bi-speedometer2 fs-4 text-primary"></i>
+                    <span class="badge text-bg-primary">GESTIÓN</span>
+                  </div>
+                  <h3 class="h6 fw-bold">Dashboard Organizador</h3>
+                  <p class="small text-secondary">Gestión de eventos, stock, promotores, reportes en Excel y configuración de límites por DNI.</p>
+                </div>
+                <a href="/admin" class="btn btn-primary btn-sm mt-2">Ingresar al Panel</a>
+              </div>
+            </div>
+
+            <div class="col-md-6 col-lg-4">
+              <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between border-success">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <i class="bi bi-upc-scan fs-4 text-success"></i>
+                    <span class="badge text-bg-success">OPERACIÓN</span>
+                  </div>
+                  <h3 class="h6 fw-bold">Control de Puerta</h3>
+                  <p class="small text-secondary">Escaneo con cámara móvil o lector USB, validación en tiempo real y soporte contingencia offline.</p>
+                </div>
+                <a href="/validar" class="btn btn-success btn-sm mt-2">Abrir Consola de Puerta</a>
+              </div>
+            </div>
+
+            <div class="col-md-6 col-lg-4">
+              <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between border-info">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <i class="bi bi-building-check fs-4 text-info"></i>
+                    <span class="badge text-bg-info">PERSONAL</span>
+                  </div>
+                  <h3 class="h6 fw-bold">Acreditación de Staff</h3>
+                  <p class="small text-secondary">Registro de credenciales para empresas patrocinadoras y staff técnico del evento.</p>
+                </div>
+                <a href="/acreditacion" class="btn btn-info btn-sm mt-2">Abrir Acreditación</a>
+              </div>
+            </div>
+          `;
+        } else {
+          cardsHtml += `
+            <div class="col-md-6 col-lg-4">
+              <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between border border-secondary">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <i class="bi bi-building-check fs-4 text-info"></i>
+                    <span class="badge text-bg-secondary">EMPRESAS</span>
+                  </div>
+                  <h3 class="h6 fw-bold">Acreditación Staff</h3>
+                  <p class="small text-secondary">Si eres expositor o patrocinador con link privado de acreditación, ingresa con el enlace facilitado por tu empresa.</p>
+                </div>
+                <a href="/acreditacion" class="btn btn-outline-secondary btn-sm mt-2">Portal de Staff</a>
+              </div>
+            </div>
+
+            <div class="col-md-6 col-lg-4">
+              <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between border border-info border-opacity-50">
+                <div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <i class="bi bi-shield-lock fs-4 text-info"></i>
+                    <span class="badge text-bg-info bg-opacity-25 text-info">ACCESO PRIVADO</span>
+                  </div>
+                  <h3 class="h6 fw-bold">Portal de Organizadores</h3>
+                  <p class="small text-secondary">Inicia sesión como Administrador, Supervisor o Validador de puerta para gestionar tus eventos.</p>
+                </div>
+                <a href="/admin" class="btn btn-outline-info btn-sm mt-2"><i class="bi bi-box-arrow-in-right me-1"></i>Iniciar Sesión</a>
+              </div>
+            </div>
+          `;
+        }
+
+        grid.innerHTML = cardsHtml;
+      }
+    }
+
     function renderEvents(list) {
       const box = document.getElementById("featuredEvents");
       if (!list.length) {
         box.innerHTML = `<div class="col-12"><div class="ep-card p-4 text-center text-secondary">No hay eventos publicados aún. Crea el primero desde <a href="/admin" class="text-info">Dashboard Organizador</a>.</div></div>`;
         return;
       }
-      box.innerHTML = list.map(e => `
-        <div class="col-md-6 col-lg-4">
-          <div class="ep-card p-3 h-100 d-flex flex-column justify-content-between" style="border-top: 3px solid ${EP.escapeHtml(e.brand_color || '#7c3aed')};">
-            <div>
-              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                <h3 class="h6 fw-bold text-white mb-0">${EP.escapeHtml(e.name)}</h3>
-                <span class="badge text-bg-info flex-shrink-0">DNI máx ${e.max_purchases_per_dni}</span>
+      box.innerHTML = list.map(e => {
+        const banner = e.banner_image_url
+          ? `<div class="rounded-top-3 overflow-hidden position-relative" style="height: 140px; background: #111;">
+               <img src="${EP.escapeHtml(e.banner_image_url)}" alt="${EP.escapeHtml(e.name)}" class="w-100 h-100" style="object-fit: cover;" onerror="this.style.display='none'" />
+             </div>`
+          : `<div class="rounded-top-3 p-3 d-flex align-items-center justify-content-center text-white-50" style="height: 90px; background: linear-gradient(135deg, ${EP.escapeHtml(e.brand_color || '#7c3aed')}33, #0f172a);">
+               <i class="bi bi-ticket-perforated display-6 text-opacity-50 text-white"></i>
+             </div>`;
+
+        const logo = e.logo_url
+          ? `<img src="${EP.escapeHtml(e.logo_url)}" alt="Logo" class="rounded-circle border border-secondary bg-dark flex-shrink-0" style="width: 36px; height: 36px; object-fit: contain;" />`
+          : "";
+
+        const mapTarget = e.map_coordinates || e.venue_address || e.venue;
+        const mapBtn = mapTarget
+          ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapTarget)}" target="_blank" rel="noopener noreferrer" class="badge text-bg-dark border border-secondary text-info text-decoration-none" title="Ver en Google Maps"><i class="bi bi-geo-alt-fill me-1"></i>Mapa</a>`
+          : "";
+
+        return `
+          <div class="col-md-6 col-lg-4">
+            <div class="ep-card h-100 d-flex flex-column justify-content-between overflow-hidden" style="border-top: 3px solid ${EP.escapeHtml(e.brand_color || '#7c3aed')};">
+              ${banner}
+              <div class="p-3 flex-grow-1 d-flex flex-column justify-content-between">
+                <div>
+                  <div class="d-flex align-items-center gap-2 mb-2">
+                    ${logo}
+                    <div class="flex-grow-1">
+                      <h3 class="h6 fw-bold text-white mb-0">${EP.escapeHtml(e.name)}</h3>
+                    </div>
+                    <span class="badge text-bg-info flex-shrink-0">DNI máx ${e.max_purchases_per_dni}</span>
+                  </div>
+                  <div class="small text-secondary mb-1 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-geo-alt me-1 text-primary"></i>${EP.escapeHtml(e.venue || "Lima, Perú")}</span>
+                    ${mapBtn}
+                  </div>
+                  ${e.venue_address ? `<div class="small text-white-50 mb-1" style="font-size:0.8rem;"><i class="bi bi-pin-map me-1"></i>${EP.escapeHtml(e.venue_address)}</div>` : ""}
+                  <div class="small text-secondary mb-2"><i class="bi bi-calendar3 me-1 text-info"></i>${new Date(e.starts_at).toLocaleString()}</div>
+                  ${e.description ? `<p class="small text-secondary mb-3" style="font-size:0.82rem;">${EP.escapeHtml(e.description.slice(0, 110))}${e.description.length > 110 ? '...' : ''}</p>` : ""}
+                </div>
+                <div class="d-flex gap-2 pt-2 border-top border-secondary-subtle">
+                  <a href="/comprar?event=${encodeURIComponent(e.id)}" class="btn btn-primary btn-sm flex-grow-1"><i class="bi bi-cart me-1"></i>Comprar</a>
+                  <a href="/comprar?event=${encodeURIComponent(e.id)}&tab=code" class="btn btn-outline-light btn-sm" title="Canjear código"><i class="bi bi-tag"></i></a>
+                  <a href="/comprar?event=${encodeURIComponent(e.id)}&tab=guestlist" class="btn btn-outline-light btn-sm" title="Guest List"><i class="bi bi-person-plus"></i></a>
+                </div>
               </div>
-              <div class="small text-secondary mb-1"><i class="bi bi-geo-alt me-1"></i>${EP.escapeHtml(e.venue || "Lima, Perú")}</div>
-              <div class="small text-secondary mb-3"><i class="bi bi-calendar3 me-1"></i>${new Date(e.starts_at).toLocaleString()}</div>
-            </div>
-            <div class="d-flex gap-2">
-              <a href="/comprar?event=${encodeURIComponent(e.id)}" class="btn btn-primary btn-sm flex-grow-1">Comprar</a>
-              <a href="/comprar?event=${encodeURIComponent(e.id)}&tab=code" class="btn btn-outline-light btn-sm" title="Canjear código"><i class="bi bi-tag"></i></a>
-              <a href="/comprar?event=${encodeURIComponent(e.id)}&tab=guestlist" class="btn btn-outline-light btn-sm" title="Guest List"><i class="bi bi-person-plus"></i></a>
             </div>
           </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function filterEvents() {
       const q = document.getElementById("eventSearch").value.trim().toLowerCase();
       if (!q) return renderEvents(allEvents);
       renderEvents(allEvents.filter(e =>
-        e.name.toLowerCase().includes(q) || (e.venue || "").toLowerCase().includes(q)
+        e.name.toLowerCase().includes(q) || (e.venue || "").toLowerCase().includes(q) || (e.venue_address || "").toLowerCase().includes(q)
       ));
     }
 
@@ -286,6 +386,8 @@
         document.getElementById("featuredEvents").innerHTML = `<div class="col-12"><div class="alert alert-danger">No se pudieron cargar los eventos.</div></div>`;
       }
     }
+
+    initHomePage();
     loadFeatured();
   </script>
 </body>

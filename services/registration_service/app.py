@@ -71,6 +71,7 @@ from services.registration_service.schemas import (
     PaymentWebhookPayload,
     PromoterStatsResponse,
     RedeemCodeRequest,
+    UpdateEventDetailsRequest,
     UpdateEventLimitRequest,
 )
 from shared_kernel.audit_client import AuditClient
@@ -102,9 +103,13 @@ def _event_to_response(e: Event) -> EventResponse:
         name=e.name,
         slug=e.slug,
         venue=e.venue,
+        venue_address=getattr(e, "venue_address", "") or "",
         description=e.description,
         brand_color=e.brand_color,
         timezone_name=e.timezone_name,
+        banner_image_url=getattr(e, "banner_image_url", "") or "",
+        logo_url=getattr(e, "logo_url", "") or "",
+        map_coordinates=getattr(e, "map_coordinates", "") or "",
         starts_at=e.starts_at,
         ends_at=e.ends_at,
         max_purchases_per_dni=e.max_purchases_per_dni,
@@ -117,9 +122,13 @@ async def _ensure_schema_columns(conn) -> None:
     is_pg = conn.dialect.name == "postgresql"
     alter_columns = [
         ("events", "venue", "VARCHAR(180) NOT NULL DEFAULT 'Centro de Convenciones, Lima'"),
+        ("events", "venue_address", "VARCHAR(255) NOT NULL DEFAULT ''"),
         ("events", "description", "TEXT NOT NULL DEFAULT ''"),
         ("events", "brand_color", "VARCHAR(20) NOT NULL DEFAULT '#8b5cf6'"),
         ("events", "timezone_name", "VARCHAR(60) NOT NULL DEFAULT 'America/Lima'"),
+        ("events", "banner_image_url", "TEXT NOT NULL DEFAULT ''"),
+        ("events", "logo_url", "TEXT NOT NULL DEFAULT ''"),
+        ("events", "map_coordinates", "VARCHAR(255) NOT NULL DEFAULT ''"),
         ("orders", "source", "VARCHAR(30) NOT NULL DEFAULT 'ONLINE'"),
         ("orders", "promoter_id", "VARCHAR(36)"),
         ("orders", "payment_method", "VARCHAR(40) NOT NULL DEFAULT 'MERCADOPAGO'"),
@@ -358,9 +367,13 @@ def create_registration_app(
             name=payload.name,
             slug=payload.slug,
             venue=payload.venue,
+            venue_address=payload.venue_address,
             description=payload.description,
             brand_color=payload.brand_color,
             timezone_name=payload.timezone_name,
+            banner_image_url=payload.banner_image_url,
+            logo_url=payload.logo_url,
+            map_coordinates=payload.map_coordinates,
             starts_at=payload.starts_at,
             ends_at=payload.ends_at,
             max_purchases_per_dni=payload.max_purchases_per_dni,
@@ -377,6 +390,44 @@ def create_registration_app(
             resource_id=event.id,
             metadata={"max_purchases_per_dni": event.max_purchases_per_dni, "venue": event.venue},
         )
+        return _event_to_response(event)
+
+    @app.patch("/api/v1/registration/events/{event_id}", response_model=EventResponse)
+    async def update_event_details(
+        event_id: str,
+        payload: UpdateEventDetailsRequest,
+        actor: CurrentActor = Depends(require_admin),
+        db: AsyncSession = Depends(get_db),
+    ) -> EventResponse:
+        event = await db.scalar(
+            select(Event).where(
+                Event.id == event_id,
+                _tenant_filter(Event.tenant_id, actor.tenant_id, actor.role),
+            )
+        )
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+        if payload.name is not None:
+            event.name = payload.name
+        if payload.venue is not None:
+            event.venue = payload.venue
+        if payload.venue_address is not None:
+            event.venue_address = payload.venue_address
+        if payload.description is not None:
+            event.description = payload.description
+        if payload.brand_color is not None:
+            event.brand_color = payload.brand_color
+        if payload.banner_image_url is not None:
+            event.banner_image_url = payload.banner_image_url
+        if payload.logo_url is not None:
+            event.logo_url = payload.logo_url
+        if payload.map_coordinates is not None:
+            event.map_coordinates = payload.map_coordinates
+        if payload.max_purchases_per_dni is not None:
+            event.max_purchases_per_dni = payload.max_purchases_per_dni
+
+        await db.commit()
         return _event_to_response(event)
 
     @app.patch("/api/v1/registration/events/{event_id}/dni-limit", response_model=EventResponse)

@@ -231,6 +231,34 @@
                   <div class="col-md-7"><label class="form-label small">Sede / Venue</label><input id="evVenue" class="form-control form-control-sm" placeholder="Ej. Arena 1 Costa Verde, Lima" /></div>
                   <div class="col-md-3"><label class="form-label small">Color</label><input id="evBrandColor" type="color" class="form-control form-control-color form-control-sm w-100" value="#7c3aed" /></div>
                   <div class="col-md-2"><label class="form-label small">Máx DNI</label><input id="evMaxDni" type="number" min="1" max="10" class="form-control form-control-sm" value="4" /></div>
+                  <div class="col-md-7"><label class="form-label small">Dirección exacta sede</label><input id="evAddress" class="form-control form-control-sm" placeholder="Ej. Av. Costanera s/n, San Miguel, Lima" /></div>
+                  <div class="col-md-5"><label class="form-label small">Coordenadas GPS / Mapa</label><input id="evCoords" class="form-control form-control-sm" placeholder="Ej. -12.0864, -77.0345" /></div>
+                  <div class="col-md-6">
+                    <label class="form-label small d-flex justify-content-between">
+                      <span>Logo del Evento</span>
+                      <span id="evLogoBadge" class="badge text-bg-success d-none">Listo</span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                      <input id="evLogoUrl" class="form-control form-control-sm" placeholder="https://... o sube archivo" />
+                      <label class="btn btn-outline-secondary btn-sm mb-0">
+                        <i class="bi bi-upload"></i> Subir
+                        <input type="file" id="evLogoFile" accept="image/*" class="d-none" onchange="handleImageUpload(this, 'evLogoUrl', 'evLogoBadge')" />
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small d-flex justify-content-between">
+                      <span>Portada / Banner</span>
+                      <span id="evBannerBadge" class="badge text-bg-success d-none">Listo</span>
+                    </label>
+                    <div class="input-group input-group-sm">
+                      <input id="evBannerUrl" class="form-control form-control-sm" placeholder="https://... o sube archivo" />
+                      <label class="btn btn-outline-secondary btn-sm mb-0">
+                        <i class="bi bi-upload"></i> Subir
+                        <input type="file" id="evBannerFile" accept="image/*" class="d-none" onchange="handleImageUpload(this, 'evBannerUrl', 'evBannerBadge')" />
+                      </label>
+                    </div>
+                  </div>
                   <div class="col-md-5"><label class="form-label small">Zona Horaria</label><input id="evTz" class="form-control form-control-sm" value="America/Lima" /></div>
                   <div class="col-md-7"><label class="form-label small">Descripción corta</label><input id="evDesc" class="form-control form-control-sm" placeholder="Detalles clave del evento" /></div>
                 </div>
@@ -468,10 +496,19 @@
   <!-- QR Modal -->
   <div class="modal fade" id="qrModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-dark border-secondary text-center">
-        <div class="modal-header border-secondary-subtle"><h5 class="modal-title">Credencial QR</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <img id="qrModalImg" class="bg-white p-2 rounded-3 mb-2" style="width:200px;height:200px;" alt="QR" />
+      <div class="modal-content bg-dark border-secondary text-center p-2">
+        <div class="modal-header border-secondary-subtle">
+          <h5 class="modal-title"><i class="bi bi-qr-code text-info me-2"></i>Credencial QR</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+            <img id="qrModalEventLogo" src="" class="rounded-circle border border-info bg-white p-1 d-none" style="width:38px;height:38px;object-fit:contain;" />
+            <h6 id="qrModalEventName" class="text-white mb-0 fw-semibold"></h6>
+          </div>
+          <div class="position-relative d-inline-block bg-white p-2 rounded-3 mb-2 shadow">
+            <img id="qrModalImg" class="d-block" style="width:200px;height:200px;" alt="QR" />
+          </div>
           <p class="small text-secondary mb-1" id="qrModalInfo"></p>
           <textarea id="qrModalToken" class="form-control form-control-sm mono" rows="3" readonly></textarea>
         </div>
@@ -666,8 +703,19 @@
         document.getElementById("eventsListTable").innerHTML = events.length
           ? events.map(e => `
             <tr>
-              <td><strong>${EP.escapeHtml(e.name)}</strong></td>
-              <td class="small text-secondary">${EP.escapeHtml(e.venue || "-")}</td>
+              <td class="fw-semibold text-white">
+                <div class="d-flex align-items-center gap-2">
+                  ${e.logo_url ? `<img src="${EP.escapeHtml(e.logo_url)}" class="rounded-circle border border-secondary bg-white p-1" style="width:28px;height:28px;object-fit:contain;" />` : ''}
+                  <div>
+                    <div>${EP.escapeHtml(e.name)}</div>
+                    <div class="small mono text-secondary">${EP.escapeHtml(e.slug)}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="small text-secondary">
+                <div>${EP.escapeHtml(e.venue || "-")}</div>
+                ${e.venue_address || e.map_coordinates ? `<div class="text-info" style="font-size:0.75rem;"><i class="bi bi-geo-alt me-1"></i>${EP.escapeHtml(e.venue_address || e.map_coordinates)}</div>` : ''}
+              </td>
               <td><span class="badge text-bg-info">${e.max_purchases_per_dni}</span></td>
               <td class="d-flex gap-1">
                 <button class="btn btn-outline-light btn-sm py-0" type="button" onclick="copyTaquillaLink('${e.id}')">Copiar URL</button>
@@ -742,6 +790,25 @@
       EP.copyText(`${location.origin}/comprar?event=${eventId}`, "Enlace público de taquilla copiado.");
     }
 
+    function handleImageUpload(input, targetInputId, badgeId) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        return EP.toast("La imagen no debe superar 2MB.", "warn");
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById(targetInputId).value = e.target.result;
+        const badge = document.getElementById(badgeId);
+        if (badge) {
+          badge.classList.remove("d-none");
+          badge.textContent = "Listo (" + (file.size / 1024).toFixed(0) + " KB)";
+        }
+        EP.toast("Imagen cargada.");
+      };
+      reader.readAsDataURL(file);
+    }
+
     async function submitCreateEvent() {
       document.getElementById("evMsg").innerHTML = "";
       const name = document.getElementById("evName").value.trim();
@@ -763,9 +830,13 @@
             name,
             slug,
             venue: document.getElementById("evVenue").value.trim() || "Lima, Perú",
+            venue_address: (document.getElementById("evAddress")?.value || "").trim(),
             description: document.getElementById("evDesc").value.trim(),
             brand_color: document.getElementById("evBrandColor").value || "#7c3aed",
             timezone_name: document.getElementById("evTz").value.trim() || "America/Lima",
+            banner_image_url: (document.getElementById("evBannerUrl")?.value || "").trim(),
+            logo_url: (document.getElementById("evLogoUrl")?.value || "").trim(),
+            map_coordinates: (document.getElementById("evCoords")?.value || "").trim(),
             starts_at: new Date(now.getTime() + 1800 * 1000).toISOString(),
             ends_at: new Date(now.getTime() + 96 * 3600 * 1000).toISOString(),
             max_purchases_per_dni: maxDni,
@@ -776,6 +847,12 @@
         slugInput.value = "";
         delete slugInput.dataset.manual;
         document.getElementById("evDesc").value = "";
+        if (document.getElementById("evAddress")) document.getElementById("evAddress").value = "";
+        if (document.getElementById("evCoords")) document.getElementById("evCoords").value = "";
+        if (document.getElementById("evBannerUrl")) document.getElementById("evBannerUrl").value = "";
+        if (document.getElementById("evLogoUrl")) document.getElementById("evLogoUrl").value = "";
+        document.getElementById("evLogoBadge")?.classList.add("d-none");
+        document.getElementById("evBannerBadge")?.classList.add("d-none");
         EP.showMsg("evMsg", "ok", `Evento '${EP.escapeHtml(res.name)}' creado y seleccionado (${EP.escapeHtml(res.slug)}).`);
         EP.toast(`Evento '${res.name}' creado.`);
         await loadEvents();
@@ -1034,6 +1111,20 @@
     }
 
     async function showQrModal(name, token) {
+      const eid = currentEventId();
+      const ev = (adminEventsCache && adminEventsCache[eid]) || {};
+      const logoEl = document.getElementById("qrModalEventLogo");
+      if (logoEl) {
+        if (ev.logo_url) {
+          logoEl.src = ev.logo_url;
+          logoEl.classList.remove("d-none");
+        } else {
+          logoEl.classList.add("d-none");
+        }
+      }
+      const titleEl = document.getElementById("qrModalEventName");
+      if (titleEl) titleEl.textContent = ev.name || "";
+
       document.getElementById("qrModalInfo").textContent = `Titular: ${name}`;
       document.getElementById("qrModalToken").value = token;
       document.getElementById("qrModalImg").src = await EP.renderQrDataUrl(token);

@@ -21,9 +21,13 @@ class CreateEventRequest(StrictModel):
     name: str = Field(min_length=2, max_length=160)
     slug: str = Field(min_length=2, max_length=100, pattern=r"^[a-z0-9-]+$")
     venue: str = Field(default="Estadio / Centro de Convenciones, Lima", min_length=2, max_length=180)
-    description: str = Field(default="", max_length=2000)
+    venue_address: str = Field(default="", max_length=255)
+    description: str = Field(default="", max_length=4000)
     brand_color: str = Field(default="#8b5cf6", pattern=r"^#[0-9a-fA-F]{6}$")
     timezone_name: str = Field(default="America/Lima", min_length=3, max_length=60)
+    banner_image_url: str = Field(default="", max_length=500000)
+    logo_url: str = Field(default="", max_length=500000)
+    map_coordinates: str = Field(default="", max_length=255)
     starts_at: datetime
     ends_at: datetime
     max_purchases_per_dni: int = Field(default=1, ge=1, le=10)
@@ -33,15 +37,31 @@ class UpdateEventLimitRequest(StrictModel):
     max_purchases_per_dni: int = Field(ge=1, le=10)
 
 
+class UpdateEventDetailsRequest(StrictModel):
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    venue: str | None = Field(default=None, min_length=2, max_length=180)
+    venue_address: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+    brand_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    banner_image_url: str | None = Field(default=None, max_length=500000)
+    logo_url: str | None = Field(default=None, max_length=500000)
+    map_coordinates: str | None = Field(default=None, max_length=255)
+    max_purchases_per_dni: int | None = Field(default=None, ge=1, le=10)
+
+
 class EventResponse(BaseModel):
     id: str
     tenant_id: str
     name: str
     slug: str
     venue: str = "Centro de Convenciones, Lima"
+    venue_address: str = ""
     description: str = ""
     brand_color: str = "#8b5cf6"
     timezone_name: str = "America/Lima"
+    banner_image_url: str = ""
+    logo_url: str = ""
+    map_coordinates: str = ""
     starts_at: datetime
     ends_at: datetime
     max_purchases_per_dni: int

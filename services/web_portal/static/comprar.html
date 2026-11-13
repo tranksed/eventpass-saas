@@ -48,15 +48,38 @@
       <!-- Left Event Info Column -->
       <div class="col-lg-3">
         <div class="ep-card p-3 h-100" id="heroCard">
-          <span class="badge text-bg-success mb-2">EVENTO ACTIVO</span>
+          <!-- Banner -->
+          <div id="heroBannerBox" class="rounded-3 mb-3 overflow-hidden d-none" style="height: 120px; background: #111;">
+            <img id="heroBannerImg" src="" alt="Banner" class="w-100 h-100" style="object-fit: cover;" onerror="this.parentElement.classList.add('d-none')" />
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="badge text-bg-success">EVENTO ACTIVO</span>
+            <img id="heroLogoImg" src="" alt="Logo" class="rounded-circle border border-info bg-white p-1 d-none" style="width: 38px; height: 38px; object-fit: contain;" />
+          </div>
+
           <h2 class="h5 fw-bold text-white mb-3" id="heroEventTitle">Selecciona un evento</h2>
 
-          <div class="d-flex align-items-start gap-2 mb-3 small">
+          <div class="d-flex align-items-start gap-2 mb-2 small">
             <i class="bi bi-geo-alt text-info mt-1"></i>
             <div>
               <div class="text-secondary">Sede / Lugar</div>
               <div class="fw-semibold" id="heroEventVenue">—</div>
             </div>
+          </div>
+
+          <div id="heroEventAddressBox" class="d-none align-items-start gap-2 mb-2 small">
+            <i class="bi bi-pin-map text-warning mt-1"></i>
+            <div>
+              <div class="text-secondary">Dirección</div>
+              <div class="text-white-50" id="heroEventAddress">—</div>
+            </div>
+          </div>
+
+          <div id="heroMapBox" class="mb-3 d-none">
+            <a id="heroMapLink" href="#" target="_blank" rel="noopener noreferrer" class="badge text-bg-dark border border-secondary text-info text-decoration-none py-1 px-2 w-100 text-center">
+              <i class="bi bi-geo-alt-fill me-1 text-danger"></i>Abrir en Google Maps
+            </a>
           </div>
 
           <div class="d-flex align-items-start gap-2 mb-3 small">
@@ -232,19 +255,37 @@
   <!-- Digital Ticket Modal -->
   <div class="modal fade" id="ticketModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content bg-dark border-secondary text-center p-2">
-        <div class="modal-header border-secondary-subtle">
+      <div class="modal-content bg-dark border-secondary text-center p-3">
+        <div class="modal-header border-secondary-subtle pb-2">
           <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill text-success me-2"></i>Ticket Digital Emitido</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
-          <div class="fw-bold fs-5 text-white" id="modalEventName">EVENTO</div>
-          <div class="mono text-info mb-3" id="modalEntitlements">ENTRY</div>
-          <div class="d-inline-block bg-white p-3 rounded-4 mb-3">
-            <img id="modalQrImg" src="" alt="QR Ticket" style="width:200px; height:200px;" />
+        <div class="modal-body p-3">
+          <!-- Event Branding Header with Logo -->
+          <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+            <img id="modalEventLogo" src="" alt="Logo" class="rounded-circle border border-info bg-white p-1 d-none" style="width: 48px; height: 48px; object-fit: contain;" />
+            <div class="text-start">
+              <div class="fw-bold fs-5 text-white" id="modalEventName">EVENTO</div>
+              <div class="small text-secondary" id="modalEventVenue"></div>
+            </div>
           </div>
+
+          <div class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-50 px-3 py-1 mono mb-3" id="modalEntitlements">ENTRY</div>
+
+          <!-- High-Contrast Scannable QR Container -->
+          <div class="position-relative d-inline-block bg-white p-3 rounded-4 mb-3 shadow-lg">
+            <img id="modalQrImg" src="" alt="QR Ticket" style="width:210px; height:210px; display: block;" />
+          </div>
+
           <div class="small text-secondary mb-1">Presenta este QR en puerta y zonas de interacción</div>
-          <div id="modalCredId" class="mono text-secondary mb-3"></div>
+          <div id="modalCredId" class="mono text-light small mb-2"></div>
+          
+          <div id="modalMapLinkContainer" class="mb-3 d-none">
+            <a id="modalMapLink" href="#" target="_blank" rel="noopener noreferrer" class="badge text-bg-dark border border-secondary text-info text-decoration-none py-1 px-2">
+              <i class="bi bi-geo-alt-fill me-1 text-danger"></i>Ver ubicación en Google Maps
+            </a>
+          </div>
+
           <div class="d-grid gap-2">
             <a id="modalDownloadBtn" class="btn btn-primary" href="#" download="ticket-eventpass.png">
               <i class="bi bi-download me-1"></i>Descargar Ticket PNG
@@ -294,17 +335,20 @@
       countdownInterval = setInterval(tick, 1000);
     }
 
+    let currentEventsList = [];
+
     async function loadEvents() {
       const sel = document.getElementById("buyerEventSelect");
       try {
         const events = await EP.api("/api/v1/registration/public/events", { auth: false });
+        currentEventsList = events;
         if (!events.length) {
           sel.innerHTML = `<option value="">Sin eventos publicados</option>`;
           document.getElementById("catalogContainer").innerHTML = `<div class="small text-secondary">Crea un evento primero en <a href="/admin" class="text-info">Dashboard Organizador</a>.</div>`;
           return;
         }
         sel.innerHTML = events.map(e =>
-          `<option value="${e.id}" data-limit="${e.max_purchases_per_dni}" data-start="${e.starts_at}" data-venue="${EP.escapeHtml(e.venue || 'Lima, Perú')}" data-color="${EP.escapeHtml(e.brand_color || '#7c3aed')}">${EP.escapeHtml(e.name)}</option>`
+          `<option value="${e.id}">${EP.escapeHtml(e.name)}</option>`
         ).join("");
         const urlParams = new URLSearchParams(location.search);
         const urlEvent = urlParams.get("event");
@@ -320,12 +364,61 @@
       const sel = document.getElementById("buyerEventSelect");
       const eventId = sel.value;
       if (!eventId) return;
-      const opt = sel.selectedOptions[0];
-      document.getElementById("heroEventTitle").textContent = opt.textContent;
-      document.getElementById("heroEventVenue").textContent = opt.dataset.venue || "Lima, Perú";
-      document.getElementById("heroEventDate").textContent = new Date(opt.dataset.start).toLocaleString();
-      document.getElementById("heroEventLimit").textContent = `Máx. ${opt.dataset.limit} por DNI`;
-      document.getElementById("heroCard").style.borderTop = `3px solid ${opt.dataset.color || '#7c3aed'}`;
+      const ev = currentEventsList.find(e => e.id === eventId) || {};
+
+      document.getElementById("heroEventTitle").textContent = ev.name || sel.selectedOptions[0]?.textContent || "Evento";
+      document.getElementById("heroEventVenue").textContent = ev.venue || "Lima, Perú";
+      
+      const addrBox = document.getElementById("heroEventAddressBox");
+      const addrEl = document.getElementById("heroEventAddress");
+      if (addrBox && addrEl) {
+        if (ev.venue_address) {
+          addrEl.textContent = ev.venue_address;
+          addrBox.classList.remove("d-none");
+          addrBox.classList.add("d-flex");
+        } else {
+          addrBox.classList.add("d-none");
+          addrBox.classList.remove("d-flex");
+        }
+      }
+
+      document.getElementById("heroEventDate").textContent = ev.starts_at ? new Date(ev.starts_at).toLocaleString() : "—";
+      document.getElementById("heroEventLimit").textContent = `Máx. ${ev.max_purchases_per_dni || 1} por DNI`;
+      document.getElementById("heroCard").style.borderTop = `3px solid ${ev.brand_color || '#7c3aed'}`;
+
+      // Banner Portada
+      const bannerBox = document.getElementById("heroBannerBox");
+      const bannerImg = document.getElementById("heroBannerImg");
+      if (bannerBox && bannerImg) {
+        if (ev.banner_image_url) {
+          bannerImg.src = ev.banner_image_url;
+          bannerBox.classList.remove("d-none");
+        } else {
+          bannerBox.classList.add("d-none");
+        }
+      }
+
+      // Logo
+      const logoImg = document.getElementById("heroLogoImg");
+      if (logoImg) {
+        if (ev.logo_url) {
+          logoImg.src = ev.logo_url;
+          logoImg.classList.remove("d-none");
+        } else {
+          logoImg.classList.add("d-none");
+        }
+      }
+
+      // Google Maps
+      const mapBox = document.getElementById("heroMapBox");
+      const mapLink = document.getElementById("heroMapLink");
+      const mapQuery = ev.map_coordinates || ev.venue_address || ev.venue;
+      if (mapBox && mapLink && mapQuery) {
+        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+        mapBox.classList.remove("d-none");
+      } else if (mapBox) {
+        mapBox.classList.add("d-none");
+      }
 
       try {
         catalogItems = await EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false });
@@ -406,11 +499,39 @@
     async function showIssuedTicket(qrToken, labelCode, credId, dniHint) {
       localStorage.setItem("ep_last_qr", qrToken);
       const qrImgUrl = await EP.renderQrDataUrl(qrToken);
-      document.getElementById("modalEventName").textContent = document.getElementById("buyerEventSelect").selectedOptions[0].textContent;
+      const sel = document.getElementById("buyerEventSelect");
+      const eventId = sel.value;
+      const ev = currentEventsList.find(e => e.id === eventId) || {};
+
+      document.getElementById("modalEventName").textContent = ev.name || sel.selectedOptions[0]?.textContent || "Evento";
+      document.getElementById("modalEventVenue").textContent = ev.venue_address || ev.venue || "Lima, Perú";
       document.getElementById("modalEntitlements").textContent = labelCode;
       document.getElementById("modalQrImg").src = qrImgUrl;
       document.getElementById("modalCredId").textContent = `${dniHint} · ID ${credId.slice(0, 12)}...`;
       document.getElementById("modalDownloadBtn").href = qrImgUrl;
+
+      // Event Logo
+      const logoEl = document.getElementById("modalEventLogo");
+      if (logoEl) {
+        if (ev.logo_url) {
+          logoEl.src = ev.logo_url;
+          logoEl.classList.remove("d-none");
+        } else {
+          logoEl.classList.add("d-none");
+        }
+      }
+
+      // Google Maps Link
+      const mapQuery = ev.map_coordinates || ev.venue_address || ev.venue;
+      const mapContainer = document.getElementById("modalMapLinkContainer");
+      const mapLink = document.getElementById("modalMapLink");
+      if (mapContainer && mapLink && mapQuery) {
+        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+        mapContainer.classList.remove("d-none");
+      } else if (mapContainer) {
+        mapContainer.classList.add("d-none");
+      }
+
       new bootstrap.Modal(document.getElementById("ticketModal")).show();
     }
 

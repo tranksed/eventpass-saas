@@ -22,6 +22,11 @@ const EP = {
     localStorage.removeItem("ep_tenant_slug");
   },
 
+  logoutAndRedirect() {
+    this.clearSession();
+    window.location.href = "/";
+  },
+
   escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, m => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -98,15 +103,34 @@ const EP = {
     const header = document.getElementById("epNavbarHost");
     if (!header) return;
     const s = this.getSession();
-    const links = [
-      { key: "home", href: "/", icon: "bi-grid-1x2", label: "Eventos" },
-      { key: "comprar", href: "/comprar", icon: "bi-ticket-perforated", label: "Taquilla" },
-      { key: "validar", href: "/validar", icon: "bi-upc-scan", label: "Puerta" },
-      { key: "acreditacion", href: "/acreditacion", icon: "bi-building-check", label: "Staff" },
-      { key: "admin", href: "/admin", icon: "bi-speedometer2", label: "Dashboard" },
-      { key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" },
-      { key: "superadmin", href: "/superadmin", icon: "bi-shield-lock", label: "SuperAdmin" },
-    ];
+    const role = (s.role || "").toUpperCase();
+    const isAuth = !!s.token;
+
+    const links = [];
+    // Visibles para todo público (invitado y autenticado)
+    links.push({ key: "home", href: "/", icon: "bi-grid-1x2", label: "Eventos" });
+    links.push({ key: "comprar", href: "/comprar", icon: "bi-ticket-perforated", label: "Taquilla" });
+
+    // Opciones con privilegios según rol autenticado
+    if (role === "SUPERADMIN") {
+      links.push({ key: "superadmin", href: "/superadmin", icon: "bi-shield-lock", label: "SuperAdmin" });
+      links.push({ key: "admin", href: "/admin", icon: "bi-speedometer2", label: "Dashboard" });
+      links.push({ key: "validar", href: "/validar", icon: "bi-upc-scan", label: "Puerta" });
+      links.push({ key: "acreditacion", href: "/acreditacion", icon: "bi-building-check", label: "Staff" });
+      links.push({ key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" });
+    } else if (role === "ADMIN" || role === "SUPERVISOR") {
+      links.push({ key: "admin", href: "/admin", icon: "bi-speedometer2", label: "Dashboard" });
+      links.push({ key: "acreditacion", href: "/acreditacion", icon: "bi-building-check", label: "Staff" });
+      links.push({ key: "validar", href: "/validar", icon: "bi-upc-scan", label: "Puerta" });
+      links.push({ key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" });
+    } else if (role === "VALIDATOR") {
+      links.push({ key: "validar", href: "/validar", icon: "bi-upc-scan", label: "Puerta" });
+      links.push({ key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" });
+    } else {
+      // Público / Invitado: Libro de Reclamaciones
+      links.push({ key: "reclamos", href: "/reclamos", icon: "bi-journal-bookmark", label: "Reclamos" });
+    }
+
     const navItems = links.map(l => `
       <li class="nav-item">
         <a class="nav-link ${l.key === activeKey ? "active" : ""}" href="${l.href}">
@@ -114,9 +138,12 @@ const EP = {
         </a>
       </li>`).join("");
 
-    const sessionHtml = s.token
-      ? `<span class="badge text-bg-success py-2 px-3"><i class="bi bi-person-badge me-1"></i>${this.escapeHtml(s.slug || "tenant")} · ${this.escapeHtml(s.role)}</span>`
-      : `<span class="badge text-bg-secondary py-2 px-3">Invitado</span>`;
+    const sessionHtml = isAuth
+      ? `<div class="d-flex align-items-center gap-2">
+           <span class="badge text-bg-success py-2 px-3"><i class="bi bi-person-badge me-1"></i>${this.escapeHtml(s.slug || "tenant")} · ${this.escapeHtml(s.role)}</span>
+           <button class="btn btn-outline-danger btn-sm py-1 px-2" onclick="EP.logoutAndRedirect()" title="Cerrar Sesión"><i class="bi bi-box-arrow-right"></i> Salir</button>
+         </div>`
+      : `<a class="btn btn-outline-info btn-sm py-1 px-3" href="/admin"><i class="bi bi-box-arrow-in-right me-1"></i>Acceso Organizador</a>`;
 
     header.innerHTML = `
       <nav class="navbar navbar-expand-lg ep-navbar px-3 py-2">
