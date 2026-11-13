@@ -148,8 +148,13 @@ const EP = {
     const res = await fetch(url, { ...opts, headers });
     const txt = await res.text();
     let data = null;
-    try { data = JSON.parse(txt); } catch { data = { detail: txt }; }
-    if (!res.ok) throw new Error(`${res.status}: ${data.detail || txt}`);
+    try {
+      data = JSON.parse(txt);
+    } catch {
+      const isHtml = /<[a-z][\s\S]*>/i.test(txt);
+      data = { detail: isHtml ? (res.statusText || "Servicio no disponible") : txt.slice(0, 160) };
+    }
+    if (!res.ok) throw new Error(`${res.status}: ${data.detail || res.statusText || 'Error'}`);
     return data;
   },
 

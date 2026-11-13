@@ -152,8 +152,13 @@ services:
       ACCREDITATION_SERVICE_URL: http://accreditation-service:8000
       AUDIT_SERVICE_URL: http://audit-service:8000
       KEYS_DIR: /app/data/keys
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
-      - shared_public_keys:/app/data/keys:ro
+      - shared_public_keys:/app/data/keys
     depends_on:
       pgbouncer-registration:
         condition: service_started
@@ -180,8 +185,13 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       AUDIT_SERVICE_URL: http://audit-service:8000
       KEYS_DIR: /app/data/keys
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
-      - shared_public_keys:/app/data/keys:ro
+      - shared_public_keys:/app/data/keys
     depends_on:
       accreditation-db:
         condition: service_healthy
@@ -203,8 +213,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://audit_svc_user:${AUDIT_DB_PASSWORD}@audit-db:5432/audit_db
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       KEYS_DIR: /app/data/keys
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
-      - shared_public_keys:/app/data/keys:ro
+      - shared_public_keys:/app/data/keys
     depends_on:
       audit-db:
         condition: service_healthy
@@ -228,6 +243,11 @@ services:
       ACCREDITATION_SERVICE_URL: http://accreditation-service:8000
       AUDIT_SERVICE_URL: http://audit-service:8000
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     depends_on:
       - auth-service
       - registration-service
@@ -244,11 +264,16 @@ services:
     volumes:
       - ../gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - web-portal
-      - auth-service
-      - registration-service
-      - accreditation-service
-      - audit-service
+      web-portal:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      registration-service:
+        condition: service_healthy
+      accreditation-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
     networks:
       - public_edge
       - service_mesh

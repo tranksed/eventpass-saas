@@ -69,9 +69,9 @@ echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}) 
 cd "${INFRA_DIR}"
 docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
 
-echo "=== [3/4] Esperando /health y DB de microservicios en http://127.0.0.1:${CHOSEN_PORT} ==="
+echo "=== [3/4] Esperando que todos los microservicios estén HEALTHY (puerto ${CHOSEN_PORT}) ==="
 READY=0
-for i in $(seq 1 40); do
+for i in $(seq 1 45); do
   if curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/health" >/dev/null 2>&1 \
     && curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/api/v1/auth/superadmin/status" >/dev/null 2>&1 \
     && curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/api/v1/registration/public/events" >/dev/null 2>&1; then
