@@ -292,7 +292,9 @@
           );
         } catch (e) {
           addSessionLog("QR Rechazado", gateId, "ONLINE", "DENEGADO", false);
-          showScanBanner("err", "ACCESO DENEGADO", e.message);
+          let msg = e.message;
+          if (msg.includes("404")) msg = "Entrada no encontrada en la base de datos (posiblemente emitida en un evento eliminado o de prueba). Emite una nueva entrada en /comprar.";
+          showScanBanner("err", "ACCESO DENEGADO", msg);
         }
         return;
       }

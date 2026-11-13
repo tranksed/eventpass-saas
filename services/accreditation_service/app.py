@@ -97,7 +97,7 @@ def create_accreditation_app(
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
     require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
     require_validator_module = make_role_dependency(
-        lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR, Role.VALIDATOR
+        lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN, Role.SUPERVISOR, Role.VALIDATOR
     )
     require_internal = make_internal_service_dependency(lambda: cfg.internal_service_token)
 
@@ -522,7 +522,7 @@ def create_accreditation_app(
         except jwt.InvalidTokenError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid QR signature.") from exc
 
-        if claims.get("tid") != actor.tenant_id:
+        if actor.role != Role.SUPERADMIN and claims.get("tid") != actor.tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Cross-tenant QR rejected: credential belongs to a different organization.",
@@ -532,9 +532,10 @@ def create_accreditation_app(
         scan_id = payload.client_scan_id or f"online-{secrets.token_hex(12)}"
 
         async with credential_locks[cred_id]:
-            cred = await db.scalar(
-                select(Credential).where(Credential.id == cred_id, Credential.tenant_id == actor.tenant_id)
-            )
+            query = select(Credential).where(Credential.id == cred_id)
+            if actor.role != Role.SUPERADMIN:
+                query = query.where(Credential.tenant_id == actor.tenant_id)
+            cred = await db.scalar(query)
             if cred is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credential not found.")
             if cred.status != "ACTIVE":
@@ -569,7 +570,7 @@ def create_accreditation_app(
             now = datetime.now(timezone.utc)
             db.add(
                 CheckInLog(
-                    tenant_id=actor.tenant_id,
+                    tenant_id=cred.tenant_id,
                     event_id=cred.event_id,
                     credential_id=cred.id,
                     entitlement_code=payload.entitlement_code,
@@ -617,14 +618,10 @@ def create_accreditation_app(
         db: AsyncSession = Depends(get_db),
     ) -> OfflineBundleResponse:
         """Download signed contingency snapshot + Ed25519 public key for offline gate operation."""
-        creds = (
-            await db.scalars(
-                select(Credential).where(
-                    Credential.tenant_id == actor.tenant_id,
-                    Credential.event_id == event_id,
-                )
-            )
-        ).all()
+        query = select(Credential).where(Credential.event_id == event_id)
+        if actor.role != Role.SUPERADMIN:
+            query = query.where(Credential.tenant_id == actor.tenant_id)
+        creds = (await db.scalars(query)).all()
 
         snapshots = [
             OfflineCredentialSnapshot(
@@ -644,10 +641,11 @@ def create_accreditation_app(
         ).encode("utf-8")
         digest = hashlib.sha256(snapshot_bytes).hexdigest()
         now = datetime.now(timezone.utc)
+        target_tid = creds[0].tenant_id if creds else actor.tenant_id
 
         bundle_token = jwt.encode(
             {
-                "tid": actor.tenant_id,
+                "tid": target_tid,
                 "eid": event_id,
                 "digest": digest,
                 "iat": int(now.timestamp()),
@@ -657,7 +655,7 @@ def create_accreditation_app(
             algorithm="EdDSA",
         )
         return OfflineBundleResponse(
-            tenant_id=actor.tenant_id,
+            tenant_id=target_tid,
             event_id=event_id,
             generated_at=now,
             qr_public_key_pem=public_key_to_pem(qr_pub_key),
