@@ -36,7 +36,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.registration_service.config import RegistrationSettings
@@ -1528,6 +1528,125 @@ def create_registration_app(
             metadata={"is_active": event.is_active},
         )
         return _event_to_response(event)
+
+    async def _delete_event_cascade(db: AsyncSession, event_id: str) -> None:
+        """Delete an event and all dependent records in safe FK order (OrderItem has RESTRICT)."""
+        order_ids_sq = select(Order.id).where(Order.event_id == event_id)
+        await db.execute(delete(OrderItem).where(OrderItem.order_id.in_(order_ids_sq)))
+        await db.execute(delete(Order).where(Order.event_id == event_id))
+        await db.execute(delete(CourtesyCode).where(CourtesyCode.event_id == event_id))
+        await db.execute(delete(GuestListEntry).where(GuestListEntry.event_id == event_id))
+        await db.execute(delete(BulkDispatchJob).where(BulkDispatchJob.event_id == event_id))
+        await db.execute(delete(Promoter).where(Promoter.event_id == event_id))
+        await db.execute(delete(Participant).where(Participant.event_id == event_id))
+        await db.execute(delete(CatalogItem).where(CatalogItem.event_id == event_id))
+        await db.execute(delete(Event).where(Event.id == event_id))
+
+    @app.get("/api/v1/registration/events/{event_id}/orders")
+    async def list_event_orders(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict[str, Any]]:
+        """List registered purchases/orders for an event (Admin/Supervisor)."""
+        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
+        if event is None:
+            raise HTTPException(status_code=404, detail="Event not found.")
+        orders = (
+            await db.scalars(select(Order).where(Order.event_id == event.id).order_by(Order.created_at.desc()).limit(200))
+        ).all()
+        if not orders:
+            return []
+        part_ids = list({o.participant_id for o in orders})
+        parts = (await db.scalars(select(Participant).where(Participant.id.in_(part_ids)))).all()
+        part_map = {p.id: p for p in parts}
+        order_ids = [o.id for o in orders]
+        oitems = (await db.scalars(select(OrderItem).where(OrderItem.order_id.in_(order_ids)))).all()
+        items_by_order: dict[str, list[str]] = defaultdict(list)
+        for oi in oitems:
+            items_by_order[oi.order_id].append(f"{oi.quantity}x {oi.item_code}")
+
+        result: list[dict[str, Any]] = []
+        for o in orders:
+            p = part_map.get(o.participant_id)
+            full_name = pii_crypto.decrypt(p.full_name_encrypted, aad=event.id) if p else "-"
+            email = pii_crypto.decrypt(p.email_encrypted, aad=event.id) if p else "-"
+            result.append(
+                {
+                    "order_id": o.id,
+                    "full_name": full_name,
+                    "email": email,
+                    "dni_last4": p.dni_last4 if p else "----",
+                    "items_summary": ", ".join(items_by_order.get(o.id, [])) or "-",
+                    "total_cents": o.total_cents,
+                    "payment_method": o.payment_method,
+                    "source": o.source,
+                    "status": o.status,
+                    "created_at": _as_utc(o.created_at).isoformat(),
+                    "paid_at": _as_utc(o.paid_at).isoformat() if o.paid_at else None,
+                }
+            )
+        return result
+
+    @app.delete("/api/v1/registration/events/{event_id}")
+    async def delete_tenant_event(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
+        if event is None:
+            raise HTTPException(status_code=404, detail="Event not found.")
+        await _delete_event_cascade(db, event.id)
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="EVENT_DELETED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="event",
+            resource_id=event_id,
+            metadata={"slug": event.slug},
+        )
+        return {"deleted": event_id}
+
+    @app.delete("/api/v1/registration/superadmin/events/{event_id}")
+    async def superadmin_delete_event(
+        event_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        event = await db.scalar(select(Event).where(Event.id == event_id))
+        if event is None:
+            raise HTTPException(status_code=404, detail="Evento no encontrado")
+        tid = event.tenant_id
+        slug = event.slug
+        await _delete_event_cascade(db, event.id)
+        await db.commit()
+        await audit.record(
+            tenant_id=tid,
+            service=cfg.service_name,
+            action="SUPERADMIN_EVENT_DELETED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="event",
+            resource_id=event_id,
+            metadata={"slug": slug},
+        )
+        return {"deleted": event_id}
+
+    @app.delete("/api/v1/registration/superadmin/tenants/{tenant_id}/events")
+    async def superadmin_delete_tenant_events(
+        tenant_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, int]:
+        events = (await db.scalars(select(Event).where(Event.tenant_id == tenant_id))).all()
+        for ev in events:
+            await _delete_event_cascade(db, ev.id)
+        await db.commit()
+        return {"deleted_events": len(events)}
 
     return app
 

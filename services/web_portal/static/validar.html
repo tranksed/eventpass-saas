@@ -313,7 +313,7 @@
         localRedeemed[claims.cid] = localRedeemed[claims.cid] || {};
         localRedeemed[claims.cid][entitlement] = locUsed + 1;
         queue.push({
-          client_scan_id: `off-${crypto.randomUUID()}`,
+          client_scan_id: `off-${EP.uuid()}`,
           qr_token: qrToken,
           entitlement_code: entitlement,
           gate_id: gateId,

@@ -875,6 +875,15 @@ async def test_superadmin_platform_control_and_impersonation(saas_cluster):
     assert sa_ev_pause.status_code == 200
     assert sa_ev_pause.json()["is_active"] is False
 
+    # Reactivate event for order test
+    sa_ev_resume = await reg.patch(
+        f"/api/v1/registration/superadmin/events/{event_id}/status",
+        headers=_bearer(sa_token),
+        json={"is_active": True},
+    )
+    assert sa_ev_resume.status_code == 200
+    assert sa_ev_resume.json()["is_active"] is True
+
     sa_acc = await accred.get("/api/v1/accreditation/superadmin/overview", headers=_bearer(sa_token))
     assert sa_acc.status_code == 200
     assert "total_credentials" in sa_acc.json()
@@ -882,4 +891,39 @@ async def test_superadmin_platform_control_and_impersonation(saas_cluster):
     sa_audit = await audit.get("/api/v1/audit/superadmin/events?limit=20", headers=_bearer(sa_token))
     assert sa_audit.status_code == 200
     assert len(sa_audit.json()) >= 1
+
+    # Create an order and verify list_event_orders works, then delete event & tenant
+    item_id = item_res.json()["id"]
+    ord_res = await reg.post(
+        f"/api/v1/registration/events/{event_id}/orders",
+        headers={"Idempotency-Key": "sa-test-ord-1"},
+        json={
+            "full_name": "Comprador Prueba",
+            "dni": "44556677",
+            "email": "comprador@example.com",
+            "payment_method": "YAPE",
+            "items": [{"item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert ord_res.status_code == 201, ord_res.text
+
+    orders_list = await reg.get(f"/api/v1/registration/events/{event_id}/orders", headers=_bearer(imp_token))
+    assert orders_list.status_code == 200, orders_list.text
+    assert len(orders_list.json()) == 1
+    assert orders_list.json()[0]["dni_last4"] == "****6677"
+    assert orders_list.json()[0]["full_name"] == "Comprador Prueba"
+
+    del_ev = await reg.delete(f"/api/v1/registration/superadmin/events/{event_id}", headers=_bearer(sa_token))
+    assert del_ev.status_code == 200, del_ev.text
+    assert del_ev.json()["deleted"] == event_id
+
+    sa_reg_after = await reg.get("/api/v1/registration/superadmin/overview", headers=_bearer(sa_token))
+    assert not any(e["id"] == event_id for e in sa_reg_after.json()["events"])
+
+    del_ten = await auth.delete(f"/api/v1/auth/superadmin/tenants/{tenant_id}", headers=_bearer(sa_token))
+    assert del_ten.status_code == 200, del_ten.text
+    assert del_ten.json()["deleted"] == tenant_id
+
+    sa_tenants_after = await auth.get("/api/v1/auth/superadmin/tenants", headers=_bearer(sa_token))
+    assert not any(t["id"] == tenant_id for t in sa_tenants_after.json())
 

@@ -426,7 +426,7 @@
         const order = await EP.api(`/api/v1/registration/events/${eventId}/orders`, {
           method: "POST",
           auth: false,
-          headers: { "Idempotency-Key": `ui-${crypto.randomUUID()}` },
+          headers: { "Idempotency-Key": `ui-${EP.uuid()}` },
           body: JSON.stringify({
             dni: document.getElementById("buyerDni").value,
             full_name: document.getElementById("buyerName").value,

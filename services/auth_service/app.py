@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pyotp
 from fastapi import Depends, FastAPI, HTTPException, status
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -554,6 +554,32 @@ def create_auth_app(
             "tenant_slug": tenant.slug,
             "role": Role.ADMIN.value,
         }
+
+    @app.delete("/api/v1/auth/superadmin/tenants/{tenant_id}")
+    async def superadmin_delete_tenant(
+        tenant_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        slug = tenant.slug
+        await db.execute(delete(RefreshToken).where(RefreshToken.tenant_id == tenant_id))
+        await db.execute(delete(User).where(User.tenant_id == tenant_id))
+        await db.execute(delete(Tenant).where(Tenant.id == tenant_id))
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_DELETED_TENANT",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=tenant_id,
+            metadata={"slug": slug},
+        )
+        return {"deleted": tenant_id, "slug": slug}
 
     return app
 

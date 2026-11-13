@@ -28,6 +28,41 @@ const EP = {
     }[m]));
   },
 
+  uuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+      const b = new Uint8Array(16);
+      window.crypto.getRandomValues(b);
+      b[6] = (b[6] & 0x0f) | 0x40;
+      b[8] = (b[8] & 0x3f) | 0x80;
+      const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+    }
+    return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}-${Math.random().toString(16).slice(2, 10)}`;
+  },
+
+  async copyText(text, okMsg = "Copiado al portapapeles.") {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      this.toast(okMsg);
+    } catch {
+      this.toast("No se pudo copiar automáticamente.", "warn");
+    }
+  },
+
   showMsg(elId, kind, text) {
     const el = document.getElementById(elId);
     if (!el) return;

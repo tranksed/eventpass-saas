@@ -322,6 +322,7 @@
               <td class="d-flex gap-1 flex-wrap">
                 <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateTenant('${t.id}')"><i class="bi bi-box-arrow-in-right me-1"></i>Entrar /admin</button>
                 <button type="button" class="btn ${t.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleTenant('${t.id}', ${!t.is_active})">${t.is_active ? "Suspender" : "Reactivar"}</button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteTenantFromSa('${t.id}', ${JSON.stringify(t.name)})"><i class="bi bi-trash"></i></button>
               </td>
             </tr>`).join("")
           : `<tr><td colspan="5" class="text-secondary">Aún no hay empresas registradas.</td></tr>`;
@@ -335,8 +336,9 @@
               <td>${e.tickets_sold} / ${e.tickets_capacity}</td>
               <td>S/ ${(e.revenue_cents / 100).toFixed(2)}</td>
               <td><span class="badge ${e.is_active ? "text-bg-success" : "text-bg-secondary"}">${e.is_active ? "ACTIVO" : "PAUSADO"}</span></td>
-              <td>
+              <td class="d-flex gap-1">
                 <button type="button" class="btn ${e.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleEvent('${e.id}', ${!e.is_active})">${e.is_active ? "Pausar" : "Activar"}</button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteEventFromSa('${e.id}', ${JSON.stringify(e.name)})"><i class="bi bi-trash"></i></button>
               </td>
             </tr>`).join("")
           : `<tr><td colspan="7" class="text-secondary">Sin eventos creados todavía.</td></tr>`;
@@ -424,6 +426,25 @@
           method: "PATCH", body: JSON.stringify({ is_active: nextActive }),
         });
         EP.toast(nextActive ? "Evento activado." : "Evento pausado.");
+        await loadPlatformData();
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    async function deleteTenantFromSa(tenantId, name) {
+      if (!confirm(`¿Eliminar la empresa '${name}' y todos sus usuarios/eventos? Esta acción no se puede deshacer.`)) return;
+      try {
+        await EP.api(`/api/v1/registration/superadmin/tenants/${tenantId}/events`, { method: "DELETE" }).catch(() => {});
+        await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}`, { method: "DELETE" });
+        EP.toast(`Empresa '${name}' eliminada.`);
+        await loadPlatformData();
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    async function deleteEventFromSa(eventId, name) {
+      if (!confirm(`¿Eliminar el evento '${name}' y todas sus órdenes y entradas? Esta acción no se puede deshacer.`)) return;
+      try {
+        await EP.api(`/api/v1/registration/superadmin/events/${eventId}`, { method: "DELETE" });
+        EP.toast(`Evento '${name}' eliminado.`);
         await loadPlatformData();
       } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
     }
