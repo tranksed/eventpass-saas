@@ -656,10 +656,13 @@
       }
     }
 
+    let adminEventsCache = {};
+
     async function loadEventsAndItemsTable() {
       if (!EP.getSession().token) return;
       try {
         const events = await EP.api("/api/v1/registration/events");
+        adminEventsCache = Object.fromEntries(events.map(e => [e.id, e]));
         document.getElementById("eventsListTable").innerHTML = events.length
           ? events.map(e => `
             <tr>
@@ -668,7 +671,7 @@
               <td><span class="badge text-bg-info">${e.max_purchases_per_dni}</span></td>
               <td class="d-flex gap-1">
                 <button class="btn btn-outline-light btn-sm py-0" type="button" onclick="copyTaquillaLink('${e.id}')">Copiar URL</button>
-                <button class="btn btn-outline-danger btn-sm py-0" type="button" onclick="deleteEventFromAdmin('${e.id}', '${EP.escapeHtml(e.name).replace(/'/g, "\\'")}')">Eliminar</button>
+                <button class="btn btn-outline-danger btn-sm py-0" type="button" onclick="deleteEventFromAdmin('${e.id}')">Eliminar</button>
               </td>
             </tr>`).join("")
           : `<tr><td colspan="4" class="text-secondary">Sin eventos</td></tr>`;
@@ -720,11 +723,14 @@
       }
     }
 
-    async function deleteEventFromAdmin(eventId, eventName) {
-      if (!confirm(`¿Eliminar el evento "${eventName}" y todas sus compras/acreditaciones?`)) return;
+    async function deleteEventFromAdmin(eventId) {
+      const ev = adminEventsCache[eventId];
+      const name = ev ? ev.name : eventId;
+      if (!confirm(`¿Eliminar el evento "${name}" y todas sus compras/acreditaciones?`)) return;
       try {
         await EP.api(`/api/v1/registration/events/${eventId}`, { method: "DELETE" });
-        EP.toast("Evento eliminado.");
+        await EP.api(`/api/v1/accreditation/events/${eventId}`, { method: "DELETE" }).catch(() => {});
+        EP.toast(`Evento "${name}" eliminado.`);
         await loadEventsAndInit();
         await loadEventsAndItemsTable();
       } catch (err) {

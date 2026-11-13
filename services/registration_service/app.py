@@ -1540,6 +1540,7 @@ def create_registration_app(
         await db.execute(delete(Promoter).where(Promoter.event_id == event_id))
         await db.execute(delete(Participant).where(Participant.event_id == event_id))
         await db.execute(delete(CatalogItem).where(CatalogItem.event_id == event_id))
+        await db.execute(delete(ComplaintRecord).where(ComplaintRecord.event_id == event_id))
         await db.execute(delete(Event).where(Event.id == event_id))
 
     @app.get("/api/v1/registration/events/{event_id}/orders")

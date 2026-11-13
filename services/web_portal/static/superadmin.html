@@ -289,6 +289,9 @@
       initSuperAdminPage();
     }
 
+    let saTenantsCache = {};
+    let saEventsCache = {};
+
     async function loadPlatformData() {
       document.getElementById("saGlobalMsg").innerHTML = "";
       try {
@@ -300,6 +303,9 @@
           EP.api("/api/v1/audit/superadmin/events?limit=50").catch(() => []),
         ]);
         if (errors.length) EP.showMsg("saGlobalMsg", "warn", `Aviso parcial al cargar métricas: ${errors.join(" | ")}`);
+
+        saTenantsCache = Object.fromEntries(tenants.map(t => [t.id, t]));
+        saEventsCache = Object.fromEntries(reg.events.map(e => [e.id, e]));
 
         document.getElementById("kpiTenants").textContent = tenants.length;
         document.getElementById("kpiTenantsActive").textContent = `${tenants.filter(t => t.is_active).length} activas`;
@@ -322,7 +328,7 @@
               <td class="d-flex gap-1 flex-wrap">
                 <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateTenant('${t.id}')"><i class="bi bi-box-arrow-in-right me-1"></i>Entrar /admin</button>
                 <button type="button" class="btn ${t.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleTenant('${t.id}', ${!t.is_active})">${t.is_active ? "Suspender" : "Reactivar"}</button>
-                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteTenantFromSa('${t.id}', ${JSON.stringify(t.name)})"><i class="bi bi-trash"></i></button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteTenantFromSa('${t.id}')" title="Eliminar empresa"><i class="bi bi-trash"></i></button>
               </td>
             </tr>`).join("")
           : `<tr><td colspan="5" class="text-secondary">Aún no hay empresas registradas.</td></tr>`;
@@ -338,7 +344,7 @@
               <td><span class="badge ${e.is_active ? "text-bg-success" : "text-bg-secondary"}">${e.is_active ? "ACTIVO" : "PAUSADO"}</span></td>
               <td class="d-flex gap-1">
                 <button type="button" class="btn ${e.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleEvent('${e.id}', ${!e.is_active})">${e.is_active ? "Pausar" : "Activar"}</button>
-                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteEventFromSa('${e.id}', ${JSON.stringify(e.name)})"><i class="bi bi-trash"></i></button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteEventFromSa('${e.id}')" title="Eliminar evento"><i class="bi bi-trash"></i></button>
               </td>
             </tr>`).join("")
           : `<tr><td colspan="7" class="text-secondary">Sin eventos creados todavía.</td></tr>`;
@@ -430,23 +436,35 @@
       } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
     }
 
-    async function deleteTenantFromSa(tenantId, name) {
-      if (!confirm(`¿Eliminar la empresa '${name}' y todos sus usuarios/eventos? Esta acción no se puede deshacer.`)) return;
+    async function deleteTenantFromSa(tenantId) {
+      const t = saTenantsCache[tenantId];
+      const name = t ? t.name : tenantId;
+      if (!confirm(`¿Eliminar la empresa "${name}" y todos sus usuarios/eventos? Esta acción no se puede deshacer.`)) return;
       try {
         await EP.api(`/api/v1/registration/superadmin/tenants/${tenantId}/events`, { method: "DELETE" }).catch(() => {});
+        await EP.api(`/api/v1/accreditation/superadmin/tenants/${tenantId}/events`, { method: "DELETE" }).catch(() => {});
         await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}`, { method: "DELETE" });
-        EP.toast(`Empresa '${name}' eliminada.`);
+        EP.toast(`Empresa "${name}" eliminada.`);
         await loadPlatformData();
-      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("saGlobalMsg", "err", e.message);
+        EP.toast(e.message, true);
+      }
     }
 
-    async function deleteEventFromSa(eventId, name) {
-      if (!confirm(`¿Eliminar el evento '${name}' y todas sus órdenes y entradas? Esta acción no se puede deshacer.`)) return;
+    async function deleteEventFromSa(eventId) {
+      const ev = saEventsCache[eventId];
+      const name = ev ? ev.name : eventId;
+      if (!confirm(`¿Eliminar el evento "${name}" y todas sus órdenes y entradas? Esta acción no se puede deshacer.`)) return;
       try {
         await EP.api(`/api/v1/registration/superadmin/events/${eventId}`, { method: "DELETE" });
-        EP.toast(`Evento '${name}' eliminado.`);
+        await EP.api(`/api/v1/accreditation/superadmin/events/${eventId}`, { method: "DELETE" }).catch(() => {});
+        EP.toast(`Evento "${name}" eliminado.`);
         await loadPlatformData();
-      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+      } catch (e) {
+        EP.showMsg("saGlobalMsg", "err", e.message);
+        EP.toast(e.message, true);
+      }
     }
 
     initSuperAdminPage();

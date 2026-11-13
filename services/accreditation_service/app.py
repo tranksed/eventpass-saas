@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import qrcode
 from fastapi import Depends, FastAPI, HTTPException, Response, status
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.accreditation_service.config import AccreditationSettings
@@ -936,6 +936,49 @@ def create_accreditation_app(
             "total_staff_quota": sum(int(c.staff_quota or 0) for c in companies),
             "total_staff_used": sum(int(c.staff_used or 0) for c in companies),
         }
+
+    async def _delete_accreditation_cascade(db: AsyncSession, event_id: str) -> None:
+        """Delete all accreditation records related to an event in safe FK order."""
+        await db.execute(delete(CheckInLog).where(CheckInLog.event_id == event_id))
+        await db.execute(delete(Credential).where(Credential.event_id == event_id))
+        await db.execute(delete(StaffMember).where(StaffMember.event_id == event_id))
+        await db.execute(delete(AccreditedCompany).where(AccreditedCompany.event_id == event_id))
+
+    @app.delete("/api/v1/accreditation/events/{event_id}")
+    async def delete_tenant_event_accreditation(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """Delete all accreditation records for an organizer event."""
+        await _delete_accreditation_cascade(db, event_id)
+        await db.commit()
+        return {"deleted_event": event_id}
+
+    @app.delete("/api/v1/accreditation/superadmin/events/{event_id}")
+    async def superadmin_delete_event_accreditation(
+        event_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """SuperAdmin endpoint to delete an event's credentials and staff."""
+        await _delete_accreditation_cascade(db, event_id)
+        await db.commit()
+        return {"deleted_event": event_id}
+
+    @app.delete("/api/v1/accreditation/superadmin/tenants/{tenant_id}/events")
+    async def superadmin_delete_tenant_accreditation(
+        tenant_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """SuperAdmin endpoint to delete all accreditation records belonging to a tenant."""
+        await db.execute(delete(CheckInLog).where(CheckInLog.tenant_id == tenant_id))
+        await db.execute(delete(Credential).where(Credential.tenant_id == tenant_id))
+        await db.execute(delete(StaffMember).where(StaffMember.tenant_id == tenant_id))
+        await db.execute(delete(AccreditedCompany).where(AccreditedCompany.tenant_id == tenant_id))
+        await db.commit()
+        return {"deleted_tenant": tenant_id}
 
     return app
 
