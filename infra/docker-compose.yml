@@ -70,21 +70,6 @@ services:
     networks:
       - private_data
 
-  # Connection pooler (critical for 10k/48h burst scaling with FastAPI workers)
-  pgbouncer-registration:
-    image: edoburu/pgbouncer:latest
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://reg_svc_user:${REG_DB_PASSWORD}@registration-db:5432/registration_db
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 500
-      DEFAULT_POOL_SIZE: 30
-    depends_on:
-      registration-db:
-        condition: service_healthy
-    networks:
-      - private_data
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -144,7 +129,7 @@ services:
     restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      DATABASE_URL: postgresql+asyncpg://reg_svc_user:${REG_DB_PASSWORD}@pgbouncer-registration:5432/registration_db
+      DATABASE_URL: postgresql+asyncpg://reg_svc_user:${REG_DB_PASSWORD}@registration-db:5432/registration_db
       PII_MASTER_KEY_B64: ${PII_MASTER_KEY_B64}
       DNI_BLIND_INDEX_PEPPER: ${DNI_BLIND_INDEX_PEPPER}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
@@ -160,8 +145,6 @@ services:
     volumes:
       - shared_public_keys:/app/data/keys
     depends_on:
-      pgbouncer-registration:
-        condition: service_started
       registration-db:
         condition: service_healthy
       auth-service:

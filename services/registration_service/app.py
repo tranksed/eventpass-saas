@@ -113,22 +113,25 @@ def _event_to_response(e: Event) -> EventResponse:
 
 
 async def _ensure_schema_columns(conn) -> None:
-    """Safely add newly introduced columns on existing dev SQLite/Postgres databases using SAVEPOINTs."""
-    alter_statements = [
-        "ALTER TABLE events ADD COLUMN venue VARCHAR(180) NOT NULL DEFAULT 'Centro de Convenciones, Lima'",
-        "ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''",
-        "ALTER TABLE events ADD COLUMN brand_color VARCHAR(20) NOT NULL DEFAULT '#8b5cf6'",
-        "ALTER TABLE events ADD COLUMN timezone_name VARCHAR(60) NOT NULL DEFAULT 'America/Lima'",
-        "ALTER TABLE orders ADD COLUMN source VARCHAR(30) NOT NULL DEFAULT 'ONLINE'",
-        "ALTER TABLE orders ADD COLUMN promoter_id VARCHAR(36)",
-        "ALTER TABLE orders ADD COLUMN payment_method VARCHAR(40) NOT NULL DEFAULT 'MERCADOPAGO'",
+    """Safely add newly introduced columns on existing dev SQLite/Postgres databases."""
+    is_pg = conn.dialect.name == "postgresql"
+    alter_columns = [
+        ("events", "venue", "VARCHAR(180) NOT NULL DEFAULT 'Centro de Convenciones, Lima'"),
+        ("events", "description", "TEXT NOT NULL DEFAULT ''"),
+        ("events", "brand_color", "VARCHAR(20) NOT NULL DEFAULT '#8b5cf6'"),
+        ("events", "timezone_name", "VARCHAR(60) NOT NULL DEFAULT 'America/Lima'"),
+        ("orders", "source", "VARCHAR(30) NOT NULL DEFAULT 'ONLINE'"),
+        ("orders", "promoter_id", "VARCHAR(36)"),
+        ("orders", "payment_method", "VARCHAR(40) NOT NULL DEFAULT 'MERCADOPAGO'"),
     ]
-    for stmt in alter_statements:
+    for table, col, col_def in alter_columns:
         try:
-            async with conn.begin_nested():
-                await conn.execute(text(stmt))
+            if is_pg:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_def}"))
+            else:
+                async with conn.begin_nested():
+                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
         except Exception:
-            # Column already exists; nested savepoint rollback preserves outer PostgreSQL transaction
             pass
 
 
