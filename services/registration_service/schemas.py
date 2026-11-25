@@ -25,8 +25,8 @@ class CreateEventRequest(StrictModel):
     description: str = Field(default="", max_length=4000)
     brand_color: str = Field(default="#8b5cf6", pattern=r"^#[0-9a-fA-F]{6}$")
     timezone_name: str = Field(default="America/Lima", min_length=3, max_length=60)
-    banner_image_url: str = Field(default="", max_length=500000)
-    logo_url: str = Field(default="", max_length=500000)
+    banner_image_url: str = Field(default="", max_length=5000000)
+    logo_url: str = Field(default="", max_length=5000000)
     map_coordinates: str = Field(default="", max_length=255)
     starts_at: datetime
     ends_at: datetime
@@ -43,8 +43,8 @@ class UpdateEventDetailsRequest(StrictModel):
     venue_address: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
     brand_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
-    banner_image_url: str | None = Field(default=None, max_length=500000)
-    logo_url: str | None = Field(default=None, max_length=500000)
+    banner_image_url: str | None = Field(default=None, max_length=5000000)
+    logo_url: str | None = Field(default=None, max_length=5000000)
     map_coordinates: str | None = Field(default=None, max_length=255)
     max_purchases_per_dni: int | None = Field(default=None, ge=1, le=10)
 

@@ -884,18 +884,70 @@
     function handleImageUpload(input, targetInputId, badgeId) {
       const file = input.files && input.files[0];
       if (!file) return;
-      if (file.size > 2 * 1024 * 1024) {
-        return EP.toast("La imagen no debe superar 2MB.", "warn");
+      if (file.size > 8 * 1024 * 1024) {
+        return EP.toast("La imagen es demasiado grande (máx. 8MB).", "warn");
       }
+      const badge = document.getElementById(badgeId);
+      if (badge) {
+        badge.classList.remove("d-none");
+        badge.className = "badge text-bg-warning";
+        badge.textContent = "Optimizando...";
+      }
+
       const reader = new FileReader();
       reader.onload = (e) => {
-        document.getElementById(targetInputId).value = e.target.result;
-        const badge = document.getElementById(badgeId);
-        if (badge) {
-          badge.classList.remove("d-none");
-          badge.textContent = "Listo (" + (file.size / 1024).toFixed(0) + " KB)";
-        }
-        EP.toast("Imagen cargada.");
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const isLogo = targetInputId.toLowerCase().includes("logo");
+            const maxDim = isLogo ? 500 : 1280;
+            let w = img.width;
+            let h = img.height;
+
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const format = (file.type === "image/png" || isLogo) ? "image/png" : "image/jpeg";
+            const dataUrl = canvas.toDataURL(format, 0.85);
+
+            document.getElementById(targetInputId).value = dataUrl;
+            const approxKb = Math.round((dataUrl.length * 3) / 4 / 1024);
+            if (badge) {
+              badge.className = "badge text-bg-success";
+              badge.textContent = `Listo (${approxKb} KB)`;
+            }
+            EP.toast(`Imagen optimizada (${approxKb} KB).`);
+          } catch (err) {
+            document.getElementById(targetInputId).value = e.target.result;
+            if (badge) {
+              badge.className = "badge text-bg-success";
+              badge.textContent = `Listo (${(file.size / 1024).toFixed(0)} KB)`;
+            }
+            EP.toast("Imagen cargada.");
+          }
+        };
+        img.onerror = () => {
+          document.getElementById(targetInputId).value = e.target.result;
+          if (badge) {
+            badge.className = "badge text-bg-success";
+            badge.textContent = `Listo`;
+          }
+          EP.toast("Imagen cargada.");
+        };
+        img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
