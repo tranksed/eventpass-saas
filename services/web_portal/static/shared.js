@@ -181,7 +181,27 @@ const EP = {
       const isHtml = /<[a-z][\s\S]*>/i.test(txt);
       data = { detail: isHtml ? (res.statusText || "Servicio no disponible") : txt.slice(0, 160) };
     }
-    if (!res.ok) throw new Error(`${res.status}: ${data.detail || res.statusText || 'Error'}`);
+    let detailMsg = "";
+    if (data && Array.isArray(data.detail)) {
+      detailMsg = data.detail.map(d => {
+        const loc = Array.isArray(d.loc) ? d.loc.filter(k => k !== "body").join(".") : "";
+        let m = d.msg || "Valor no válido";
+        if (m.includes("String should have at least")) {
+          const match = m.match(/\d+/);
+          m = `Debe tener al menos ${match ? match[0] : 8} caracteres`;
+        } else if (m.includes("valid email") || m.includes("value is not a valid email")) {
+          m = "Correo electrónico no válido";
+        } else if (m.includes("pattern") || m.includes("String should match pattern")) {
+          m = "Formato no válido (solo minúsculas, números y guiones)";
+        }
+        return loc ? `${loc}: ${m}` : m;
+      }).join(" | ");
+    } else if (data && typeof data.detail === "object" && data.detail !== null) {
+      detailMsg = JSON.stringify(data.detail);
+    } else {
+      detailMsg = (data && data.detail) || res.statusText || 'Error';
+    }
+    if (!res.ok) throw new Error(`${res.status}: ${detailMsg}`);
     return data;
   },
 
