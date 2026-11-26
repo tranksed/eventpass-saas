@@ -140,6 +140,7 @@ const EP = {
 
     const sessionHtml = isAuth
       ? `<div class="d-flex align-items-center gap-2">
+           ${(role === "ADMIN" || role === "SUPERADMIN") ? `<button type="button" class="btn btn-outline-warning btn-sm py-1 px-2 fw-semibold d-flex align-items-center gap-1" onclick="EP.toggleCopilot()" title="Abrir Copilot Asistente"><i class="bi bi-robot"></i> Copilot</button>` : ""}
            <span class="badge text-bg-success py-2 px-3"><i class="bi bi-person-badge me-1"></i>${this.escapeHtml(s.slug || "tenant")} · ${this.escapeHtml(s.role)}</span>
            <button class="btn btn-outline-danger btn-sm py-1 px-2" onclick="EP.logoutAndRedirect()" title="Cerrar Sesión"><i class="bi bi-box-arrow-right"></i> Salir</button>
          </div>`
@@ -164,6 +165,9 @@ const EP = {
           </div>
         </div>
       </nav>`;
+    if (role === "ADMIN" || role === "SUPERADMIN") {
+      setTimeout(() => this.initCopilot(), 150);
+    }
   },
 
   async api(url, opts = {}) {
@@ -245,5 +249,169 @@ const EP = {
       throw new Error("Credencial QR expirada");
     }
     return claims;
+  },
+
+  initCopilot() {
+    const s = this.getSession();
+    const role = (s.role || "").toUpperCase();
+    if (role !== "ADMIN" && role !== "SUPERADMIN") return;
+    if (document.getElementById("epCopilotDrawer")) return;
+
+    const drawerHtml = `
+      <!-- BOTÓN FLOTANTE COPILOT -->
+      <div id="epCopilotLauncher" class="position-fixed bottom-0 end-0 m-3 z-3">
+        <button class="btn btn-primary rounded-pill shadow-lg py-2 px-3 d-flex align-items-center gap-2 fw-semibold" onclick="EP.toggleCopilot()" style="background: linear-gradient(135deg, #7c3aed, #2563eb); border: none;">
+          <i class="bi bi-robot fs-5"></i>
+          <span class="d-none d-sm-inline">Copilot SaaS</span>
+          <span class="badge text-bg-warning rounded-pill small">Local</span>
+        </button>
+      </div>
+
+      <!-- DRAWER LATERAL OFFCANVAS -->
+      <div class="offcanvas offcanvas-end bg-dark text-white border-start border-secondary" tabindex="-1" id="epCopilotDrawer" style="width: 440px; max-width: 95vw;">
+        <div class="offcanvas-header border-bottom border-secondary py-2" style="background: rgba(124, 58, 237, 0.15);">
+          <div class="d-flex align-items-center gap-2">
+            <span class="fs-4">🤖</span>
+            <div>
+              <h5 class="offcanvas-title h6 fw-bold mb-0">EventPass Copilot</h5>
+              <small class="text-secondary small">Asistente Operativo Local · Plataforma SaaS</small>
+            </div>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column p-3" style="background: #0f172a;">
+          <div class="alert alert-info py-2 px-3 small mb-2 d-flex align-items-center gap-2">
+            <i class="bi bi-shield-lock-fill text-info fs-5"></i>
+            <div>
+              <strong>Seguridad Multi-Tenant:</strong> Solo ejecuta acciones autorizadas para tu empresa en la base de datos local.
+            </div>
+          </div>
+
+          <!-- SUGGESTION PILLS -->
+          <div class="mb-2">
+            <small class="text-secondary fw-semibold d-block mb-1">Acciones sugeridas:</small>
+            <div class="d-flex flex-wrap gap-1">
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small text-light" onclick="EP.sendCopilotMessage('Crear una entrada VIP a 120 soles con 50 cupos')">➕ VIP S/ 120 (50 cupos)</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small text-light" onclick="EP.sendCopilotMessage('Cambiar el precio de la entrada GENERAL a 65 soles')">💲 General a S/ 65</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small text-light" onclick="EP.sendCopilotMessage('¿Cuánto hemos vendido hoy?')">📊 Ventas y métricas</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small text-light" onclick="EP.sendCopilotMessage('Listar entradas')">📋 Listar entradas</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 small text-light" onclick="EP.sendCopilotMessage('Crear código PROMO15 con 15% de descuento')">🏷️ Código PROMO15 (15%)</button>
+            </div>
+          </div>
+
+          <hr class="border-secondary my-2" />
+
+          <!-- CHAT MESSAGES FEED -->
+          <div id="epCopilotFeed" class="flex-grow-1 overflow-y-auto mb-3 pe-1" style="max-height: 55vh; min-height: 250px;">
+            <div class="d-flex gap-2 mb-3">
+              <span class="fs-5">🤖</span>
+              <div class="p-2 rounded bg-secondary-subtle text-light small" style="max-width: 90%;">
+                ¡Hola! Soy el <strong>Copilot Operativo</strong> de EventPass. Puedo crear tipos de entrada, modificar precios o cupos, consultar ventas en vivo y crear descuentos para tu evento. ¿Qué deseas hacer?
+              </div>
+            </div>
+          </div>
+
+          <!-- INPUT FORM -->
+          <form onsubmit="event.preventDefault(); EP.submitCopilotInput();" class="mt-auto">
+            <div class="input-group">
+              <input id="epCopilotInput" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Escribe tu orden (ej: 'Crea entrada VIP S/ 120 50 cupos')..." autocomplete="off" />
+              <button type="submit" id="epCopilotSendBtn" class="btn btn-primary btn-sm px-3" style="background: #7c3aed; border-color: #7c3aed;">
+                <i class="bi bi-send-fill"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    const div = document.createElement("div");
+    div.id = "epCopilotRoot";
+    div.innerHTML = drawerHtml;
+    document.body.appendChild(div);
+  },
+
+  toggleCopilot() {
+    this.initCopilot();
+    const el = document.getElementById("epCopilotDrawer");
+    if (!el || typeof bootstrap === "undefined") return;
+    const inst = bootstrap.Offcanvas.getOrCreateInstance(el);
+    inst.toggle();
+    setTimeout(() => document.getElementById("epCopilotInput")?.focus(), 300);
+  },
+
+  async sendCopilotMessage(msg) {
+    this.initCopilot();
+    const el = document.getElementById("epCopilotDrawer");
+    if (el && typeof bootstrap !== "undefined") bootstrap.Offcanvas.getOrCreateInstance(el).show();
+    const input = document.getElementById("epCopilotInput");
+    if (input) input.value = msg;
+    await this.submitCopilotInput();
+  },
+
+  async submitCopilotInput() {
+    const input = document.getElementById("epCopilotInput");
+    const sendBtn = document.getElementById("epCopilotSendBtn");
+    const feed = document.getElementById("epCopilotFeed");
+    const text = (input?.value || "").trim();
+    if (!text) return;
+
+    input.value = "";
+    if (sendBtn) sendBtn.disabled = true;
+
+    // Append user message
+    const userBubble = document.createElement("div");
+    userBubble.className = "d-flex justify-content-end mb-2";
+    userBubble.innerHTML = `<div class="p-2 rounded bg-primary text-white small" style="max-width: 85%;">${this.escapeHtml(text)}</div>`;
+    feed.appendChild(userBubble);
+    feed.scrollTop = feed.scrollHeight;
+
+    // Append typing indicator
+    const typingBubble = document.createElement("div");
+    typingBubble.className = "d-flex gap-2 mb-2";
+    typingBubble.innerHTML = `<span class="fs-5">🤖</span><div class="p-2 rounded bg-secondary-subtle text-light small"><span class="spinner-border spinner-border-sm me-1"></span>Ejecutando en la plataforma...</div>`;
+    feed.appendChild(typingBubble);
+    feed.scrollTop = feed.scrollHeight;
+
+    // Get current event id if available on the page
+    const eventSelect = document.getElementById("globalEventSelect") || document.getElementById("valEventSelect");
+    const currentEventId = eventSelect ? eventSelect.value : null;
+
+    try {
+      const res = await this.api("/bff/assistant/command", {
+        method: "POST",
+        body: JSON.stringify({ message: text, event_id: currentEventId }),
+      });
+
+      typingBubble.remove();
+
+      let formattedReply = this.escapeHtml(res.reply || "")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\n/g, "<br>");
+
+      const botBubble = document.createElement("div");
+      botBubble.className = "d-flex gap-2 mb-3";
+      botBubble.innerHTML = `<span class="fs-5">🤖</span><div class="p-2 rounded ${res.ok ? "bg-dark border border-secondary" : "bg-danger-subtle text-danger"} small" style="max-width: 90%; line-height: 1.4;">${formattedReply}</div>`;
+      feed.appendChild(botBubble);
+      feed.scrollTop = feed.scrollHeight;
+
+      if (res.refresh_needed) {
+        if (typeof window.loadEventsAndItemsTable === "function") window.loadEventsAndItemsTable();
+        if (typeof window.loadDashboardMetrics === "function") window.loadDashboardMetrics();
+        if (typeof window.loadPlatformData === "function") window.loadPlatformData();
+        this.toast("Datos actualizados en pantalla.");
+      }
+    } catch (err) {
+      typingBubble.remove();
+      const errBubble = document.createElement("div");
+      errBubble.className = "d-flex gap-2 mb-3";
+      errBubble.innerHTML = `<span class="fs-5">🤖</span><div class="p-2 rounded bg-danger text-white small">${this.escapeHtml(err.message)}</div>`;
+      feed.appendChild(errBubble);
+      feed.scrollTop = feed.scrollHeight;
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+      input.focus();
+    }
   }
 };

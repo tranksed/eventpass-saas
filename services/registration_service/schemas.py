@@ -47,6 +47,7 @@ class UpdateEventDetailsRequest(StrictModel):
     logo_url: str | None = Field(default=None, max_length=5000000)
     map_coordinates: str | None = Field(default=None, max_length=255)
     max_purchases_per_dni: int | None = Field(default=None, ge=1, le=10)
+    is_active: bool | None = None
 
 
 class EventResponse(BaseModel):

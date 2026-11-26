@@ -415,12 +415,10 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> EventResponse:
-        event = await db.scalar(
-            select(Event).where(
-                Event.id == event_id,
-                _tenant_filter(Event.tenant_id, actor.tenant_id, actor.role),
-            )
-        )
+        query = select(Event).where(Event.id == event_id)
+        if actor.role != Role.SUPERADMIN:
+            query = query.where(Event.tenant_id == actor.tenant_id)
+        event = await db.scalar(query)
         if event is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
 
@@ -442,6 +440,8 @@ def create_registration_app(
             event.map_coordinates = payload.map_coordinates
         if payload.max_purchases_per_dni is not None:
             event.max_purchases_per_dni = payload.max_purchases_per_dni
+        if payload.is_active is not None:
+            event.is_active = payload.is_active
 
         await db.commit()
         return _event_to_response(event)

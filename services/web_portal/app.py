@@ -24,7 +24,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from shared_kernel.config import get_base_settings
-from shared_kernel.crypto import sign_webhook_payload
+from shared_kernel.crypto import load_ed25519_public_key, sign_webhook_payload
+from shared_kernel.security import CurrentActor, Role, make_role_dependency
+from services.web_portal.assistant import EventPassAssistant
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -39,6 +41,12 @@ class SimulatePaymentRequest(BaseModel):
 class QRRenderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     qr_token: str = Field(min_length=10, max_length=4096)
+
+
+class AssistantCommandRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    message: str = Field(min_length=1, max_length=1000)
+    event_id: str | None = Field(default=None, max_length=36)
 
 
 def _html_page(filename: str) -> HTMLResponse:
@@ -64,6 +72,20 @@ def create_portal_app() -> FastAPI:
             await shared_client.aclose()
 
     app = FastAPI(title="EventPass SaaS Web Portal & BFF", version="1.0.0", lifespan=lifespan)
+
+    def _get_jwt_pub_key():
+        return load_ed25519_public_key(cfg.keys_dir, "jwt")
+
+    require_admin_or_superadmin = make_role_dependency(
+        _get_jwt_pub_key, Role.ADMIN, Role.SUPERADMIN
+    )
+
+    assistant = EventPassAssistant(
+        registration_service_url=cfg.registration_service_url,
+        auth_service_url=cfg.auth_service_url,
+        accreditation_service_url=cfg.accreditation_service_url,
+        audit_service_url=cfg.audit_service_url,
+    )
 
     @app.middleware("http")
     async def no_stale_static_cache(request: Request, call_next):
@@ -116,6 +138,23 @@ def create_portal_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "web-portal"}
+
+    @app.post("/bff/assistant/command")
+    async def assistant_command(
+        payload: AssistantCommandRequest,
+        request: Request,
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+    ) -> dict[str, Any]:
+        """Execute a natural language operational command within the platform boundary."""
+        auth_header = request.headers.get("authorization", "")
+        token = auth_header.replace("Bearer ", "").strip() if "Bearer " in auth_header else auth_header
+        return await assistant.execute_command(
+            raw_message=payload.message,
+            actor=actor,
+            raw_token=token,
+            event_id=payload.event_id,
+            client=shared_client,
+        )
 
     @app.post("/bff/qr-data-url")
     async def render_qr_data_url(payload: QRRenderRequest) -> dict[str, str]:
