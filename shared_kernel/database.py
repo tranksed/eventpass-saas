@@ -40,8 +40,8 @@ def create_service_db(
         engine = create_async_engine(
             database_url,
             echo=echo,
-            pool_size=20,
-            max_overflow=30,
+            pool_size=10,
+            max_overflow=15,
             pool_pre_ping=True,
             connect_args=connect_args,
             future=True,

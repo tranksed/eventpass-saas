@@ -6,6 +6,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd --create-home --shell /bin/bash appuser
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir fastapi uvicorn[standard] sqlalchemy[asyncio] asyncpg aiosqlite \
@@ -19,4 +21,5 @@ USER appuser
 
 ARG SERVICE_MODULE=services.auth_service.app:create_auth_app
 ENV SERVICE_MODULE=${SERVICE_MODULE}
-CMD ["sh", "-c", "uvicorn --factory ${SERVICE_MODULE} --host 0.0.0.0 --port 8000 --workers 4"]
+ENV UVICORN_WORKERS=1
+CMD ["sh", "-c", "uvicorn --factory ${SERVICE_MODULE} --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-1}"]
