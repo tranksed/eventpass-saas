@@ -130,6 +130,8 @@ class Order(Base):
     payment_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
     credential_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     qr_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gateway_response_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -276,3 +278,36 @@ class OutboxEvent(Base):
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class PaymentGatewayConfig(Base):
+    """Payment Gateway credentials & preferences per Tenant and optional per Event."""
+
+    __tablename__ = "payment_gateway_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+    # Mercado Pago (Peru)
+    mp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mp_public_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    mp_access_token: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    mp_webhook_secret: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    mp_sandbox: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Izipay (Peru)
+    izipay_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    izipay_merchant_id: Mapped[str] = mapped_column(String(100), default="", nullable=False)  # Shop / Merchant ID
+    izipay_public_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    izipay_sha256_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)  # HMAC / Secret key
+    izipay_sandbox: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Yape (Peru)
+    yape_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    yape_provider: Mapped[str] = mapped_column(String(40), default="IZIPAY", nullable=False)  # IZIPAY | MERCADOPAGO | DIRECT_QR
+    yape_phone_number: Mapped[str] = mapped_column(String(30), default="", nullable=False)
+    yape_recipient_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)

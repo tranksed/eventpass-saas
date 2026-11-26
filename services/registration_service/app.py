@@ -40,6 +40,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.registration_service.config import RegistrationSettings
+from services.registration_service.gateways import IzipayGateway, MercadoPagoGateway, YapeGateway
 from services.registration_service.models import (
     BulkDispatchJob,
     CatalogItem,
@@ -51,6 +52,7 @@ from services.registration_service.models import (
     OrderItem,
     OutboxEvent,
     Participant,
+    PaymentGatewayConfig,
     Promoter,
 )
 from services.registration_service.schemas import (
@@ -66,14 +68,20 @@ from services.registration_service.schemas import (
     GuestListDecisionRequest,
     GuestListEntryResponse,
     GuestListSubmitRequest,
+    InitiatePaymentRequest,
+    InitiatePaymentResponse,
     ItemType,
     OrderResponse,
+    PaymentGatewayConfigResponse,
     PaymentWebhookPayload,
     PromoterStatsResponse,
+    PublicPaymentMethodsResponse,
     RedeemCodeRequest,
     UpdateCatalogItemRequest,
     UpdateEventDetailsRequest,
     UpdateEventLimitRequest,
+    UpdatePaymentGatewayConfigRequest,
+    YapeConfirmRequest,
 )
 from shared_kernel.audit_client import AuditClient
 from shared_kernel.crypto import (
@@ -151,6 +159,8 @@ async def _ensure_schema_columns(conn) -> None:
         ("orders", "source", "VARCHAR(30) NOT NULL DEFAULT 'ONLINE'"),
         ("orders", "promoter_id", "VARCHAR(36)"),
         ("orders", "payment_method", "VARCHAR(40) NOT NULL DEFAULT 'MERCADOPAGO'"),
+        ("orders", "checkout_url", "TEXT"),
+        ("orders", "gateway_response_json", "TEXT"),
         ("catalog_items", "artist_name", "VARCHAR(120) NOT NULL DEFAULT ''"),
         ("catalog_items", "interaction_type", "VARCHAR(40) NOT NULL DEFAULT ''"),
         ("catalog_items", "description", "VARCHAR(255) NOT NULL DEFAULT ''"),
@@ -188,6 +198,7 @@ def create_registration_app(
     require_admin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN)
     require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
     require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
+    require_admin_or_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERADMIN)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -650,6 +661,7 @@ def create_registration_app(
     async def create_participant_order(
         event_id: str,
         payload: CreateOrderRequest,
+        request: Request,
         idempotency_key: str = Header(..., min_length=8, max_length=128),
         db: AsyncSession = Depends(get_db),
     ) -> OrderResponse:
@@ -768,18 +780,44 @@ def create_registration_app(
             db.add(order)
             await db.flush()
 
+            order_items_list: list[OrderItem] = []
             for item_id, req_qty in requested_by_item.items():
                 ci = catalog_map[item_id]
-                db.add(
-                    OrderItem(
-                        order_id=order.id,
-                        catalog_item_id=ci.id,
-                        item_code=ci.code,
-                        quantity=req_qty,
-                        unit_price_cents=ci.price_cents,
-                    )
+                oi = OrderItem(
+                    order_id=order.id,
+                    catalog_item_id=ci.id,
+                    item_code=ci.code,
+                    quantity=req_qty,
+                    unit_price_cents=ci.price_cents,
                 )
+                db.add(oi)
+                order_items_list.append(oi)
 
+            # Generate Gateway Checkout Session
+            base_url = str(request.base_url).rstrip("/")
+            gw_conf = await _get_gateway_config(db, event.tenant_id, event.id)
+            checkout_url = f"/checkout/{order.id}"
+
+            if payload.payment_method == "MERCADOPAGO":
+                mp_res = await MercadoPagoGateway.create_preference(
+                    order, event, order_items_list, payload.full_name, payload.email, gw_conf, base_url
+                )
+                checkout_url = mp_res.get("checkout_url") or checkout_url
+                order.gateway_response_json = json.dumps(mp_res)
+            elif payload.payment_method == "IZIPAY":
+                iz_res = await IzipayGateway.create_payment_session(
+                    order, event, order_items_list, payload.full_name, payload.email, dni_last4, gw_conf, base_url
+                )
+                checkout_url = iz_res.get("checkout_url") or checkout_url
+                order.gateway_response_json = json.dumps(iz_res)
+            elif payload.payment_method == "YAPE":
+                yape_info = YapeGateway.generate_yape_details(order, event, gw_conf)
+                checkout_url = f"/checkout/yape?order_id={order.id}"
+                order.gateway_response_json = json.dumps(yape_info)
+            else:
+                checkout_url = f"/checkout/demo?order_id={order.id}"
+
+            order.checkout_url = checkout_url
             await db.commit()
             return OrderResponse(
                 order_id=order.id,
@@ -789,8 +827,428 @@ def create_registration_app(
                 total_cents=order.total_cents,
                 dni_last4=participant.dni_last4,
                 expires_at=order.expires_at,
-                checkout_url=f"/checkout/{order.id}",
+                checkout_url=order.checkout_url,
             )
+
+    async def _complete_paid_order(
+        db: AsyncSession,
+        order: Order,
+        payment_reference: str,
+        payment_method: str | None = None,
+    ) -> dict[str, str | None]:
+        """Atomically transition an order to PAID, shift inventory, and issue signed QR ticket."""
+        if order.status == "PAID":
+            return {
+                "order_id": order.id,
+                "status": order.status,
+                "credential_id": order.credential_id,
+                "qr_token": order.qr_token,
+            }
+
+        order_items = (await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id))).all()
+        for oi in order_items:
+            await db.execute(
+                update(CatalogItem)
+                .where(CatalogItem.id == oi.catalog_item_id)
+                .values(
+                    stock_reserved=CatalogItem.stock_reserved - oi.quantity,
+                    stock_sold=CatalogItem.stock_sold + oi.quantity,
+                )
+            )
+
+        event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
+        assert event is not None and participant is not None
+
+        entitlements: dict[str, int] = defaultdict(int)
+        for oi in order_items:
+            entitlements[oi.item_code] += oi.quantity
+
+        display_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
+        credential_id, qr_token = await _issue_participant_qr(
+            event, display_name, participant.dni_last4, participant.id, order.id, dict(entitlements)
+        )
+
+        order.status = "PAID"
+        order.payment_reference = payment_reference
+        if payment_method:
+            order.payment_method = payment_method
+        order.paid_at = datetime.now(timezone.utc)
+        order.credential_id = credential_id
+        order.qr_token = qr_token
+
+        db.add(
+            OutboxEvent(
+                tenant_id=order.tenant_id,
+                event_type="OrderPaid",
+                payload_json=json.dumps(
+                    {
+                        "order_id": order.id,
+                        "event_id": order.event_id,
+                        "credential_id": credential_id,
+                        "entitlements": dict(entitlements),
+                    }
+                ),
+                published=True,
+            )
+        )
+        await db.commit()
+        await audit.record(
+            tenant_id=order.tenant_id,
+            service=cfg.service_name,
+            action="ORDER_PAID_QR_ISSUED",
+            actor_id=participant.id,
+            actor_role="PARTICIPANT",
+            resource_type="order",
+            resource_id=order.id,
+            metadata={"credential_id": credential_id, "entitlements": dict(entitlements)},
+        )
+        return {
+            "order_id": order.id,
+            "status": order.status,
+            "credential_id": credential_id,
+            "qr_token": qr_token,
+        }
+
+    async def _get_gateway_config(
+        db: AsyncSession, tenant_id: str, event_id: str | None = None
+    ) -> PaymentGatewayConfig:
+        stmt = select(PaymentGatewayConfig).where(PaymentGatewayConfig.tenant_id == tenant_id)
+        if event_id:
+            stmt = stmt.where((PaymentGatewayConfig.event_id == event_id) | (PaymentGatewayConfig.event_id.is_(None)))
+            stmt = stmt.order_by(PaymentGatewayConfig.event_id.desc())
+        else:
+            stmt = stmt.where(PaymentGatewayConfig.event_id.is_(None))
+        conf = await db.scalar(stmt)
+        if conf is None:
+            conf = PaymentGatewayConfig(
+                tenant_id=tenant_id,
+                event_id=event_id,
+                mp_enabled=False,
+                mp_public_key="",
+                mp_access_token="",
+                mp_webhook_secret="",
+                mp_sandbox=True,
+                izipay_enabled=False,
+                izipay_merchant_id="",
+                izipay_public_key="",
+                izipay_sha256_key="",
+                izipay_sandbox=True,
+                yape_enabled=True,
+                yape_provider="IZIPAY",
+                yape_phone_number="",
+                yape_recipient_name="",
+            )
+            db.add(conf)
+            await db.flush()
+        return conf
+
+    def _mask_secret(val: str) -> str:
+        if not val:
+            return ""
+        if len(val) <= 8:
+            return "***"
+        return f"{val[:4]}...{val[-4:]}"
+
+    def _config_to_response(conf: PaymentGatewayConfig) -> PaymentGatewayConfigResponse:
+        return PaymentGatewayConfigResponse(
+            tenant_id=conf.tenant_id,
+            event_id=conf.event_id,
+            mp_enabled=conf.mp_enabled,
+            mp_public_key=conf.mp_public_key,
+            mp_has_token=bool(conf.mp_access_token),
+            mp_token_masked=_mask_secret(conf.mp_access_token),
+            mp_has_webhook_secret=bool(conf.mp_webhook_secret),
+            mp_sandbox=conf.mp_sandbox,
+            izipay_enabled=conf.izipay_enabled,
+            izipay_merchant_id=conf.izipay_merchant_id,
+            izipay_public_key=conf.izipay_public_key,
+            izipay_has_sha256_key=bool(conf.izipay_sha256_key),
+            izipay_sandbox=conf.izipay_sandbox,
+            yape_enabled=conf.yape_enabled,
+            yape_provider=conf.yape_provider,
+            yape_phone_number=conf.yape_phone_number,
+            yape_recipient_name=conf.yape_recipient_name,
+            updated_at=conf.updated_at,
+        )
+
+    # -------------------------------------------------------------------------
+    # Payment Gateway Configuration Endpoints (Admin / SuperAdmin)
+    # -------------------------------------------------------------------------
+    @app.get("/api/v1/registration/events/{event_id}/payment-config", response_model=PaymentGatewayConfigResponse)
+    async def get_payment_gateway_config(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> PaymentGatewayConfigResponse:
+        event = await db.scalar(select(Event).where(Event.id == event_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        if actor.role != Role.SUPERADMIN and event.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-tenant access forbidden.")
+
+        conf = await _get_gateway_config(db, event.tenant_id, event.id)
+        return _config_to_response(conf)
+
+    @app.put("/api/v1/registration/events/{event_id}/payment-config", response_model=PaymentGatewayConfigResponse)
+    async def update_payment_gateway_config(
+        event_id: str,
+        payload: UpdatePaymentGatewayConfigRequest,
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> PaymentGatewayConfigResponse:
+        event = await db.scalar(select(Event).where(Event.id == event_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        if actor.role != Role.SUPERADMIN and event.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-tenant access forbidden.")
+
+        conf = await _get_gateway_config(db, event.tenant_id, event.id)
+
+        # Update Mercado Pago fields
+        conf.mp_enabled = payload.mp_enabled
+        conf.mp_public_key = payload.mp_public_key.strip()
+        if payload.mp_access_token and not payload.mp_access_token.startswith("***"):
+            conf.mp_access_token = payload.mp_access_token.strip()
+        if payload.mp_webhook_secret and not payload.mp_webhook_secret.startswith("***"):
+            conf.mp_webhook_secret = payload.mp_webhook_secret.strip()
+        conf.mp_sandbox = payload.mp_sandbox
+
+        # Update Izipay fields
+        conf.izipay_enabled = payload.izipay_enabled
+        conf.izipay_merchant_id = payload.izipay_merchant_id.strip()
+        conf.izipay_public_key = payload.izipay_public_key.strip()
+        if payload.izipay_sha256_key and not payload.izipay_sha256_key.startswith("***"):
+            conf.izipay_sha256_key = payload.izipay_sha256_key.strip()
+        conf.izipay_sandbox = payload.izipay_sandbox
+
+        # Update Yape fields
+        conf.yape_enabled = payload.yape_enabled
+        conf.yape_provider = payload.yape_provider
+        conf.yape_phone_number = payload.yape_phone_number.strip()
+        conf.yape_recipient_name = payload.yape_recipient_name.strip()
+        conf.updated_at = datetime.now(timezone.utc)
+
+        await db.commit()
+        await audit.record(
+            tenant_id=event.tenant_id,
+            service=cfg.service_name,
+            action="PAYMENT_GATEWAY_CONFIG_UPDATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="payment_gateway_config",
+            resource_id=conf.id,
+            metadata={"mp_enabled": conf.mp_enabled, "izipay_enabled": conf.izipay_enabled, "yape_enabled": conf.yape_enabled},
+        )
+        return _config_to_response(conf)
+
+    @app.get("/api/v1/registration/events/{event_id}/public-payment-methods", response_model=PublicPaymentMethodsResponse)
+    async def get_public_payment_methods(
+        event_id: str,
+        db: AsyncSession = Depends(get_db),
+    ) -> PublicPaymentMethodsResponse:
+        """Public endpoint allowing the checkout page to discover available gateways."""
+        event = await db.scalar(select(Event).where(Event.id == event_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+        conf = await _get_gateway_config(db, event.tenant_id, event.id)
+        return PublicPaymentMethodsResponse(
+            mercadopago_enabled=conf.mp_enabled,
+            mp_public_key=conf.mp_public_key,
+            mp_sandbox=conf.mp_sandbox,
+            izipay_enabled=conf.izipay_enabled,
+            izipay_public_key=conf.izipay_public_key,
+            izipay_merchant_id=conf.izipay_merchant_id,
+            izipay_sandbox=conf.izipay_sandbox,
+            yape_enabled=conf.yape_enabled,
+            yape_provider=conf.yape_provider,
+            yape_phone_number=conf.yape_phone_number,
+            yape_recipient_name=conf.yape_recipient_name or event.name,
+            demo_enabled=True,
+        )
+
+    # -------------------------------------------------------------------------
+    # Initiate Payment & Yape Confirmation Endpoints
+    # -------------------------------------------------------------------------
+    @app.post("/api/v1/registration/orders/{order_id}/initiate-payment", response_model=InitiatePaymentResponse)
+    async def initiate_order_payment(
+        order_id: str,
+        payload: InitiatePaymentRequest,
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+    ) -> InitiatePaymentResponse:
+        order = await db.scalar(select(Order).where(Order.id == order_id))
+        if order is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+
+        if order.status == "PAID":
+            return InitiatePaymentResponse(
+                order_id=order.id,
+                event_id=order.event_id,
+                payment_method=order.payment_method,
+                status=order.status,
+                total_cents=order.total_cents,
+                credential_id=order.credential_id,
+                qr_token=order.qr_token,
+            )
+
+        event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        assert event is not None
+        participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
+        assert participant is not None
+        order_items = (await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id))).all()
+
+        base_url = str(request.base_url).rstrip("/")
+        conf = await _get_gateway_config(db, event.tenant_id, event.id)
+        full_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
+        email = pii_crypto.decrypt(participant.email_encrypted, aad=event.id)
+
+        order.payment_method = payload.payment_method
+
+        if payload.payment_method == "MERCADOPAGO":
+            mp_res = await MercadoPagoGateway.create_preference(
+                order, event, list(order_items), full_name, email, conf, base_url
+            )
+            checkout_url = mp_res.get("checkout_url")
+            order.checkout_url = checkout_url
+            order.gateway_response_json = json.dumps(mp_res)
+            await db.commit()
+            return InitiatePaymentResponse(
+                order_id=order.id,
+                event_id=order.event_id,
+                payment_method=payload.payment_method,
+                status=order.status,
+                total_cents=order.total_cents,
+                checkout_url=checkout_url,
+                init_point=mp_res.get("init_point"),
+            )
+
+        if payload.payment_method == "IZIPAY":
+            iz_res = await IzipayGateway.create_payment_session(
+                order, event, list(order_items), full_name, email, participant.dni_last4, conf, base_url
+            )
+            checkout_url = iz_res.get("checkout_url")
+            order.checkout_url = checkout_url
+            order.gateway_response_json = json.dumps(iz_res)
+            await db.commit()
+            return InitiatePaymentResponse(
+                order_id=order.id,
+                event_id=order.event_id,
+                payment_method=payload.payment_method,
+                status=order.status,
+                total_cents=order.total_cents,
+                checkout_url=checkout_url,
+                form_token=iz_res.get("form_token"),
+            )
+
+        if payload.payment_method == "YAPE":
+            yape_info = YapeGateway.generate_yape_details(order, event, conf)
+            order.gateway_response_json = json.dumps(yape_info)
+            await db.commit()
+            return InitiatePaymentResponse(
+                order_id=order.id,
+                event_id=order.event_id,
+                payment_method=payload.payment_method,
+                status=order.status,
+                total_cents=order.total_cents,
+                yape_qr_data=yape_info["yape_qr_data"],
+                yape_phone=yape_info["yape_phone"],
+                yape_recipient=yape_info["yape_recipient"],
+                reference_code=yape_info["reference_code"],
+            )
+
+        # DEMO Mode: instantly approve
+        paid_res = await _complete_paid_order(db, order, f"DEMO-{order.id[:8].upper()}", "DEMO")
+        return InitiatePaymentResponse(
+            order_id=order.id,
+            event_id=order.event_id,
+            payment_method="DEMO",
+            status="PAID",
+            total_cents=order.total_cents,
+            credential_id=paid_res.get("credential_id"),
+            qr_token=paid_res.get("qr_token"),
+        )
+
+    @app.post("/api/v1/registration/orders/{order_id}/confirm-yape")
+    async def confirm_yape_payment(
+        order_id: str,
+        payload: YapeConfirmRequest,
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Confirm a Yape transaction by submitting the operation number."""
+        order = await db.scalar(select(Order).where(Order.id == order_id))
+        if order is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found.")
+
+        op_num = payload.operation_number.strip().upper()
+        res = await _complete_paid_order(db, order, f"YAPE-OP-{op_num}", "YAPE")
+        return {
+            "ok": True,
+            "order_id": order.id,
+            "status": "PAID",
+            "operation_number": op_num,
+            "credential_id": res.get("credential_id"),
+            "qr_token": res.get("qr_token"),
+        }
+
+    # -------------------------------------------------------------------------
+    # Webhooks: Mercado Pago & Izipay
+    # -------------------------------------------------------------------------
+    @app.post("/api/v1/registration/webhooks/mercadopago")
+    async def handle_mercadopago_webhook(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Handle Mercado Pago Webhook / IPN notifications."""
+        body_bytes = await request.body()
+        try:
+            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+        except Exception:
+            body = {}
+
+        action = body.get("action") or body.get("type")
+        data = body.get("data") or {}
+        payment_id = str(data.get("id") or body.get("id") or "")
+
+        # Mercado Pago sends payment notification
+        if payment_id:
+            # Look up order if external_reference is in notification
+            ext_ref = body.get("external_reference") or data.get("external_reference")
+            if ext_ref:
+                order = await db.scalar(select(Order).where(Order.id == ext_ref))
+                if order and order.status != "PAID":
+                    await _complete_paid_order(db, order, f"MP-{payment_id}", "MERCADOPAGO")
+                    return {"ok": True, "status": "processed", "order_id": order.id}
+
+        return {"ok": True, "status": "received"}
+
+    @app.post("/api/v1/registration/webhooks/izipay")
+    async def handle_izipay_webhook(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Handle Izipay IPN notifications."""
+        body_bytes = await request.body()
+        try:
+            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+        except Exception:
+            body = {}
+
+        kr_answer = body.get("kr-answer", {})
+        order_details = kr_answer.get("orderDetails", {})
+        order_id = order_details.get("orderId")
+        order_status = kr_answer.get("orderStatus")
+
+        if order_id and order_status == "PAID":
+            order = await db.scalar(select(Order).where(Order.id == order_id))
+            if order and order.status != "PAID":
+                trans = kr_answer.get("transactions", [{}])[0]
+                tx_uuid = trans.get("uuid") or f"IZI-{int(datetime.now(timezone.utc).timestamp())}"
+                await _complete_paid_order(db, order, f"IZIPAY-{tx_uuid}", "IZIPAY")
+                return {"ok": True, "status": "processed", "order_id": order.id}
+
+        return {"ok": True, "status": "received"}
 
     @app.post("/api/v1/registration/webhooks/payment")
     async def handle_payment_webhook(
@@ -833,66 +1291,7 @@ def create_registration_app(
                 await db.commit()
             return {"order_id": order.id, "status": order.status, "credential_id": None, "qr_token": None}
 
-        for oi in order_items:
-            await db.execute(
-                update(CatalogItem)
-                .where(CatalogItem.id == oi.catalog_item_id)
-                .values(
-                    stock_reserved=CatalogItem.stock_reserved - oi.quantity,
-                    stock_sold=CatalogItem.stock_sold + oi.quantity,
-                )
-            )
-
-        event = await db.scalar(select(Event).where(Event.id == order.event_id))
-        participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
-        assert event is not None and participant is not None
-
-        entitlements: dict[str, int] = defaultdict(int)
-        for oi in order_items:
-            entitlements[oi.item_code] += oi.quantity
-
-        display_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
-        credential_id, qr_token = await _issue_participant_qr(
-            event, display_name, participant.dni_last4, participant.id, order.id, dict(entitlements)
-        )
-
-        order.status = "PAID"
-        order.payment_reference = payload.payment_reference
-        order.paid_at = datetime.now(timezone.utc)
-        order.credential_id = credential_id
-        order.qr_token = qr_token
-        db.add(
-            OutboxEvent(
-                tenant_id=order.tenant_id,
-                event_type="OrderPaid",
-                payload_json=json.dumps(
-                    {
-                        "order_id": order.id,
-                        "event_id": order.event_id,
-                        "credential_id": credential_id,
-                        "entitlements": dict(entitlements),
-                    }
-                ),
-                published=True,
-            )
-        )
-        await db.commit()
-        await audit.record(
-            tenant_id=order.tenant_id,
-            service=cfg.service_name,
-            action="ORDER_PAID_QR_ISSUED",
-            actor_id=participant.id,
-            actor_role="PARTICIPANT",
-            resource_type="order",
-            resource_id=order.id,
-            metadata={"credential_id": credential_id, "entitlements": dict(entitlements)},
-        )
-        return {
-            "order_id": order.id,
-            "status": order.status,
-            "credential_id": credential_id,
-            "qr_token": qr_token,
-        }
+        return await _complete_paid_order(db, order, payload.payment_reference)
 
     @app.get("/api/v1/registration/orders/{order_id}", response_model=OrderResponse)
     async def get_order_by_dni(

@@ -146,6 +146,13 @@
               <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
             </button>
           </div>
+
+          <div class="ep-section-label">Finanzas y Configuración</div>
+          <div class="d-grid gap-1">
+            <button type="button" class="ep-nav-btn" data-tab="payments" onclick="switchTab('payments', this)">
+              <i class="bi bi-credit-card-2-front text-warning"></i> 8. Pasarelas de Pago
+            </button>
+          </div>
         </div>
 
         <div class="pt-3 mt-4 border-top border-secondary-subtle">
@@ -546,6 +553,156 @@
             <div class="table-responsive"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Tipo</th><th>Ciudadano</th><th>DNI</th><th>Detalle</th><th>Fecha</th></tr></thead><tbody id="complaintsTable"><tr><td colspan="6" class="text-secondary">Sin reclamos</td></tr></tbody></table></div>
           </div>
         </section>
+
+        <!-- TAB 8: PASARELAS DE PAGO (MERCADO PAGO, IZIPAY, YAPE) -->
+        <section id="tab-payments" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-credit-card-2-front text-warning me-2"></i>Pasarelas de Pago (Mercado Pago, Izipay & Yape)</h2>
+              <small class="text-secondary">Configura las credenciales de cobro oficiales para procesar ventas de entradas en Soles (PEN).</small>
+            </div>
+            <button type="button" class="btn btn-outline-info btn-sm" onclick="loadPaymentGatewayConfig()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refrescar
+            </button>
+          </div>
+
+          <form onsubmit="event.preventDefault(); savePaymentGatewayConfig();">
+            <div class="row g-3">
+              <!-- MERCADO PAGO PERU -->
+              <div class="col-lg-6">
+                <div class="ep-card p-3 h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="fs-4">💳</span>
+                      <div>
+                        <h5 class="h6 fw-bold mb-0 text-white">Mercado Pago Perú</h5>
+                        <small class="text-secondary">Tarjetas de crédito/débito y Checkout Pro</small>
+                      </div>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" id="mpEnabled" />
+                      <label class="form-check-label small" for="mpEnabled">Activo</label>
+                    </div>
+                  </div>
+
+                  <div class="mb-2">
+                    <label class="form-label small">Public Key (Clave Pública)</label>
+                    <input id="mpPublicKey" class="form-control form-control-sm mono" placeholder="APP_USR-xxxx o TEST-xxxx" />
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small">Access Token (Clave Privada)</label>
+                    <div class="input-group input-group-sm">
+                      <input id="mpAccessToken" type="password" class="form-control mono" placeholder="APP_USR-xxxx o TEST-xxxx" />
+                      <button class="btn btn-outline-secondary" type="button" onclick="toggleSecretVisibility('mpAccessToken')"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="form-text text-secondary small" id="mpTokenHint"></div>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small">Webhook Secret (HMAC Secret - Opcional)</label>
+                    <input id="mpWebhookSecret" type="password" class="form-control form-control-sm mono" placeholder="Secreto de firma para IPN" />
+                  </div>
+                  <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="mpSandbox" checked />
+                    <label class="form-check-label small text-warning" for="mpSandbox">Modo Sandbox / Pruebas (Test Credentials)</label>
+                  </div>
+                  <div class="small text-secondary bg-dark bg-opacity-50 p-2 rounded border border-secondary border-opacity-25 mt-3">
+                    <div class="fw-semibold text-info mb-1"><i class="bi bi-info-circle me-1"></i>URL de Webhook para Mercado Pago:</div>
+                    <code class="small text-white" id="mpWebhookUrlDisplay">/api/v1/registration/webhooks/mercadopago</code>
+                  </div>
+                </div>
+              </div>
+
+              <!-- IZIPAY PERU -->
+              <div class="col-lg-6">
+                <div class="ep-card p-3 h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="fs-4">⚡</span>
+                      <div>
+                        <h5 class="h6 fw-bold mb-0 text-white">Izipay Perú (Online)</h5>
+                        <small class="text-secondary">Tarjetas Visa, Mastercard, Amex y Yape integrado</small>
+                      </div>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" id="izipayEnabled" />
+                      <label class="form-check-label small" for="izipayEnabled">Activo</label>
+                    </div>
+                  </div>
+
+                  <div class="mb-2">
+                    <label class="form-label small">Merchant / Shop ID (Identificador de Comercio)</label>
+                    <input id="izipayMerchantId" class="form-control form-control-sm mono" placeholder="Ej. 12345678" />
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small">Public Key (Clave Pública de API)</label>
+                    <input id="izipayPublicKey" class="form-control form-control-sm mono" placeholder="12345678:testpublickey_xxxx" />
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small">Clave SHA-256 HMAC (Clave Secreta para IPN)</label>
+                    <div class="input-group input-group-sm">
+                      <input id="izipaySha256Key" type="password" class="form-control mono" placeholder="testpassword_xxxx o prodpassword_xxxx" />
+                      <button class="btn btn-outline-secondary" type="button" onclick="toggleSecretVisibility('izipaySha256Key')"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="form-text text-secondary small" id="izipayKeyHint"></div>
+                  </div>
+                  <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="izipaySandbox" checked />
+                    <label class="form-check-label small text-warning" for="izipaySandbox">Modo Sandbox / Pruebas Izipay</label>
+                  </div>
+                  <div class="small text-secondary bg-dark bg-opacity-50 p-2 rounded border border-secondary border-opacity-25 mt-3">
+                    <div class="fw-semibold text-info mb-1"><i class="bi bi-info-circle me-1"></i>URL de Notificación IPN para Izipay:</div>
+                    <code class="small text-white" id="izipayWebhookUrlDisplay">/api/v1/registration/webhooks/izipay</code>
+                  </div>
+                </div>
+              </div>
+
+              <!-- YAPE PERU -->
+              <div class="col-12">
+                <div class="ep-card p-3">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="fs-4">🟣</span>
+                      <div>
+                        <h5 class="h6 fw-bold mb-0 text-white">Opción de Pago con Yape (Perú)</h5>
+                        <small class="text-secondary">Cobro directo por app Yape con QR dinámico o integración Izipay/Mercado Pago</small>
+                      </div>
+                    </div>
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" id="yapeEnabled" checked />
+                      <label class="form-check-label small" for="yapeEnabled">Activo</label>
+                    </div>
+                  </div>
+
+                  <div class="row g-2">
+                    <div class="col-md-4">
+                      <label class="form-label small">Modalidad de Yape</label>
+                      <select id="yapeProvider" class="form-select form-select-sm">
+                        <option value="IZIPAY">⚡ Vía Izipay Yape (Automático con API)</option>
+                        <option value="MERCADOPAGO">💳 Vía Mercado Pago Yape</option>
+                        <option value="DIRECT_QR">📲 QR Dinámico con Verificación de N° Operación</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Número de Celular Yape (Opcional para QR Directo)</label>
+                      <input id="yapePhoneNumber" class="form-control form-control-sm" placeholder="Ej. 987654321" />
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Nombre del Titular de la Cuenta Yape</label>
+                      <input id="yapeRecipientName" class="form-control form-control-sm" placeholder="Ej. Empresa Productora S.A.C." />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+              <button type="submit" id="btnSaveGateways" class="btn btn-warning fw-semibold">
+                <i class="bi bi-check2-circle me-1"></i>Guardar Configuración de Pasarelas
+              </button>
+              <div id="gwSaveMsg"></div>
+            </div>
+          </form>
+        </section>
       </main>
     </div>
   </div>
@@ -783,6 +940,85 @@
       if (tabName === "bulk") loadBulkJobs();
       if (tabName === "staff") loadCompanies();
       if (tabName === "team") { loadTeamUsers(); loadAuditLogs(); loadComplaints(); }
+      if (tabName === "payments") loadPaymentGatewayConfig();
+    }
+
+    function toggleSecretVisibility(inputId) {
+      const el = document.getElementById(inputId);
+      if (el) el.type = el.type === "password" ? "text" : "password";
+    }
+
+    async function loadPaymentGatewayConfig() {
+      const eid = currentEventId();
+      if (!eid) return;
+      try {
+        const fullOrigin = window.location.origin;
+        const mpDisp = document.getElementById("mpWebhookUrlDisplay");
+        if (mpDisp) mpDisp.textContent = `${fullOrigin}/api/v1/registration/webhooks/mercadopago`;
+        const iziDisp = document.getElementById("izipayWebhookUrlDisplay");
+        if (iziDisp) iziDisp.textContent = `${fullOrigin}/api/v1/registration/webhooks/izipay`;
+
+        const conf = await EP.api(`/api/v1/registration/events/${eid}/payment-config`);
+        document.getElementById("mpEnabled").checked = !!conf.mp_enabled;
+        document.getElementById("mpPublicKey").value = conf.mp_public_key || "";
+        document.getElementById("mpAccessToken").value = conf.mp_token_masked || "";
+        document.getElementById("mpTokenHint").textContent = conf.mp_has_token ? `Clave guardada: ${conf.mp_token_masked}` : "No configurado";
+        document.getElementById("mpSandbox").checked = !!conf.mp_sandbox;
+
+        document.getElementById("izipayEnabled").checked = !!conf.izipay_enabled;
+        document.getElementById("izipayMerchantId").value = conf.izipay_merchant_id || "";
+        document.getElementById("izipayPublicKey").value = conf.izipay_public_key || "";
+        document.getElementById("izipaySha256Key").value = conf.izipay_has_sha256_key ? "***" : "";
+        document.getElementById("izipayKeyHint").textContent = conf.izipay_has_sha256_key ? "Clave SHA-256 configurada en el servidor" : "No configurado";
+        document.getElementById("izipaySandbox").checked = !!conf.izipay_sandbox;
+
+        document.getElementById("yapeEnabled").checked = !!conf.yape_enabled;
+        document.getElementById("yapeProvider").value = conf.yape_provider || "IZIPAY";
+        document.getElementById("yapePhoneNumber").value = conf.yape_phone_number || "";
+        document.getElementById("yapeRecipientName").value = conf.yape_recipient_name || "";
+      } catch (err) {
+        EP.showMsg("gwSaveMsg", "err", err.message);
+      }
+    }
+
+    async function savePaymentGatewayConfig() {
+      const eid = currentEventId();
+      if (!eid) return EP.showMsg("gwSaveMsg", "err", "Selecciona un evento primero.");
+
+      setBtnLoading("btnSaveGateways", true, "Guardando...");
+      try {
+        const payload = {
+          mp_enabled: document.getElementById("mpEnabled").checked,
+          mp_public_key: document.getElementById("mpPublicKey").value.trim(),
+          mp_access_token: document.getElementById("mpAccessToken").value.trim(),
+          mp_webhook_secret: document.getElementById("mpWebhookSecret").value.trim(),
+          mp_sandbox: document.getElementById("mpSandbox").checked,
+
+          izipay_enabled: document.getElementById("izipayEnabled").checked,
+          izipay_merchant_id: document.getElementById("izipayMerchantId").value.trim(),
+          izipay_public_key: document.getElementById("izipayPublicKey").value.trim(),
+          izipay_sha256_key: document.getElementById("izipaySha256Key").value.trim(),
+          izipay_sandbox: document.getElementById("izipaySandbox").checked,
+
+          yape_enabled: document.getElementById("yapeEnabled").checked,
+          yape_provider: document.getElementById("yapeProvider").value,
+          yape_phone_number: document.getElementById("yapePhoneNumber").value.trim(),
+          yape_recipient_name: document.getElementById("yapeRecipientName").value.trim(),
+        };
+
+        const res = await EP.api(`/api/v1/registration/events/${eid}/payment-config`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+
+        EP.showMsg("gwSaveMsg", "ok", "Pasarelas de pago (Mercado Pago, Izipay y Yape) guardadas correctamente.");
+        EP.toast("Configuración de pasarelas guardada.");
+        await loadPaymentGatewayConfig();
+      } catch (err) {
+        EP.showMsg("gwSaveMsg", "err", err.message);
+      } finally {
+        setBtnLoading("btnSaveGateways", false);
+      }
     }
 
     function currentEventId() {
@@ -798,6 +1034,7 @@
       else if (tab === "guestlist") await loadGuestList();
       else if (tab === "bulk") await loadBulkJobs();
       else if (tab === "staff") await loadCompanies();
+      else if (tab === "payments") await loadPaymentGatewayConfig();
     }
 
     function refreshSession() {

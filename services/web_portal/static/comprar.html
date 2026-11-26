@@ -163,18 +163,34 @@
             <div class="ep-card p-3">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <h3 class="h6 fw-bold mb-0">Método de Pago</h3>
-                <span class="badge text-bg-success bg-opacity-25 text-success">HMAC-SHA256</span>
+                <span class="badge text-bg-success bg-opacity-25 text-success">Perú 🇵🇪</span>
               </div>
-              <div class="row g-2 mb-3">
-                <div class="col-6"><div class="ep-pay-option active" data-pm="MERCADOPAGO" onclick="selectPayMethod(this)"><i class="bi bi-credit-card me-1"></i>Tarjeta / MP</div></div>
-                <div class="col-6"><div class="ep-pay-option" data-pm="YAPE_PLIN" onclick="selectPayMethod(this)"><i class="bi bi-phone me-1"></i>Yape / Plin</div></div>
-                <div class="col-6"><div class="ep-pay-option" data-pm="PAYPAL" onclick="selectPayMethod(this)"><i class="bi bi-wallet2 me-1"></i>PayPal</div></div>
-                <div class="col-6"><div class="ep-pay-option" data-pm="DEMO" onclick="selectPayMethod(this)"><i class="bi bi-lightning me-1"></i>Pasarela Demo</div></div>
+              <div class="row g-2 mb-3" id="payOptionsGrid">
+                <div class="col-6" id="opt-mercadopago">
+                  <div class="ep-pay-option active" data-pm="MERCADOPAGO" onclick="selectPayMethod(this)">
+                    <i class="bi bi-credit-card me-1 text-primary"></i>Mercado Pago
+                  </div>
+                </div>
+                <div class="col-6" id="opt-izipay">
+                  <div class="ep-pay-option" data-pm="IZIPAY" onclick="selectPayMethod(this)">
+                    <i class="bi bi-shield-lock me-1 text-danger"></i>Izipay Online
+                  </div>
+                </div>
+                <div class="col-6" id="opt-yape">
+                  <div class="ep-pay-option" data-pm="YAPE" onclick="selectPayMethod(this)">
+                    <i class="bi bi-phone-fill me-1" style="color:#a855f7;"></i>Yape Directo
+                  </div>
+                </div>
+                <div class="col-6" id="opt-demo">
+                  <div class="ep-pay-option" data-pm="DEMO" onclick="selectPayMethod(this)">
+                    <i class="bi bi-lightning-charge-fill me-1 text-warning"></i>Modo Demo
+                  </div>
+                </div>
               </div>
               <button class="btn btn-primary w-100 fw-semibold" id="confirmBtn" onclick="confirmAndPay()">
-                <i class="bi bi-lock-fill me-1"></i>Confirmar y Generar QR
+                <i class="bi bi-lock-fill me-1"></i>Confirmar y Pagar
               </button>
-              <div id="buyerMsg"></div>
+              <div id="buyerMsg" class="mt-2"></div>
             </div>
           </div>
         </div>
@@ -293,6 +309,67 @@
             <a class="btn btn-outline-info" href="/validar">
               <i class="bi bi-upc-scan me-1"></i>Validar en Consola de Puerta
             </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yape Modal -->
+  <div class="modal fade" id="yapeModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-secondary text-center p-3">
+        <div class="modal-header border-secondary-subtle pb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge fw-bold" style="background:#742284; color:white; font-size:1.05rem; padding:5px 12px; border-radius:8px;">Yape</span>
+            <h5 class="modal-title fw-bold mb-0">Pagar con Yape Directo</h5>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <p class="text-secondary small mb-3">Escanea el código QR desde tu app Yape o transfiere al número indicado:</p>
+          
+          <!-- Dynamic Yape QR Canvas/Image -->
+          <div class="bg-white p-3 rounded-4 d-inline-block shadow-lg mb-3">
+            <img id="yapeQrImg" src="" alt="Yape QR" style="width:200px; height:200px; display:block;" />
+          </div>
+
+          <div class="card bg-secondary bg-opacity-10 border border-secondary border-opacity-50 p-3 text-start mb-3">
+            <div class="d-flex justify-content-between align-items-center py-1">
+              <span class="text-secondary small">Titular:</span>
+              <strong class="text-white" id="yapeRecipientName">—</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center py-1">
+              <span class="text-secondary small">Número Celular:</span>
+              <div class="d-flex align-items-center gap-2">
+                <strong class="text-info mono fs-5" id="yapePhoneNumber">—</strong>
+                <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="copyYapePhone()" title="Copiar"><i class="bi bi-clipboard"></i></button>
+              </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center py-1 border-top border-secondary border-opacity-25 mt-1 pt-2">
+              <span class="text-secondary small">Monto Exacto:</span>
+              <strong class="text-warning fs-4" id="yapeTotalAmount">S/ 0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between align-items-center py-1">
+              <span class="text-secondary small">Código de Ref:</span>
+              <strong class="mono text-white badge bg-dark border border-secondary" id="yapeRefCode">EP-0000</strong>
+            </div>
+          </div>
+
+          <div class="text-start mb-3">
+            <label class="form-label small text-white fw-semibold mb-1">
+              Ingresa el Número de Operación de Yape:
+            </label>
+            <input type="text" id="yapeOpInput" class="form-control text-center mono fs-4 fw-bold" placeholder="Ej. 123456" maxlength="12" />
+            <div class="form-text small text-secondary">Aparece en la constancia de pago de tu app Yape (6 a 8 dígitos).</div>
+          </div>
+
+          <div id="yapeMsg" class="mb-3"></div>
+
+          <div class="d-grid gap-2">
+            <button class="btn fw-semibold py-2 fs-6" style="background:#742284; color:white;" id="confirmYapeBtn" onclick="submitYapeConfirmation()">
+              <i class="bi bi-check-circle-fill me-1"></i>Confirmar Pago y Emitir Entrada
+            </button>
           </div>
         </div>
       </div>
@@ -431,6 +508,7 @@
         ).join("");
         renderCatalog();
         renderSummary();
+        await loadPaymentMethods(eventId);
       } catch (e) {
         document.getElementById("catalogContainer").innerHTML = `<div class="text-danger small">${EP.escapeHtml(e.message)}</div>`;
       }
@@ -607,42 +685,200 @@
       new bootstrap.Modal(document.getElementById("ticketModal")).show();
     }
 
+    let currentPaymentMethods = null;
+    let currentPendingOrderId = null;
+    let currentPendingOrderDni = "";
+    let currentPendingOrderCodes = "";
+
+    async function loadPaymentMethods(eventId) {
+      if (!eventId) return;
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/public-payment-methods`, { auth: false });
+        currentPaymentMethods = res;
+
+        const optMp = document.getElementById("opt-mercadopago");
+        const optIz = document.getElementById("opt-izipay");
+        const optYape = document.getElementById("opt-yape");
+        const optDemo = document.getElementById("opt-demo");
+
+        if (optMp) optMp.style.display = res.mercadopago_enabled ? "block" : "none";
+        if (optIz) optIz.style.display = res.izipay_enabled ? "block" : "none";
+        if (optYape) optYape.style.display = res.yape_enabled ? "block" : "none";
+        if (optDemo) optDemo.style.display = res.demo_enabled !== false ? "block" : "none";
+
+        const available = [];
+        if (res.mercadopago_enabled) available.push("MERCADOPAGO");
+        if (res.yape_enabled) available.push("YAPE");
+        if (res.izipay_enabled) available.push("IZIPAY");
+        available.push("DEMO");
+
+        if (!available.includes(selectedPayMethod)) {
+          selectedPayMethod = available[0] || "DEMO";
+          document.querySelectorAll(".ep-pay-option").forEach(el => {
+            el.classList.toggle("active", el.dataset.pm === selectedPayMethod);
+          });
+        }
+      } catch (err) {
+        console.warn("Could not load gateway config:", err);
+      }
+    }
+
     async function confirmAndPay() {
       const eventId = document.getElementById("buyerEventSelect").value;
       const items = Object.entries(quantities).filter(([, q]) => q > 0).map(([item_id, quantity]) => ({ item_id, quantity }));
       if (!eventId || !items.length) return EP.showMsg("buyerMsg", "err", "Selecciona un evento y al menos 1 entrada.");
 
+      const dniVal = document.getElementById("buyerDni").value.trim();
+      const nameVal = document.getElementById("buyerName").value.trim();
+      const emailVal = document.getElementById("buyerEmail").value.trim();
+      if (!dniVal || !nameVal || !emailVal) return EP.showMsg("buyerMsg", "err", "Por favor completa tu DNI, Nombre completo y Correo.");
+
       const btn = document.getElementById("confirmBtn");
       btn.disabled = true;
-      btn.textContent = "Procesando...";
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Procesando...`;
       try {
         const order = await EP.api(`/api/v1/registration/events/${eventId}/orders`, {
           method: "POST",
           auth: false,
           headers: { "Idempotency-Key": `ui-${EP.uuid()}` },
           body: JSON.stringify({
-            dni: document.getElementById("buyerDni").value,
-            full_name: document.getElementById("buyerName").value,
-            email: document.getElementById("buyerEmail").value,
+            dni: dniVal,
+            full_name: nameVal,
+            email: emailVal,
             payment_method: selectedPayMethod,
             items,
           }),
         });
         startCountdown(600);
-        const paid = await EP.api("/bff/simulate-payment", {
+        currentPendingOrderId = order.order_id;
+        currentPendingOrderDni = order.dni_last4;
+        currentPendingOrderCodes = catalogItems.filter(i => (quantities[i.id] || 0) > 0).map(i => `${quantities[i.id]}× ${i.code}`).join(" · ");
+
+        // Initiate payment session with gateway
+        const initRes = await EP.api(`/api/v1/registration/orders/${order.order_id}/initiate-payment`, {
           method: "POST",
           auth: false,
-          body: JSON.stringify({ order_id: order.order_id, payment_reference: `GW-${Date.now()}`, status: "PAID" }),
+          body: JSON.stringify({ payment_method: selectedPayMethod }),
         });
-        const boughtCodes = catalogItems.filter(i => (quantities[i.id] || 0) > 0).map(i => `${quantities[i.id]}× ${i.code}`).join(" · ");
-        await showIssuedTicket(paid.qr_token, boughtCodes, paid.credential_id, `DNI ${order.dni_last4}`);
-        EP.toast("Compra confirmada. Ticket QR emitido.");
-        await loadCatalog();
+
+        // 1. If already PAID (DEMO mode or instant completion)
+        if (initRes.status === "PAID" && initRes.qr_token) {
+          await showIssuedTicket(initRes.qr_token, currentPendingOrderCodes, initRes.credential_id, `DNI ${order.dni_last4}`);
+          EP.toast("¡Compra exitosa! Tu entrada digital QR ha sido emitida.");
+          await loadCatalog();
+          return;
+        }
+
+        // 2. YAPE Directo
+        if (selectedPayMethod === "YAPE") {
+          document.getElementById("yapeRecipientName").textContent = initRes.yape_recipient || "EVENTPASS";
+          document.getElementById("yapePhoneNumber").textContent = initRes.yape_phone || "999 999 999";
+          document.getElementById("yapeTotalAmount").textContent = `S/ ${(initRes.total_cents / 100).toFixed(2)}`;
+          document.getElementById("yapeRefCode").textContent = initRes.reference_code || `EP-${order.order_id.slice(0,6).toUpperCase()}`;
+          document.getElementById("yapeOpInput").value = "";
+          document.getElementById("yapeMsg").innerHTML = "";
+
+          if (initRes.yape_qr_data) {
+            const qrDataUrl = await EP.renderQrDataUrl(initRes.yape_qr_data);
+            document.getElementById("yapeQrImg").src = qrDataUrl;
+          }
+
+          new bootstrap.Modal(document.getElementById("yapeModal")).show();
+          return;
+        }
+
+        // 3. MERCADO PAGO
+        if (selectedPayMethod === "MERCADOPAGO") {
+          if (initRes.checkout_url) {
+            const win = window.open(initRes.checkout_url, "_blank");
+            if (!win) window.location.href = initRes.checkout_url;
+            EP.toast("Redirigiendo a Mercado Pago para completar tu pago...");
+          } else {
+            // Simulated fallback
+            const paid = await EP.api("/bff/simulate-payment", {
+              method: "POST",
+              auth: false,
+              body: JSON.stringify({ order_id: order.order_id, payment_reference: `MP-${Date.now()}`, status: "PAID" }),
+            });
+            await showIssuedTicket(paid.qr_token, currentPendingOrderCodes, paid.credential_id, `DNI ${order.dni_last4}`);
+            EP.toast("Pago Mercado Pago procesado (Sandbox). Ticket emitido.");
+            await loadCatalog();
+          }
+          return;
+        }
+
+        // 4. IZIPAY
+        if (selectedPayMethod === "IZIPAY") {
+          if (initRes.checkout_url) {
+            const win = window.open(initRes.checkout_url, "_blank");
+            if (!win) window.location.href = initRes.checkout_url;
+            EP.toast("Redirigiendo a pasarela Izipay Online...");
+          } else {
+            // Simulated fallback
+            const paid = await EP.api("/bff/simulate-payment", {
+              method: "POST",
+              auth: false,
+              body: JSON.stringify({ order_id: order.order_id, payment_reference: `IZI-${Date.now()}`, status: "PAID" }),
+            });
+            await showIssuedTicket(paid.qr_token, currentPendingOrderCodes, paid.credential_id, `DNI ${order.dni_last4}`);
+            EP.toast("Pago Izipay procesado (Sandbox). Ticket emitido.");
+            await loadCatalog();
+          }
+          return;
+        }
+
       } catch (e) {
         EP.showMsg("buyerMsg", "err", e.message);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Confirmar y Generar QR`;
+        btn.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Confirmar y Pagar`;
+      }
+    }
+
+    async function submitYapeConfirmation() {
+      if (!currentPendingOrderId) return;
+      const opInput = document.getElementById("yapeOpInput");
+      const op = opInput.value.trim();
+      if (!op || op.length < 4) {
+        return EP.showMsg("yapeMsg", "err", "Por favor ingresa un número de operación válido (mínimo 4 dígitos).");
+      }
+
+      const btn = document.getElementById("confirmYapeBtn");
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Validando pago...`;
+
+      try {
+        const res = await EP.api(`/api/v1/registration/orders/${currentPendingOrderId}/confirm-yape`, {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ operation_number: op }),
+        });
+
+        // Close Yape modal
+        bootstrap.Modal.getInstance(document.getElementById("yapeModal"))?.hide();
+
+        // Show ticket
+        await showIssuedTicket(
+          res.qr_token,
+          currentPendingOrderCodes || "ENTRADA",
+          res.credential_id,
+          `DNI ${currentPendingOrderDni}`
+        );
+
+        EP.toast("¡Pago con Yape validado con éxito! Ticket QR emitido.");
+        await loadCatalog();
+      } catch (e) {
+        EP.showMsg("yapeMsg", "err", e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i>Confirmar Pago y Emitir Entrada`;
+      }
+    }
+
+    function copyYapePhone() {
+      const phone = document.getElementById("yapePhoneNumber").textContent.replace(/\s+/g, "");
+      if (phone) {
+        navigator.clipboard.writeText(phone).then(() => EP.toast("Número celular copiado."));
       }
     }
 

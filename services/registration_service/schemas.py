@@ -213,3 +213,88 @@ class ComplaintCreateRequest(StrictModel):
     email: str = Field(min_length=5, max_length=255)
     claim_type: str = Field(pattern=r"^(RECLAMO|QUEJA)$")
     detail: str = Field(min_length=10, max_length=2000)
+
+
+class UpdatePaymentGatewayConfigRequest(StrictModel):
+    # Mercado Pago
+    mp_enabled: bool = False
+    mp_public_key: str = Field(default="", max_length=255)
+    mp_access_token: str = Field(default="", max_length=255)
+    mp_webhook_secret: str = Field(default="", max_length=255)
+    mp_sandbox: bool = True
+
+    # Izipay
+    izipay_enabled: bool = False
+    izipay_merchant_id: str = Field(default="", max_length=100)
+    izipay_public_key: str = Field(default="", max_length=255)
+    izipay_sha256_key: str = Field(default="", max_length=255)
+    izipay_sandbox: bool = True
+
+    # Yape
+    yape_enabled: bool = True
+    yape_provider: str = Field(default="IZIPAY", pattern=r"^(IZIPAY|MERCADOPAGO|DIRECT_QR|DIRECT)$")
+    yape_phone_number: str = Field(default="", max_length=30)
+    yape_recipient_name: str = Field(default="", max_length=120)
+
+
+class PaymentGatewayConfigResponse(BaseModel):
+    tenant_id: str
+    event_id: str | None = None
+    mp_enabled: bool
+    mp_public_key: str
+    mp_has_token: bool
+    mp_token_masked: str
+    mp_has_webhook_secret: bool
+    mp_sandbox: bool
+    izipay_enabled: bool
+    izipay_merchant_id: str
+    izipay_public_key: str
+    izipay_has_sha256_key: bool
+    izipay_sandbox: bool
+    yape_enabled: bool
+    yape_provider: str
+    yape_phone_number: str
+    yape_recipient_name: str
+    updated_at: datetime | None = None
+
+
+class PublicPaymentMethodsResponse(BaseModel):
+    mercadopago_enabled: bool
+    mp_public_key: str
+    mp_sandbox: bool
+    izipay_enabled: bool
+    izipay_public_key: str
+    izipay_merchant_id: str
+    izipay_sandbox: bool
+    yape_enabled: bool
+    yape_provider: str
+    yape_phone_number: str
+    yape_recipient_name: str
+    demo_enabled: bool
+
+
+class InitiatePaymentRequest(StrictModel):
+    payment_method: str = Field(pattern=r"^(MERCADOPAGO|IZIPAY|YAPE|DEMO)$")
+    return_url: str | None = None
+
+
+class InitiatePaymentResponse(BaseModel):
+    order_id: str
+    event_id: str
+    payment_method: str
+    status: str
+    total_cents: int
+    checkout_url: str | None = None
+    init_point: str | None = None
+    form_token: str | None = None
+    yape_qr_data: str | None = None
+    yape_phone: str | None = None
+    yape_recipient: str | None = None
+    reference_code: str | None = None
+    credential_id: str | None = None
+    qr_token: str | None = None
+
+
+class YapeConfirmRequest(StrictModel):
+    operation_number: str = Field(min_length=4, max_length=40)
+

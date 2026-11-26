@@ -222,6 +222,17 @@ class EventPassAssistant:
                     }
                 return await self._handle_toggle_event(client, headers, text, current_event_id, current_event_name)
 
+            # 16. CONSULTAR O CONFIGURAR PASARELAS DE PAGO
+            if any(k in text for k in ["pasarela", "pasarelas", "metodos de pago", "izipay", "mercadopago", "yape"]):
+                if not current_event_id:
+                    return {
+                        "ok": False,
+                        "reply": "⚠️ Selecciona un evento para consultar sus pasarelas de pago.",
+                        "action_taken": "NOOP",
+                        "refresh_needed": False,
+                    }
+                return await self._handle_payment_gateways(client, headers, current_event_id, current_event_name)
+
             # Si no coincide con un comando conocido, dar respuesta contextual de la plataforma
             return {
                 "ok": True,
@@ -1008,3 +1019,43 @@ class EventPassAssistant:
                 "refresh_needed": False,
             }
         return {"ok": False, "reply": "No pude cargar métricas de SuperAdmin.", "action_taken": "ERROR", "refresh_needed": False}
+
+    async def _handle_payment_gateways(
+        self, client: httpx.AsyncClient, headers: dict[str, str], event_id: str, event_name: str
+    ) -> dict[str, Any]:
+        """Query and display active payment gateways for the event/tenant."""
+        res = await client.get(
+            f"{self.reg_url}/api/v1/registration/events/{event_id}/payment-config",
+            headers=headers,
+        )
+        if res.status_code != 200:
+            return {
+                "ok": False,
+                "reply": f"⚠️ No pude consultar la configuración de pasarelas del evento {event_name}: {res.text}",
+                "action_taken": "ERROR",
+                "refresh_needed": False,
+            }
+        cfg = res.json()
+        mp_status = "✅ Habilitado" if cfg.get("mp_enabled") else "❌ Deshabilitado"
+        mp_env = "Sandbox (Pruebas)" if cfg.get("mp_sandbox") else "Producción"
+        iz_status = "✅ Habilitado" if cfg.get("izipay_enabled") else "❌ Deshabilitado"
+        iz_env = "Sandbox" if cfg.get("izipay_sandbox") else "Producción"
+        yape_status = "✅ Habilitado" if cfg.get("yape_enabled") else "❌ Deshabilitado"
+        yape_num = cfg.get("yape_phone_number") or "No configurado"
+        yape_recip = cfg.get("yape_recipient_name") or "Por defecto"
+
+        reply = (
+            f"💳 **Pasarelas de Pago — Evento: {event_name}**\n\n"
+            f"• **Mercado Pago:** {mp_status} ({mp_env})\n"
+            f"• **Izipay Online:** {iz_status} ({iz_env})\n"
+            f"• **Yape Directo:** {yape_status} (Número: `{yape_num}`, Titular: {yape_recip})\n"
+            f"• **Pasarela Demo:** ✅ Activa para pruebas locales\n\n"
+            f"Puedes ajustar credenciales (Access Tokens, Keys, HMAC) en la pestaña **8. Pasarelas de Pago** del panel de administración."
+        )
+        return {
+            "ok": True,
+            "reply": reply,
+            "action_taken": "PAYMENT_GATEWAYS_CHECK",
+            "refresh_needed": False,
+            "data": cfg,
+        }
