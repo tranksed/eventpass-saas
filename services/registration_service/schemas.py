@@ -76,6 +76,13 @@ class CreateCatalogItemRequest(StrictModel):
     stock_total: int = Field(ge=1, le=1_000_000)
 
 
+class UpdateCatalogItemRequest(StrictModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    item_type: ItemType | None = None
+    price_cents: int | None = Field(default=None, ge=0)
+    stock_total: int | None = Field(default=None, ge=0, le=1_000_000)
+
+
 class CatalogItemResponse(BaseModel):
     id: str
     event_id: str
@@ -83,6 +90,9 @@ class CatalogItemResponse(BaseModel):
     name: str
     item_type: ItemType
     price_cents: int
+    stock_total: int = 0
+    stock_sold: int = 0
+    stock_reserved: int = 0
     stock_available: int
 
 

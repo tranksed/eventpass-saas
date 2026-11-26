@@ -255,6 +255,32 @@ async def test_full_multitenant_security_quotas_payment_and_offline_sync(saas_cl
         )
     ).json()
 
+    # 3.1 Edit catalog item (Admin / Supervisor) & delete unused item
+    update_res = await reg.patch(
+        f"/api/v1/registration/events/{event_id}/items/{entry_item['id']}",
+        headers=_bearer(admin_a_token),
+        json={"name": "General Entry VIP", "price_cents": 5500, "stock_total": 120},
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["name"] == "General Entry VIP"
+    assert update_res.json()["price_cents"] == 5500
+    assert update_res.json()["stock_total"] == 120
+    assert update_res.json()["stock_available"] == 120
+
+    temp_item = (
+        await reg.post(
+            f"/api/v1/registration/events/{event_id}/items",
+            headers=_bearer(admin_a_token),
+            json={"code": "TEMP_BADGE", "name": "Temporary Badge", "item_type": "ENTRY", "price_cents": 1000, "stock_total": 10},
+        )
+    ).json()
+    del_res = await reg.delete(
+        f"/api/v1/registration/events/{event_id}/items/{temp_item['id']}",
+        headers=_bearer(admin_a_token),
+    )
+    assert del_res.status_code == 200
+    assert del_res.json()["status"] == "deleted"
+
     # 4. Participant purchases ENTRY + PHOTO + SIGNATURE (Idempotency & DNI limit)
     order_req = {
         "dni": "71234567",
@@ -318,6 +344,23 @@ async def test_full_multitenant_security_quotas_payment_and_offline_sync(saas_cl
     # Anti-IDOR check on order lookup
     assert (await reg.get(f"/api/v1/registration/orders/{order_id}?dni=99999999")).status_code == 403
     assert (await reg.get(f"/api/v1/registration/orders/{order_id}?dni=71234567")).status_code == 200
+
+    # Cannot delete sold item (returns 409)
+    assert (
+        await reg.delete(
+            f"/api/v1/registration/events/{event_id}/items/{entry_item['id']}",
+            headers=_bearer(admin_a_token),
+        )
+    ).status_code == 409
+
+    # Cannot reduce stock_total below already sold quantity (returns 409)
+    assert (
+        await reg.patch(
+            f"/api/v1/registration/events/{event_id}/items/{entry_item['id']}",
+            headers=_bearer(admin_a_token),
+            json={"stock_total": 0},
+        )
+    ).status_code == 409
 
     # 6. Corporate Staff Accreditation Link & Quota Hierarchy (6 -> 10 by Supervisor -> >10 by Admin)
     comp_res = await accred.post(

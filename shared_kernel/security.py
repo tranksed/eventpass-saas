@@ -73,7 +73,11 @@ class SlidingWindowRateLimiterMiddleware(BaseHTTPMiddleware):
         if request.url.path in {"/health", "/.well-known/jwks.json"}:
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        else:
+            client_ip = request.client.host if request.client else "unknown"
         key = f"{client_ip}:{request.url.path}"
         now = time.monotonic()
         bucket = self._buckets[key]

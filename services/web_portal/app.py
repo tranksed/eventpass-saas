@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -49,7 +50,20 @@ def _html_page(filename: str) -> HTMLResponse:
 
 def create_portal_app() -> FastAPI:
     cfg = get_base_settings()
-    app = FastAPI(title="EventPass SaaS Web Portal & BFF", version="1.0.0")
+    shared_client: httpx.AsyncClient | None = None
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        nonlocal shared_client
+        shared_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0, connect=5.0),
+            limits=httpx.Limits(max_keepalive_connections=50, max_connections=200),
+        )
+        yield
+        if shared_client and not shared_client.is_closed:
+            await shared_client.aclose()
+
+    app = FastAPI(title="EventPass SaaS Web Portal & BFF", version="1.0.0", lifespan=lifespan)
 
     @app.middleware("http")
     async def no_stale_static_cache(request: Request, call_next):
@@ -154,13 +168,16 @@ def create_portal_app() -> FastAPI:
         }
         body = await request.body()
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            upstream = await client.request(
-                method=request.method,
-                url=target_url,
-                headers=fwd_headers,
-                content=body,
-            )
+        client = shared_client
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(timeout=15.0)
+
+        upstream = await client.request(
+            method=request.method,
+            url=target_url,
+            headers=fwd_headers,
+            content=body,
+        )
 
         excluded = {"content-encoding", "transfer-encoding", "content-length"}
         resp_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in excluded}

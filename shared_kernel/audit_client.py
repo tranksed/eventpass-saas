@@ -26,6 +26,16 @@ class AuditClient:
         self.base_url = base_url.rstrip("/")
         self.internal_token = internal_token
         self._client_factory = client_factory
+        self._shared_client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._shared_client is None or self._shared_client.is_closed:
+            self._shared_client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=httpx.Timeout(1.5, connect=0.5),
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
+            )
+        return self._shared_client
 
     async def record(
         self,
@@ -59,7 +69,7 @@ class AuditClient:
                 async with self._client_factory() as client:
                     await client.post("/internal/audit/events", json=payload, headers=headers)
             else:
-                async with httpx.AsyncClient(base_url=self.base_url, timeout=2.0) as client:
-                    await client.post("/internal/audit/events", json=payload, headers=headers)
+                client = self._get_client()
+                await client.post("/internal/audit/events", json=payload, headers=headers)
         except Exception as exc:
             logger.warning("Audit event delivery deferred (%s): %s", action, exc)

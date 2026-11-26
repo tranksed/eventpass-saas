@@ -71,6 +71,7 @@ from services.registration_service.schemas import (
     PaymentWebhookPayload,
     PromoterStatsResponse,
     RedeemCodeRequest,
+    UpdateCatalogItemRequest,
     UpdateEventDetailsRequest,
     UpdateEventLimitRequest,
 )
@@ -114,6 +115,21 @@ def _event_to_response(e: Event) -> EventResponse:
         ends_at=e.ends_at,
         max_purchases_per_dni=e.max_purchases_per_dni,
         is_active=e.is_active,
+    )
+
+
+def _item_to_response(i: CatalogItem) -> CatalogItemResponse:
+    return CatalogItemResponse(
+        id=i.id,
+        event_id=i.event_id,
+        code=i.code,
+        name=i.name,
+        item_type=ItemType(i.item_type),
+        price_cents=i.price_cents,
+        stock_total=i.stock_total,
+        stock_sold=i.stock_sold,
+        stock_reserved=i.stock_reserved,
+        stock_available=max(0, i.stock_total - i.stock_reserved - i.stock_sold),
     )
 
 
@@ -503,31 +519,110 @@ def create_registration_app(
         )
         db.add(item)
         await db.commit()
-        return CatalogItemResponse(
-            id=item.id,
-            event_id=item.event_id,
-            code=item.code,
-            name=item.name,
-            item_type=ItemType(item.item_type),
-            price_cents=item.price_cents,
-            stock_available=item.stock_total - item.stock_reserved - item.stock_sold,
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="CATALOG_ITEM_CREATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="catalog_item",
+            resource_id=item.id,
+            metadata={"code": item.code, "price_cents": item.price_cents, "stock_total": item.stock_total},
         )
+        return _item_to_response(item)
 
     @app.get("/api/v1/registration/events/{event_id}/items", response_model=list[CatalogItemResponse])
     async def list_public_catalog_items(event_id: str, db: AsyncSession = Depends(get_db)) -> list[CatalogItemResponse]:
         items = (await db.scalars(select(CatalogItem).where(CatalogItem.event_id == event_id))).all()
-        return [
-            CatalogItemResponse(
-                id=i.id,
-                event_id=i.event_id,
-                code=i.code,
-                name=i.name,
-                item_type=ItemType(i.item_type),
-                price_cents=i.price_cents,
-                stock_available=max(0, i.stock_total - i.stock_reserved - i.stock_sold),
+        return [_item_to_response(i) for i in items]
+
+    @app.patch("/api/v1/registration/events/{event_id}/items/{item_id}", response_model=CatalogItemResponse)
+    async def update_catalog_item(
+        event_id: str,
+        item_id: str,
+        payload: UpdateCatalogItemRequest,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> CatalogItemResponse:
+        """Update name, item_type, price or stock of an active catalog item."""
+        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == item_id, CatalogItem.event_id == event.id))
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog item not found.")
+
+        if payload.name is not None:
+            item.name = payload.name
+        if payload.item_type is not None:
+            item.item_type = payload.item_type.value
+        if payload.price_cents is not None:
+            item.price_cents = payload.price_cents
+        if payload.stock_total is not None:
+            committed_stock = item.stock_sold + item.stock_reserved
+            if payload.stock_total < committed_stock:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"No puedes reducir el stock total a {payload.stock_total} porque ya existen {item.stock_sold} vendidos y {item.stock_reserved} reservados (mínimo permitido: {committed_stock}).",
+                )
+            item.stock_total = payload.stock_total
+
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="CATALOG_ITEM_UPDATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="catalog_item",
+            resource_id=item.id,
+            metadata={"code": item.code, "price_cents": item.price_cents, "stock_total": item.stock_total},
+        )
+        return _item_to_response(item)
+
+    @app.delete("/api/v1/registration/events/{event_id}/items/{item_id}")
+    async def delete_catalog_item(
+        event_id: str,
+        item_id: str,
+        actor: CurrentActor = Depends(require_admin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Delete an unused catalog item with 0 sold and 0 reserved (Admin only)."""
+        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == item_id, CatalogItem.event_id == event.id))
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog item not found.")
+
+        if item.stock_sold > 0 or item.stock_reserved > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"No se puede eliminar '{item.code}' porque ya tiene {item.stock_sold} vendidas o {item.stock_reserved} reservadas. Puedes editar su stock a 0.",
             )
-            for i in items
-        ]
+
+        has_codes = await db.scalar(select(CourtesyCode.id).where(CourtesyCode.catalog_item_id == item.id).limit(1))
+        if has_codes:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"No se puede eliminar '{item.code}' porque tiene códigos de cortesía vinculados.",
+            )
+
+        await db.delete(item)
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="CATALOG_ITEM_DELETED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="catalog_item",
+            resource_id=item.id,
+            metadata={"code": item.code},
+        )
+        return {"status": "deleted", "item_id": item_id}
 
     # ------------------------------------------------------------------
     # Online Checkout & Payment Webhooks
