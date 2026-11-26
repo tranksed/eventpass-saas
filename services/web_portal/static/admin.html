@@ -272,11 +272,37 @@
                 <form onsubmit="event.preventDefault(); createCatalogItem();">
                   <h5 class="h6 fw-bold mb-3">Agregar Entrada / Interacción (Evento Activo)</h5>
                   <div class="row g-2">
-                    <div class="col-md-4"><label class="form-label small">Código (MAYÚS)</label><input id="itemCode" class="form-control form-control-sm" placeholder="ENTRY / PHOTO" required /></div>
+                    <div class="col-md-5">
+                      <label class="form-label small">Tipo de Beneficio</label>
+                      <select id="itemType" class="form-select form-select-sm" onchange="toggleItemTypeFields()">
+                        <option value="ENTRY">🎟️ Entrada General / Acceso</option>
+                        <option value="INTERACTION">⭐ Interacción con Artista / Personaje</option>
+                      </select>
+                    </div>
+                    <div class="col-md-7" id="artistFieldsRow" style="display:none;">
+                      <div class="row g-2">
+                        <div class="col-7">
+                          <label class="form-label small">Artista / Personaje *</label>
+                          <input id="itemArtist" class="form-control form-control-sm" list="knownArtistsDatalist" placeholder="Ej. Mario Castañeda" oninput="autoSuggestInteraction()" />
+                          <datalist id="knownArtistsDatalist"></datalist>
+                        </div>
+                        <div class="col-5">
+                          <label class="form-label small">Categoría</label>
+                          <select id="itemCategory" class="form-select form-select-sm" onchange="autoSuggestInteraction()">
+                            <option value="FOTO">📸 Foto</option>
+                            <option value="FIRMA">✍️ Firma</option>
+                            <option value="MEET_GREET">🤝 Meet & Greet</option>
+                            <option value="TALLER">🎓 Taller</option>
+                            <option value="VIP_PASS">🌟 Pase VIP</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-4"><label class="form-label small">Código (MAYÚS)</label><input id="itemCode" class="form-control form-control-sm mono" placeholder="ENTRY / PHOTO" required /></div>
                     <div class="col-md-5"><label class="form-label small">Nombre visible</label><input id="itemName" class="form-control form-control-sm" placeholder="Ej. Entrada General" required /></div>
-                    <div class="col-md-3"><label class="form-label small">Tipo</label><select id="itemType" class="form-select form-select-sm"><option value="ENTRY">ENTRY</option><option value="INTERACTION">INTERACTION</option></select></div>
-                    <div class="col-md-6"><label class="form-label small">Precio (centavos, ej. 8000 = S/ 80)</label><input id="itemPrice" type="number" min="0" class="form-control form-control-sm" placeholder="8000" value="5000" required /></div>
-                    <div class="col-md-6"><label class="form-label small">Stock total</label><input id="itemStock" type="number" min="1" class="form-control form-control-sm" placeholder="500" value="100" required /></div>
+                    <div class="col-md-3"><label class="form-label small">Precio (centavos, ej. 8000 = S/ 80)</label><input id="itemPrice" type="number" min="0" class="form-control form-control-sm" placeholder="8000" value="5000" required /></div>
+                    <div class="col-md-4"><label class="form-label small">Stock total (cupos)</label><input id="itemStock" type="number" min="1" class="form-control form-control-sm" placeholder="100" value="100" required /></div>
+                    <div class="col-md-8"><label class="form-label small">Descripción opcional</label><input id="itemDescription" class="form-control form-control-sm" placeholder="Detalle (ej. Foto digital impresa + firma en póster)" /></div>
                   </div>
                   <button type="submit" id="btnCreateItem" class="btn btn-success btn-sm mt-3"><i class="bi bi-bag-plus me-1"></i>Publicar Ítem en Taquilla</button>
                   <div id="itemMsg"></div>
@@ -306,8 +332,15 @@
             </div>
             <div class="col-lg-6">
               <div class="ep-card p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="fw-semibold mb-0"><i class="bi bi-tags text-info me-1"></i>Ítems del Evento Activo</h6>
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <h6 class="fw-semibold mb-0"><i class="bi bi-tags text-info me-1"></i>Ítems del Evento Activo</h6>
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button type="button" class="btn btn-outline-secondary py-0 active" id="btnFilterItemsAll" onclick="setItemsFilter('ALL')">Todos</button>
+                      <button type="button" class="btn btn-outline-secondary py-0" id="btnFilterItemsEntry" onclick="setItemsFilter('ENTRY')">🎟️ Entradas</button>
+                      <button type="button" class="btn btn-outline-secondary py-0" id="btnFilterItemsInteraction" onclick="setItemsFilter('INTERACTION')">⭐ Artistas</button>
+                    </div>
+                  </div>
                   <button class="btn btn-outline-info btn-sm py-0" type="button" onclick="loadItemsOnly()"><i class="bi bi-arrow-repeat me-1"></i>Refrescar</button>
                 </div>
                 <div class="table-responsive">
@@ -315,7 +348,7 @@
                     <thead>
                       <tr>
                         <th>Código</th>
-                        <th>Nombre</th>
+                        <th>Nombre / Artista</th>
                         <th>Tipo</th>
                         <th>Precio</th>
                         <th>Stock (Disp./Tot.)</th>
@@ -647,7 +680,7 @@
             <div class="row g-2 mb-2">
               <div class="col-6">
                 <label class="form-label small">Tipo de Beneficio</label>
-                <select id="editItemType" class="form-select form-select-sm">
+                <select id="editItemType" class="form-select form-select-sm" onchange="toggleEditItemType()">
                   <option value="ENTRY">ENTRY (Acceso General)</option>
                   <option value="INTERACTION">INTERACTION (M&G / Foto / Firma)</option>
                 </select>
@@ -656,6 +689,27 @@
                 <label class="form-label small">Precio en Soles (S/) *</label>
                 <input id="editItemPriceSoles" type="number" step="0.01" min="0" class="form-control form-control-sm" required />
               </div>
+            </div>
+            <div class="row g-2 mb-2" id="editArtistRow">
+              <div class="col-6">
+                <label class="form-label small">Artista / Invitado</label>
+                <input id="editItemArtist" class="form-control form-control-sm" placeholder="Ej. Mario Castañeda" />
+              </div>
+              <div class="col-6">
+                <label class="form-label small">Categoría Interacción</label>
+                <select id="editItemCategory" class="form-select form-select-sm">
+                  <option value="">(Sin categoría / General)</option>
+                  <option value="FOTO">📸 Foto</option>
+                  <option value="FIRMA">✍️ Firma</option>
+                  <option value="MEET_GREET">🤝 Meet & Greet</option>
+                  <option value="TALLER">🎓 Taller</option>
+                  <option value="VIP_PASS">🌟 Pase VIP</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small">Descripción</label>
+              <input id="editItemDescription" class="form-control form-control-sm" placeholder="Detalle (ej. Foto digital impresa + firma en póster)" />
             </div>
             <div class="mb-2">
               <label class="form-label small">Stock Total del Ítem *</label>
@@ -881,13 +935,94 @@
         : `<tr><td colspan="4" class="text-secondary">Sin eventos</td></tr>`;
     }
 
+    let currentItemsFilter = "ALL";
+    let cachedEventItems = [];
+
+    function setItemsFilter(filter) {
+      currentItemsFilter = filter;
+      document.getElementById("btnFilterItemsAll")?.classList.toggle("active", filter === "ALL");
+      document.getElementById("btnFilterItemsEntry")?.classList.toggle("active", filter === "ENTRY");
+      document.getElementById("btnFilterItemsInteraction")?.classList.toggle("active", filter === "INTERACTION");
+      renderItemsTable(cachedEventItems);
+    }
+
+    function toggleItemTypeFields() {
+      const type = document.getElementById("itemType").value;
+      const row = document.getElementById("artistFieldsRow");
+      if (row) row.style.display = type === "INTERACTION" ? "block" : "none";
+      if (type === "INTERACTION") {
+        autoSuggestInteraction();
+      }
+    }
+
+    function toggleEditItemType() {
+      const type = document.getElementById("editItemType").value;
+      const row = document.getElementById("editArtistRow");
+      if (row) row.style.display = type === "INTERACTION" ? "flex" : "none";
+    }
+
+    function autoSuggestInteraction() {
+      const type = document.getElementById("itemType").value;
+      if (type !== "INTERACTION") return;
+      const artist = (document.getElementById("itemArtist").value || "").trim();
+      const cat = document.getElementById("itemCategory").value;
+      if (!artist) return;
+
+      const slugArtist = slugify(artist).toUpperCase().replace(/[^A-Z0-9]/g, "_").slice(0, 20);
+      let catPrefix = cat;
+      let catName = "Experiencia con";
+      if (cat === "FOTO") { catPrefix = "FOTO"; catName = "Foto con"; }
+      else if (cat === "FIRMA") { catPrefix = "FIRMA"; catName = "Firma de Autógrafo -"; }
+      else if (cat === "MEET_GREET") { catPrefix = "MG"; catName = "Meet & Greet -"; }
+      else if (cat === "TALLER") { catPrefix = "TALLER"; catName = "Masterclass / Taller -"; }
+      else if (cat === "VIP_PASS") { catPrefix = "VIP"; catName = "Pase VIP -"; }
+
+      const codeInput = document.getElementById("itemCode");
+      const nameInput = document.getElementById("itemName");
+      const descInput = document.getElementById("itemDescription");
+
+      codeInput.value = `${catPrefix}_${slugArtist}`.slice(0, 35);
+      nameInput.value = `${catName} ${artist}`;
+      if (!descInput.value) {
+        descInput.value = `Interacción oficial (${cat}) con ${artist}.`;
+      }
+    }
+
     function renderItemsTable(items) {
-      document.getElementById("eventItemsTable").innerHTML = items.length
-        ? items.map(i => `
+      cachedEventItems = items || [];
+      const dl = document.getElementById("knownArtistsDatalist");
+      if (dl) {
+        const uniqueArtists = Array.from(new Set(cachedEventItems.map(i => (i.artist_name || "").trim()).filter(Boolean)));
+        dl.innerHTML = uniqueArtists.map(a => `<option value="${EP.escapeHtml(a)}"></option>`).join("");
+      }
+
+      const filtered = cachedEventItems.filter(i => {
+        if (currentItemsFilter === "ENTRY") return i.item_type === "ENTRY";
+        if (currentItemsFilter === "INTERACTION") return i.item_type === "INTERACTION";
+        return true;
+      });
+
+      document.getElementById("eventItemsTable").innerHTML = filtered.length
+        ? filtered.map(i => {
+          const isInter = i.item_type === 'INTERACTION';
+          const typeBadge = isInter
+            ? `<span class="badge text-bg-warning">⭐ ${EP.escapeHtml(i.interaction_type || 'Interacción')}</span>`
+            : `<span class="badge text-bg-primary">🎟️ Entrada</span>`;
+          const artistBadge = i.artist_name
+            ? `<span class="badge text-bg-info bg-opacity-25 text-info-emphasis me-1"><i class="bi bi-person-star me-1"></i>${EP.escapeHtml(i.artist_name)}</span>`
+            : "";
+          const descLine = i.description
+            ? `<div class="text-secondary small mt-1" style="font-size:0.75rem;">${EP.escapeHtml(i.description)}</div>`
+            : "";
+
+          return `
           <tr>
             <td><span class="badge text-bg-secondary mono">${EP.escapeHtml(i.code)}</span></td>
-            <td class="fw-semibold text-white">${EP.escapeHtml(i.name)}</td>
-            <td><span class="badge ${i.item_type === 'ENTRY' ? 'text-bg-primary' : 'text-bg-warning'}">${EP.escapeHtml(i.item_type)}</span></td>
+            <td>
+              <div class="fw-semibold text-white">${EP.escapeHtml(i.name)}</div>
+              ${artistBadge}${descLine}
+            </td>
+            <td>${typeBadge}</td>
             <td class="text-nowrap">S/ ${(i.price_cents / 100).toFixed(2)}</td>
             <td>
               <span class="fw-bold ${i.stock_available > 0 ? 'text-success' : 'text-danger'}">${i.stock_available}</span>
@@ -898,8 +1033,9 @@
               <button class="btn btn-outline-warning btn-sm py-0" type="button" onclick="openEditItemModal('${i.id}')" title="Editar Ítem"><i class="bi bi-pencil me-1"></i>Editar</button>
               <button class="btn btn-outline-danger btn-sm py-0" type="button" onclick="deleteItemFromAdmin('${i.id}')" title="Eliminar Ítem"><i class="bi bi-trash"></i></button>
             </td>
-          </tr>`).join("")
-        : `<tr><td colspan="6" class="text-secondary">Sin ítems en este evento</td></tr>`;
+          </tr>`;
+        }).join("")
+        : `<tr><td colspan="6" class="text-secondary">Sin ítems ${currentItemsFilter !== 'ALL' ? 'en esta categoría' : 'en este evento'}</td></tr>`;
     }
 
     function renderOrdersTable(orders) {
@@ -983,6 +1119,11 @@
       document.getElementById("editItemCode").value = item.code;
       document.getElementById("editItemName").value = item.name;
       document.getElementById("editItemType").value = item.item_type;
+      document.getElementById("editItemArtist").value = item.artist_name || "";
+      document.getElementById("editItemCategory").value = item.interaction_type || "";
+      document.getElementById("editItemDescription").value = item.description || "";
+      toggleEditItemType();
+
       document.getElementById("editItemPriceSoles").value = (item.price_cents / 100).toFixed(2);
       document.getElementById("editItemStockTotal").value = item.stock_total;
       const minStock = (item.stock_sold || 0) + (item.stock_reserved || 0);
@@ -1000,6 +1141,9 @@
 
       const name = document.getElementById("editItemName").value.trim();
       const itemType = document.getElementById("editItemType").value;
+      const artistName = (document.getElementById("editItemArtist").value || "").trim();
+      const interactionType = document.getElementById("editItemCategory").value;
+      const description = (document.getElementById("editItemDescription").value || "").trim();
       const priceSoles = parseFloat(document.getElementById("editItemPriceSoles").value || "0");
       const stockTotal = parseInt(document.getElementById("editItemStockTotal").value || "1", 10);
 
@@ -1020,6 +1164,9 @@
           body: JSON.stringify({
             name,
             item_type: itemType,
+            artist_name: artistName,
+            interaction_type: interactionType,
+            description: description,
             price_cents: Math.round(priceSoles * 100),
             stock_total: stockTotal,
           }),
@@ -1283,6 +1430,11 @@
       if (!eventId) return EP.showMsg("itemMsg", "err", "Selecciona o crea un evento primero.");
       const code = document.getElementById("itemCode").value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "_");
       const name = document.getElementById("itemName").value.trim();
+      const itemType = document.getElementById("itemType").value;
+      const artistName = (document.getElementById("itemArtist")?.value || "").trim();
+      const interactionType = document.getElementById("itemCategory")?.value || "";
+      const description = (document.getElementById("itemDescription")?.value || "").trim();
+
       if (code.length < 2 || name.length < 2) {
         return EP.showMsg("itemMsg", "err", "Ingresa un código (ej. ENTRY) y nombre válido.");
       }
@@ -1293,7 +1445,10 @@
           body: JSON.stringify({
             code,
             name,
-            item_type: document.getElementById("itemType").value,
+            item_type: itemType,
+            artist_name: artistName,
+            interaction_type: interactionType,
+            description: description,
             price_cents: Math.max(0, Number(document.getElementById("itemPrice").value || 0)),
             stock_total: Math.max(1, Number(document.getElementById("itemStock").value || 100)),
           }),
@@ -1302,6 +1457,8 @@
         EP.toast(`Ítem '${res.code}' publicado.`);
         document.getElementById("itemCode").value = "";
         document.getElementById("itemName").value = "";
+        if (document.getElementById("itemArtist")) document.getElementById("itemArtist").value = "";
+        if (document.getElementById("itemDescription")) document.getElementById("itemDescription").value = "";
         await loadItemsOnly();
       } catch (e) {
         EP.showMsg("itemMsg", "err", e.message);

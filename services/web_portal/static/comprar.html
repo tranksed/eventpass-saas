@@ -444,35 +444,106 @@
       renderSummary();
     }
 
+    function renderCatalogItemCard(i) {
+      const qty = quantities[i.id] || 0;
+      const isAvailable = i.stock_available > 0;
+      const badgeCls = isAvailable
+        ? (i.item_type === "ENTRY" ? "text-bg-success" : "text-bg-warning")
+        : "text-bg-danger";
+      const badgeTxt = isAvailable
+        ? (i.item_type === "ENTRY" ? "Entrada" : (i.interaction_type || "Interacción"))
+        : "Agotado";
+      const descHtml = i.description
+        ? `<div class="text-secondary small mt-1" style="font-size:0.8rem;">${EP.escapeHtml(i.description)}</div>`
+        : "";
+
+      return `
+        <div class="ep-tier-card ${qty > 0 ? "selected" : ""} d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 mb-2 rounded border border-secondary border-opacity-25 bg-dark bg-opacity-50">
+          <div style="flex: 1 1 240px;">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fw-bold text-white fs-6">${EP.escapeHtml(i.name)}</span>
+              <span class="badge ${badgeCls}">${EP.escapeHtml(badgeTxt)}</span>
+            </div>
+            ${descHtml}
+            <div class="mono text-secondary mt-1 small">${EP.escapeHtml(i.code)} · Disponibles: ${i.stock_available}</div>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="fw-bold fs-5 text-white">S/ ${(i.price_cents / 100).toFixed(2)}</div>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', -1)" ${!isAvailable && qty === 0 ? "disabled" : ""}><i class="bi bi-dash"></i></button>
+              <span class="btn btn-dark disabled text-white fw-bold" style="min-width:36px;">${qty}</span>
+              <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', 1)" ${!isAvailable ? "disabled" : ""}><i class="bi bi-plus"></i></button>
+            </div>
+          </div>
+        </div>`;
+    }
+
     function renderCatalog() {
       const box = document.getElementById("catalogContainer");
       if (!catalogItems.length) {
         box.innerHTML = `<div class="small text-secondary">Este evento aún no tiene entradas configuradas.</div>`;
         return;
       }
-      box.innerHTML = catalogItems.map(i => {
-        const qty = quantities[i.id] || 0;
-        const badgeCls = i.stock_available > 0 ? (i.item_type === "ENTRY" ? "text-bg-success" : "text-bg-warning") : "text-bg-danger";
-        const badgeTxt = i.stock_available > 0 ? i.item_type : "Agotado";
-        return `
-          <div class="ep-tier-card ${qty > 0 ? "selected" : ""} d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div>
-              <div class="d-flex align-items-center gap-2">
-                <span class="fw-bold text-white">${EP.escapeHtml(i.name)}</span>
-                <span class="badge ${badgeCls}">${badgeTxt}</span>
-              </div>
-              <div class="mono text-secondary mt-1">${EP.escapeHtml(i.code)} · Disponibles: ${i.stock_available}</div>
+
+      const entries = catalogItems.filter(i => i.item_type === "ENTRY");
+      const interactions = catalogItems.filter(i => i.item_type === "INTERACTION");
+
+      let html = "";
+
+      // 1. Entradas al Evento
+      if (entries.length) {
+        html += `
+          <div class="mb-3">
+            <div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary-subtle">
+              <i class="bi bi-ticket-perforated-fill text-primary"></i>
+              <span class="fw-bold text-white small text-uppercase tracking-wider">🎟️ Entradas al Evento</span>
+              <span class="badge text-bg-secondary ms-auto small">${entries.length} tipo(s)</span>
             </div>
-            <div class="d-flex align-items-center gap-3">
-              <div class="fw-bold fs-5 text-white">S/ ${(i.price_cents / 100).toFixed(2)}</div>
-              <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', -1)"><i class="bi bi-dash"></i></button>
-                <span class="btn btn-dark disabled text-white fw-bold" style="min-width:36px;">${qty}</span>
-                <button class="btn btn-outline-secondary" onclick="changeQty('${i.id}', 1)"><i class="bi bi-plus"></i></button>
-              </div>
+            <div class="d-grid gap-1">
+              ${entries.map(renderCatalogItemCard).join("")}
             </div>
           </div>`;
-      }).join("");
+      }
+
+      // 2. Experiencias con Artistas & Invitados Especiales
+      if (interactions.length) {
+        html += `
+          <div class="mt-4 mb-2">
+            <div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary-subtle">
+              <i class="bi bi-stars text-warning"></i>
+              <span class="fw-bold text-white small text-uppercase tracking-wider">⭐ Experiencias con Artistas & Invitados</span>
+              <span class="badge text-bg-warning ms-auto small">${interactions.length} disponible(s)</span>
+            </div>
+          </div>`;
+
+        const groups = {};
+        interactions.forEach(item => {
+          const artistKey = (item.artist_name || "").trim() || "Experiencias Especiales";
+          if (!groups[artistKey]) groups[artistKey] = [];
+          groups[artistKey].push(item);
+        });
+
+        for (const [artistName, items] of Object.entries(groups)) {
+          const isGeneric = artistName === "Experiencias Especiales";
+          html += `
+            <div class="artist-experience-block p-3 mb-3 rounded border border-warning border-opacity-25" style="background: rgba(234, 179, 8, 0.04);">
+              <div class="d-flex align-items-center gap-2 mb-3">
+                <div class="rounded-circle bg-warning bg-opacity-25 text-warning d-flex align-items-center justify-content-center" style="width:32px; height:32px;">
+                  <i class="bi ${isGeneric ? 'bi-patch-check-fill' : 'bi-person-star'}"></i>
+                </div>
+                <div>
+                  <h6 class="mb-0 fw-bold text-white">${EP.escapeHtml(artistName)}</h6>
+                  <span class="small text-secondary">${isGeneric ? 'Pases y accesos adicionales' : 'Fotos, autógrafos y pases exclusivos'}</span>
+                </div>
+              </div>
+              <div class="d-grid gap-1">
+                ${items.map(renderCatalogItemCard).join("")}
+              </div>
+            </div>`;
+        }
+      }
+
+      box.innerHTML = html || `<div class="small text-secondary">Sin ítems disponibles.</div>`;
     }
 
     function renderSummary() {
@@ -488,8 +559,9 @@
         const q = quantities[i.id];
         const sub = i.price_cents * q;
         totalCents += sub;
+        const artistHint = i.artist_name ? ` (${EP.escapeHtml(i.artist_name)})` : "";
         return `<div class="d-flex justify-content-between py-1">
-          <span>${q} × ${EP.escapeHtml(i.name)}</span>
+          <span>${q} × ${EP.escapeHtml(i.name)}${artistHint}</span>
           <strong class="text-white">S/ ${(sub / 100).toFixed(2)}</strong>
         </div>`;
       }).join("");

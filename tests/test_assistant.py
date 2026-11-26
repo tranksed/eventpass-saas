@@ -233,3 +233,69 @@ async def test_assistant_create_and_update_items(assistant_env):
     )
     assert res_pause["ok"] is True
     assert res_pause["action_taken"] == "TOGGLE_EVENT_STATUS"
+
+    # 8. Crear interacción con artista: Foto
+    res_artist_photo = await assistant.execute_command(
+        "Crea foto con Mario Castañeda a 60 soles con 50 cupos",
+        admin_actor,
+        env["token"],
+        env["event_id"],
+        env["client"],
+    )
+    assert res_artist_photo["ok"] is True
+    assert res_artist_photo["action_taken"] == "CREATE_CATALOG_ITEM"
+    assert res_artist_photo["data"]["item_type"] == "INTERACTION"
+    assert res_artist_photo["data"]["artist_name"] == "Mario Castañeda"
+    assert res_artist_photo["data"]["interaction_type"] == "FOTO"
+    assert res_artist_photo["data"]["price_cents"] == 6000
+    assert res_artist_photo["data"]["stock_total"] == 50
+
+    # 9. Crear interacción con artista: Firma de autógrafo
+    res_artist_sign = await assistant.execute_command(
+        "Crea firma de René García a 50 soles con 40 cupos",
+        admin_actor,
+        env["token"],
+        env["event_id"],
+        env["client"],
+    )
+    assert res_artist_sign["ok"] is True
+    assert res_artist_sign["data"]["item_type"] == "INTERACTION"
+    assert res_artist_sign["data"]["artist_name"] == "René García"
+    assert res_artist_sign["data"]["interaction_type"] == "FIRMA"
+    assert res_artist_sign["data"]["price_cents"] == 5000
+    assert res_artist_sign["data"]["stock_total"] == 40
+
+    # 10. Listar artistas y experiencias
+    res_artists = await assistant.execute_command(
+        "Listar artistas",
+        admin_actor,
+        env["token"],
+        env["event_id"],
+        env["client"],
+    )
+    assert res_artists["ok"] is True
+    assert res_artists["action_taken"] == "LIST_ARTISTS"
+    assert "Mario Castañeda" in res_artists["reply"]
+    assert "René García" in res_artists["reply"]
+
+    # 11. Consultar aforo en puerta
+    res_door = await assistant.execute_command(
+        "¿Cómo va la puerta?",
+        admin_actor,
+        env["token"],
+        env["event_id"],
+        env["client"],
+    )
+    assert res_door["ok"] is True
+    assert res_door["action_taken"] == "DOOR_METRICS"
+
+    # 12. Consultar staff
+    res_staff = await assistant.execute_command(
+        "Personal de staff",
+        admin_actor,
+        env["token"],
+        env["event_id"],
+        env["client"],
+    )
+    assert res_staff["ok"] is True
+    assert res_staff["action_taken"] == "STAFF_SUMMARY"

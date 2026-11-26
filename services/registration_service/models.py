@@ -73,6 +73,9 @@ class CatalogItem(Base):
     code: Mapped[str] = mapped_column(String(40), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     item_type: Mapped[str] = mapped_column(String(30), nullable=False)  # ENTRY | INTERACTION
+    artist_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    interaction_type: Mapped[str] = mapped_column(String(40), default="", nullable=False)
+    description: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     stock_total: Mapped[int] = mapped_column(Integer, nullable=False)
     stock_reserved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

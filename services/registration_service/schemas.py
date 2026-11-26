@@ -73,6 +73,9 @@ class CreateCatalogItemRequest(StrictModel):
     code: str = Field(min_length=2, max_length=40, pattern=r"^[A-Z0-9_]+$")
     name: str = Field(min_length=2, max_length=120)
     item_type: ItemType
+    artist_name: str = Field(default="", max_length=120)
+    interaction_type: str = Field(default="", max_length=40)
+    description: str = Field(default="", max_length=255)
     price_cents: int = Field(ge=0)
     stock_total: int = Field(ge=1, le=1_000_000)
 
@@ -80,6 +83,9 @@ class CreateCatalogItemRequest(StrictModel):
 class UpdateCatalogItemRequest(StrictModel):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     item_type: ItemType | None = None
+    artist_name: str | None = Field(default=None, max_length=120)
+    interaction_type: str | None = Field(default=None, max_length=40)
+    description: str | None = Field(default=None, max_length=255)
     price_cents: int | None = Field(default=None, ge=0)
     stock_total: int | None = Field(default=None, ge=0, le=1_000_000)
 
@@ -90,6 +96,9 @@ class CatalogItemResponse(BaseModel):
     code: str
     name: str
     item_type: ItemType
+    artist_name: str = ""
+    interaction_type: str = ""
+    description: str = ""
     price_cents: int
     stock_total: int = 0
     stock_sold: int = 0

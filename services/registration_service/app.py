@@ -125,6 +125,9 @@ def _item_to_response(i: CatalogItem) -> CatalogItemResponse:
         code=i.code,
         name=i.name,
         item_type=ItemType(i.item_type),
+        artist_name=getattr(i, "artist_name", "") or "",
+        interaction_type=getattr(i, "interaction_type", "") or "",
+        description=getattr(i, "description", "") or "",
         price_cents=i.price_cents,
         stock_total=i.stock_total,
         stock_sold=i.stock_sold,
@@ -148,6 +151,9 @@ async def _ensure_schema_columns(conn) -> None:
         ("orders", "source", "VARCHAR(30) NOT NULL DEFAULT 'ONLINE'"),
         ("orders", "promoter_id", "VARCHAR(36)"),
         ("orders", "payment_method", "VARCHAR(40) NOT NULL DEFAULT 'MERCADOPAGO'"),
+        ("catalog_items", "artist_name", "VARCHAR(120) NOT NULL DEFAULT ''"),
+        ("catalog_items", "interaction_type", "VARCHAR(40) NOT NULL DEFAULT ''"),
+        ("catalog_items", "description", "VARCHAR(255) NOT NULL DEFAULT ''"),
     ]
     for table, col, col_def in alter_columns:
         try:
@@ -514,6 +520,9 @@ def create_registration_app(
             code=payload.code,
             name=payload.name,
             item_type=payload.item_type.value,
+            artist_name=payload.artist_name or "",
+            interaction_type=payload.interaction_type or "",
+            description=payload.description or "",
             price_cents=payload.price_cents,
             stock_total=payload.stock_total,
         )
@@ -557,6 +566,12 @@ def create_registration_app(
             item.name = payload.name
         if payload.item_type is not None:
             item.item_type = payload.item_type.value
+        if payload.artist_name is not None:
+            item.artist_name = payload.artist_name
+        if payload.interaction_type is not None:
+            item.interaction_type = payload.interaction_type
+        if payload.description is not None:
+            item.description = payload.description
         if payload.price_cents is not None:
             item.price_cents = payload.price_cents
         if payload.stock_total is not None:

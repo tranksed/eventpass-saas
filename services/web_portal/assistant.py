@@ -99,7 +99,7 @@ class EventPassAssistant:
                         "action_taken": "NOOP",
                         "refresh_needed": False,
                     }
-                return await self._handle_create_item(client, headers, text, current_event_id, current_event_name)
+                return await self._handle_create_item(client, headers, text, current_event_id, current_event_name, raw_message=raw_message)
 
             # 5. ACTUALIZAR PRECIO DE ENTRADA
             if self._matches_update_price(text):
@@ -134,7 +134,18 @@ class EventPassAssistant:
                     }
                 return await self._handle_delete_item(client, headers, text, current_event_id, current_event_name)
 
-            # 8. LISTAR ENTRADAS / CATÁLOGO DEL EVENTO
+            # 8. LISTAR ARTISTAS / EXPERIENCIAS
+            if self._matches_list_artists(text):
+                if not current_event_id:
+                    return {
+                        "ok": False,
+                        "reply": "⚠️ No hay un evento seleccionado. Selecciona un evento en la parte superior para consultar sus artistas.",
+                        "action_taken": "NOOP",
+                        "refresh_needed": False,
+                    }
+                return await self._handle_list_artists(client, headers, current_event_id, current_event_name)
+
+            # 9. LISTAR ENTRADAS / CATÁLOGO DEL EVENTO
             if any(k in text for k in ["listar entradas", "que entradas hay", "ver entradas", "catalogo", "mostrar entradas", "entradas disponibles"]):
                 if not current_event_id:
                     return {
@@ -145,7 +156,7 @@ class EventPassAssistant:
                     }
                 return await self._handle_list_items(client, headers, current_event_id, current_event_name)
 
-            # 9. CONSULTAR VENTAS Y MÉTRICAS DEL EVENTO
+            # 10. CONSULTAR VENTAS Y MÉTRICAS DEL EVENTO
             if any(k in text for k in ["cuanto hemos vendido", "ventas", "metricas", "cuantas entradas", "recaudacion", "ingresos"]):
                 if not current_event_id:
                     return {
@@ -156,7 +167,40 @@ class EventPassAssistant:
                     }
                 return await self._handle_event_metrics(client, headers, current_event_id, current_event_name)
 
-            # 10. CREAR CÓDIGO PROMOCIONAL / RRPP
+            # 11. CONTROL DE ACCESO EN PUERTA / AFORO / ASISTENCIA
+            if self._matches_door_metrics(text):
+                if not current_event_id:
+                    return {
+                        "ok": False,
+                        "reply": "⚠️ Selecciona un evento para consultar el aforo y la puerta de acceso.",
+                        "action_taken": "NOOP",
+                        "refresh_needed": False,
+                    }
+                return await self._handle_door_metrics(client, headers, current_event_id, current_event_name)
+
+            # 12. CONSULTAR ÓRDENES RECIENTES
+            if self._matches_recent_orders(text):
+                if not current_event_id:
+                    return {
+                        "ok": False,
+                        "reply": "⚠️ Selecciona un evento para ver sus órdenes recientes.",
+                        "action_taken": "NOOP",
+                        "refresh_needed": False,
+                    }
+                return await self._handle_recent_orders(client, headers, current_event_id, current_event_name)
+
+            # 13. CONSULTAR PERSONAL Y CUOTAS DE STAFF
+            if self._matches_staff_summary(text):
+                if not current_event_id:
+                    return {
+                        "ok": False,
+                        "reply": "⚠️ Selecciona un evento para ver el resumen de acreditación de staff.",
+                        "action_taken": "NOOP",
+                        "refresh_needed": False,
+                    }
+                return await self._handle_staff_summary(client, headers, current_event_id, current_event_name)
+
+            # 14. CREAR CÓDIGO PROMOCIONAL / RRPP
             if any(k in text for k in ["crear codigo", "crea codigo", "nuevo codigo", "agrega codigo", "descuento"]):
                 if not current_event_id:
                     return {
@@ -167,7 +211,7 @@ class EventPassAssistant:
                     }
                 return await self._handle_create_promo_code(client, headers, text, current_event_id, current_event_name)
 
-            # 11. PAUSAR O ACTIVAR EVENTO
+            # 15. PAUSAR O ACTIVAR EVENTO
             if any(k in text for k in ["pausar evento", "pausa el evento", "activar evento", "activa el evento"]):
                 if not current_event_id:
                     return {
@@ -185,18 +229,21 @@ class EventPassAssistant:
                     f"🤖 **EventPass Copilot** activo en el evento **{current_event_name or 'General'}**.\n\n"
                     "No logré identificar la acción exacta. Prueba con instrucciones como:\n"
                     "• *\"Crea una entrada VIP a 120 soles con 50 cupos\"*\n"
-                    "• *\"Cambia el precio de la entrada GENERAL a 60 soles\"*\n"
-                    "• *\"Aumenta el stock de VIP a 150 cupos\"*\n"
-                    "• *\"¿Cuánto hemos vendido hoy?\"*\n"
-                    "• *\"Crea código PROMO15 con 15% de descuento\"*\n"
-                    "• *\"Listar entradas\"*"
+                    "• *\"Crea foto con Mario Castañeda a 60 soles con 50 cupos\"*\n"
+                    "• *\"Crea firma de René García a 50 soles con 40 cupos\"*\n"
+                    "• *\"Listar artistas\"* o *\"Ver experiencias\"*\n"
+                    "• *\"¿Cómo va la puerta?\"* o *\"Aforo actual\"*\n"
+                    "• *\"Últimas compras\"*\n"
+                    "• *\"Cambia el precio de GENERAL a 60 soles\"*\n"
+                    "• *\"¿Cuánto hemos vendido hoy?\"*"
                 ),
                 "action_taken": "FALLBACK",
                 "refresh_needed": False,
                 "suggested_actions": [
                     "Listar entradas del evento",
+                    "Listar artistas y experiencias",
                     "Ver ventas y métricas",
-                    "Crear entrada General",
+                    "¿Cómo va la puerta?",
                 ],
             }
         finally:
@@ -213,8 +260,56 @@ class EventPassAssistant:
                 "crea entrada", "crear entrada", "agrega entrada", "agregar entrada",
                 "anade entrada", "anadir entrada", "crea ticket", "crear ticket",
                 "nuevo item", "nueva entrada", "crear boleto", "crea boleto",
+                "crea foto", "crear foto", "agrega foto", "agregar foto",
+                "crea firma", "crear firma", "agrega firma", "agregar firma",
+                "crea meet", "crear meet", "agrega meet", "agregar meet",
+                "crea interaccion", "crear interaccion", "agrega interaccion", "agregar interaccion",
+                "nueva experiencia", "crea experiencia",
             ]
-        ) or ("entrada" in t and any(v in t for v in ["precio", "soles", "stock", "cupos"]))
+        ) or (
+            any(w in t for w in ["entrada", "foto", "firma", "meet", "m&g", "taller", "interaccion"])
+            and any(v in t for v in ["precio", "soles", "stock", "cupos", "s/"])
+        )
+
+    def _matches_list_artists(self, t: str) -> bool:
+        return any(
+            k in t
+            for k in [
+                "listar artistas", "que artistas vienen", "ver artistas", "mostrar artistas",
+                "artistas del evento", "cuales son los artistas", "artistas invitados", "invitados",
+                "experiencias de artistas", "interacciones de artistas", "experiencias",
+                "fotos y firmas", "que interacciones hay", "listar interacciones",
+            ]
+        )
+
+    def _matches_door_metrics(self, t: str) -> bool:
+        return any(
+            k in t
+            for k in [
+                "como va la puerta", "control de acceso", "cuantos han ingresado",
+                "aforo", "ocupacion", "asistencia en puerta", "escaneos",
+                "ingresados", "puerta de ingreso", "metricas de puerta",
+            ]
+        )
+
+    def _matches_recent_orders(self, t: str) -> bool:
+        return any(
+            k in t
+            for k in [
+                "ultimas ordenes", "ultimas compras", "ultimas ventas",
+                "compras recientes", "ordenes recientes", "ventas recientes",
+                "quienes han comprado", "ultimos pedidos",
+            ]
+        )
+
+    def _matches_staff_summary(self, t: str) -> bool:
+        return any(
+            k in t
+            for k in [
+                "personal de staff", "cuotas de staff", "empresas de staff",
+                "acreditaciones staff", "como va el staff", "resumen de staff",
+            ]
+        )
 
     def _matches_update_price(self, t: str) -> bool:
         return any(
@@ -242,11 +337,17 @@ class EventPassAssistant:
     def _handle_help(self, actor: CurrentActor) -> dict[str, Any]:
         admin_examples = [
             "• **Crear entrada:** *\"Crea una entrada VIP a 120 soles con 50 cupos\"*",
+            "• **Crear foto con artista:** *\"Crea foto con Mario Castañeda a 60 soles con 50 cupos\"*",
+            "• **Crear firma con artista:** *\"Crea firma de René García a 50 soles con 40 cupos\"*",
+            "• **Crear Meet & Greet:** *\"Crea meet and greet con Stan Lee a 180 soles con 15 cupos\"*",
+            "• **Ver catálogo de artistas:** *\"Listar artistas\"* o *\"Ver experiencias\"*",
             "• **Cambiar precio:** *\"Cambia el precio de GENERAL a 65 soles\"*",
             "• **Modificar stock:** *\"Aumenta el stock de VIP a 150 cupos\"*",
             "• **Eliminar entrada:** *\"Elimina la entrada BACKSTAGE\"* (solo si no tiene ventas)",
-            "• **Ver catálogo:** *\"Listar entradas\"*",
+            "• **Ver catálogo de entradas:** *\"Listar entradas\"*",
             "• **Consultar ventas:** *\"¿Cuánto hemos vendido hoy?\"*",
+            "• **Control de acceso / puerta:** *\"¿Cómo va la puerta?\"* o *\"Aforo actual\"*",
+            "• **Últimas ventas registradas:** *\"Últimas órdenes\"*",
             "• **Crear descuento:** *\"Crea código PROMO15 con 15% de descuento\"*",
             "• **Pausar/Reactivar:** *\"Pausa el evento\"* o *\"Activa el evento\"*",
         ]
@@ -285,7 +386,13 @@ class EventPassAssistant:
         return active[0] if active else events[0]
 
     async def _handle_create_item(
-        self, client: httpx.AsyncClient, headers: dict[str, str], text: str, event_id: str, event_name: str
+        self,
+        client: httpx.AsyncClient,
+        headers: dict[str, str],
+        text: str,
+        event_id: str,
+        event_name: str,
+        raw_message: str = "",
     ) -> dict[str, Any]:
         """Extract item parameters and create in registration service."""
         # 1. Price extraction
@@ -308,37 +415,91 @@ class EventPassAssistant:
             if stock_match2:
                 stock_total = max(1, int(stock_match2.group(1)))
 
-        # 3. Item type and Name
-        item_type = "INTERACTION" if any(w in text for w in ["interaccion", "foto", "firma", "meet", "m&g", "taller"]) else "ENTRY"
-
-        # Extract name candidate
+        # 3. Item type, Artist detection & Name/Code derivation
+        artist_name = ""
+        interaction_type = ""
+        description = ""
+        item_type = "ENTRY"
         name = "Entrada General"
-        if "vip" in text:
-            name = "Entrada VIP"
-            code = "VIP"
-        elif "golden" in text or "oro" in text:
-            name = "Entrada Golden"
-            code = "GOLDEN"
-        elif "early" in text:
-            name = "Early Bird"
-            code = "EARLY_BIRD"
-        elif "interaccion" in text or "foto" in text:
-            name = "Pase Foto / M&G"
-            code = "PHOTO_MG"
-        elif "meet" in text:
-            name = "Meet & Greet"
-            code = "MEET_GREET"
-        elif "backstage" in text:
-            name = "Pase Backstage"
-            code = "BACKSTAGE"
-        else:
-            # Try to grab words following 'entrada' or 'ticket'
-            custom = re.search(r"(?:entrada|ticket|boleto|item)\s+([a-zA-Z0-9áéíóúñ\s]{3,30}?)(?:\s+(?:a|de|por|con|precio|stock|s\/)\b|$)", text)
-            if custom and len(custom.group(1).strip()) >= 3:
-                name = custom.group(1).strip().title()
-                code = re.sub(r"[^A-Z0-9_]", "", name.upper().replace(" ", "_"))[:20]
+        code = "ENTRY"
+
+        source_text = raw_message if raw_message else text
+        # Check for artist interaction pattern in source_text (preserving casing/accents/ñ)
+        inter_match = re.search(
+            r"(foto|fotografia|firma|autografo|meet\s*(?:and|&)?\s*greet|m&g|taller|masterclass|pase\s*vip)\s+(?:con|de)?\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]+?)(?:\s+(?:a|de|por|con|precio|stock|soles|cupos|s\/)\b|$)",
+            source_text,
+            re.IGNORECASE,
+        )
+        if inter_match:
+            raw_kind = inter_match.group(1).lower()
+            raw_artist = inter_match.group(2).strip()
+            raw_artist = re.sub(r"\s+(?:a|de|por|con)\s*$", "", raw_artist, flags=re.IGNORECASE).strip()
+            if len(raw_artist) >= 2 and _normalize(raw_artist) not in ["entrada", "ticket", "boleto", "general", "vip"]:
+                artist_name = raw_artist.title()
+                item_type = "INTERACTION"
+                artist_slug = re.sub(r"[^A-Z0-9]", "", _normalize(artist_name).upper().replace(" ", "_"))[:18]
+
+                if "foto" in raw_kind or "fotografia" in raw_kind:
+                    interaction_type = "FOTO"
+                    name = f"Foto con {artist_name}"
+                    code = f"FOTO_{artist_slug}"
+                    description = f"Sesión fotográfica con {artist_name}"
+                elif "firma" in raw_kind or "autografo" in raw_kind:
+                    interaction_type = "FIRMA"
+                    name = f"Firma de Autógrafo - {artist_name}"
+                    code = f"FIRMA_{artist_slug}"
+                    description = f"Firma oficial de autógrafo con {artist_name}"
+                elif "meet" in raw_kind or "m&g" in raw_kind:
+                    interaction_type = "MEET_GREET"
+                    name = f"Meet & Greet VIP - {artist_name}"
+                    code = f"MG_{artist_slug}"
+                    description = f"Experiencia exclusiva Meet & Greet con {artist_name}"
+                elif "taller" in raw_kind or "masterclass" in raw_kind:
+                    interaction_type = "TALLER"
+                    name = f"Taller / Masterclass - {artist_name}"
+                    code = f"TALLER_{artist_slug}"
+                    description = f"Taller presencial con {artist_name}"
+                else:
+                    interaction_type = "VIP_PASS"
+                    name = f"Experiencia VIP - {artist_name}"
+                    code = f"VIP_{artist_slug}"
+                    description = f"Pase VIP con {artist_name}"
+
+        if not artist_name:
+            # Generic Entry / Ticket or non-artist item
+            if "vip" in text:
+                name = "Entrada VIP"
+                code = "VIP"
+            elif "golden" in text or "oro" in text:
+                name = "Entrada Golden"
+                code = "GOLDEN"
+            elif "early" in text:
+                name = "Early Bird"
+                code = "EARLY_BIRD"
+            elif "interaccion" in text or "foto" in text:
+                name = "Pase Foto / M&G"
+                code = "PHOTO_MG"
+                item_type = "INTERACTION"
+                interaction_type = "FOTO"
+            elif "meet" in text:
+                name = "Meet & Greet"
+                code = "MEET_GREET"
+                item_type = "INTERACTION"
+                interaction_type = "MEET_GREET"
+            elif "backstage" in text:
+                name = "Pase Backstage"
+                code = "BACKSTAGE"
             else:
-                code = f"ENTRY_{abs(hash(text)) % 999:03d}"
+                custom = re.search(
+                    r"(?:entrada|ticket|boleto|item)\s+([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s]{3,30}?)(?:\s+(?:a|de|por|con|precio|stock|s\/)\b|$)",
+                    source_text,
+                    re.IGNORECASE,
+                )
+                if custom and len(custom.group(1).strip()) >= 3:
+                    name = custom.group(1).strip().title()
+                    code = re.sub(r"[^A-Z0-9_]", "", _normalize(name).upper().replace(" ", "_"))[:20]
+                else:
+                    code = f"ENTRY_{abs(hash(text)) % 999:03d}"
 
         if not code:
             code = "TICKET"
@@ -348,6 +509,9 @@ class EventPassAssistant:
             "code": code,
             "name": name,
             "item_type": item_type,
+            "artist_name": artist_name,
+            "interaction_type": interaction_type,
+            "description": description,
             "price_cents": price_cents,
             "stock_total": stock_total,
         }
@@ -358,17 +522,25 @@ class EventPassAssistant:
         )
         if res.status_code == 201:
             data = res.json()
+            is_artist = bool(data.get("artist_name"))
+            details = [
+                f"🎉 **¡{'Experiencia con artista' if is_artist else 'Entrada'} creada exitosamente!**\n",
+                f"• **Evento:** {event_name}",
+                f"• **Nombre:** {data['name']} (`{data['code']}`)",
+                f"• **Tipo:** {data['item_type']}",
+            ]
+            if is_artist:
+                details.append(f"• **Artista / Invitado:** ⭐ {data['artist_name']}")
+                if data.get("interaction_type"):
+                    details.append(f"• **Categoría:** {data['interaction_type']}")
+            details.extend([
+                f"• **Precio:** S/ {(data['price_cents'] / 100):.2f}",
+                f"• **Stock inicial:** {data['stock_total']} cupos disponibles\n",
+                "El catálogo de taquilla y el portal público de compra ya se actualizaron automáticamente.",
+            ])
             return {
                 "ok": True,
-                "reply": (
-                    f"🎉 **¡Entrada creada exitosamente!**\n\n"
-                    f"• **Evento:** {event_name}\n"
-                    f"• **Nombre:** {data['name']} (`{data['code']}`)\n"
-                    f"• **Tipo:** {data['item_type']}\n"
-                    f"• **Precio:** S/ {(data['price_cents'] / 100):.2f}\n"
-                    f"• **Stock inicial:** {data['stock_total']} cupos disponibles\n\n"
-                    "La taquilla y las tablas ya se actualizaron automáticamente."
-                ),
+                "reply": "\n".join(details),
                 "action_taken": "CREATE_CATALOG_ITEM",
                 "data": data,
                 "refresh_needed": True,
@@ -546,21 +718,182 @@ class EventPassAssistant:
         if not items:
             return {
                 "ok": True,
-                "reply": f"📋 El evento **{event_name}** aún no tiene entradas creadas. Puedes pedirme: *'Crea una entrada General a 50 soles con 100 cupos'*. ",
+                "reply": f"📋 El evento **{event_name}** aún no tiene entradas ni experiencias creadas. Puedes pedirme: *'Crea una entrada General a 50 soles con 100 cupos'*. ",
                 "action_taken": "LIST_ITEMS",
                 "refresh_needed": False,
             }
 
-        rows = []
-        for i in items:
-            price_s = f"S/ {(i['price_cents'] / 100):.2f}"
-            rows.append(f"• **{i['name']}** (`{i['code']}`): {price_s} — **{i['stock_available']}** disp. / {i['stock_total']} total ({i['stock_sold']} vendidas)")
+        entries = [i for i in items if i.get("item_type") == "ENTRY"]
+        interactions = [i for i in items if i.get("item_type") == "INTERACTION"]
+
+        lines = [f"🎟️ **Catálogo de Taquilla — {event_name}:**\n"]
+        if entries:
+            lines.append("**🎟️ Entradas al Evento:**")
+            for i in entries:
+                price_s = f"S/ {(i['price_cents'] / 100):.2f}"
+                lines.append(f"• **{i['name']}** (`{i['code']}`): {price_s} — **{i['stock_available']}** disp. / {i['stock_total']} total ({i['stock_sold']} vendidas)")
+            lines.append("")
+
+        if interactions:
+            lines.append("**⭐ Experiencias con Artistas & Invitados:**")
+            for i in interactions:
+                price_s = f"S/ {(i['price_cents'] / 100):.2f}"
+                artist_tag = f"[{i['artist_name']}] " if i.get("artist_name") else ""
+                lines.append(f"• **{artist_tag}{i['name']}** (`{i['code']}`): {price_s} — **{i['stock_available']}** disp. / {i['stock_total']} total")
 
         return {
             "ok": True,
-            "reply": f"🎟️ **Catálogo de Entradas — {event_name}:**\n\n" + "\n".join(rows),
+            "reply": "\n".join(lines).strip(),
             "action_taken": "LIST_ITEMS",
             "data": items,
+            "refresh_needed": False,
+        }
+
+    async def _handle_list_artists(
+        self, client: httpx.AsyncClient, headers: dict[str, str], event_id: str, event_name: str
+    ) -> dict[str, Any]:
+        """List all artists and their available experiences (photos, signatures, M&G)."""
+        res = await client.get(f"{self.reg_url}/api/v1/registration/events/{event_id}/items", headers=headers)
+        if res.status_code != 200:
+            return {"ok": False, "reply": "Error al consultar experiencias de artistas.", "action_taken": "ERROR", "refresh_needed": False}
+        items: list[dict] = res.json()
+        interactions = [i for i in items if i.get("item_type") == "INTERACTION" or i.get("artist_name")]
+
+        if not interactions:
+            return {
+                "ok": True,
+                "reply": (
+                    f"⭐ El evento **{event_name}** aún no tiene artistas ni experiencias configuradas.\n\n"
+                    "Puedes agregar uno diciéndome por ejemplo:\n"
+                    "• *\"Crea foto con Mario Castañeda a 60 soles con 50 cupos\"*\n"
+                    "• *\"Crea firma de René García a 50 soles con 40 cupos\"*"
+                ),
+                "action_taken": "LIST_ARTISTS",
+                "refresh_needed": False,
+            }
+
+        groups: dict[str, list[dict]] = {}
+        for it in interactions:
+            a_name = it.get("artist_name", "").strip() or "Experiencias Especiales"
+            groups.setdefault(a_name, []).append(it)
+
+        reply_lines = [f"⭐ **Artistas e Invitados Confirmados — {event_name}:**\n"]
+        for artist, a_items in groups.items():
+            reply_lines.append(f"🎭 **{artist}**:")
+            for it in a_items:
+                cat = it.get("interaction_type") or "Experiencia"
+                price_s = f"S/ {(it['price_cents'] / 100):.2f}"
+                reply_lines.append(f"  • **{cat}:** {it['name']} (`{it['code']}`) — {price_s} ({it['stock_available']} cupos disp.)")
+            reply_lines.append("")
+
+        return {
+            "ok": True,
+            "reply": "\n".join(reply_lines).strip(),
+            "action_taken": "LIST_ARTISTS",
+            "data": groups,
+            "refresh_needed": False,
+        }
+
+    async def _handle_door_metrics(
+        self, client: httpx.AsyncClient, headers: dict[str, str], event_id: str, event_name: str
+    ) -> dict[str, Any]:
+        """Query real-time gate attendance and access control from accreditation service."""
+        try:
+            res = await client.get(f"{self.acc_url}/api/v1/accreditation/events/{event_id}/metrics", headers=headers)
+            if res.status_code != 200:
+                return {
+                    "ok": True,
+                    "reply": f"🚪 **Control de Acceso — {event_name}:**\n\nEl servicio de acreditación aún no registra eventos de puerta o se encuentra inicializando.",
+                    "action_taken": "DOOR_METRICS",
+                    "refresh_needed": False,
+                }
+            acc = res.json()
+            checked_in = acc.get("checked_in_entry", 0)
+            total_active = acc.get("total_active_credentials", 0)
+            pct = acc.get("occupancy_pct", 0.0)
+            scans = acc.get("total_scan_events", 0)
+            by_mode = acc.get("by_mode", {})
+            online_scans = by_mode.get("ONLINE", 0)
+            offline_scans = by_mode.get("OFFLINE_SYNC", 0)
+            conflicts = acc.get("offline_conflicts", 0)
+
+            return {
+                "ok": True,
+                "reply": (
+                    f"🚪 **Estado de Control de Acceso (Puerta) — {event_name}:**\n\n"
+                    f"• **Asistentes Ingresados:** **{checked_in}** personas\n"
+                    f"• **Credenciales Digitales Emitidas:** {total_active}\n"
+                    f"• **Ocupación en Puerta:** **{pct}%** ingresados\n"
+                    f"• **Total Escaneos:** {scans} lecturas QR\n"
+                    f"• **Modo Escaneo:** {online_scans} online · {offline_scans} offline sincronizados\n"
+                    f"• **Conflictos Offline Resueltos:** {conflicts}"
+                ),
+                "action_taken": "DOOR_METRICS",
+                "data": acc,
+                "refresh_needed": False,
+            }
+        except Exception as e:
+            return {"ok": False, "reply": f"⚠️ Error al consultar acreditación: {e}", "action_taken": "ERROR", "refresh_needed": False}
+
+    async def _handle_recent_orders(
+        self, client: httpx.AsyncClient, headers: dict[str, str], event_id: str, event_name: str
+    ) -> dict[str, Any]:
+        """List last orders registered for this event."""
+        res = await client.get(f"{self.reg_url}/api/v1/registration/events/{event_id}/orders", headers=headers)
+        if res.status_code != 200:
+            return {"ok": False, "reply": "No se pudieron obtener las órdenes.", "action_taken": "ERROR", "refresh_needed": False}
+        orders: list[dict] = res.json()
+        if not orders:
+            return {
+                "ok": True,
+                "reply": f"🧾 El evento **{event_name}** aún no tiene órdenes de compra registradas.",
+                "action_taken": "RECENT_ORDERS",
+                "refresh_needed": False,
+            }
+
+        top = orders[:5]
+        lines = [f"🧾 **Últimas {len(top)} Compras Registradas — {event_name}:**\n"]
+        for o in top:
+            name = o.get("full_name") or "Anónimo"
+            dni = o.get("dni_last4") or "----"
+            soles = f"S/ {((o.get('total_cents', 0)) / 100):.2f}"
+            status = o.get("status", "PAID")
+            status_icon = "✅" if status == "PAID" else "⏳"
+            items = o.get("items_summary") or "Entrada"
+            pm = o.get("payment_method") or "ONLINE"
+            lines.append(f"• {status_icon} **{name}** (DNI *{dni}*): **{soles}** ({pm}) — *{items}*")
+
+        return {
+            "ok": True,
+            "reply": "\n".join(lines),
+            "action_taken": "RECENT_ORDERS",
+            "data": top,
+            "refresh_needed": False,
+        }
+
+    async def _handle_staff_summary(
+        self, client: httpx.AsyncClient, headers: dict[str, str], event_id: str, event_name: str
+    ) -> dict[str, Any]:
+        """Fetch staff credentials summary for the event."""
+        res = await client.get(f"{self.acc_url}/api/v1/accreditation/events/{event_id}/metrics", headers=headers)
+        if res.status_code != 200:
+            return {"ok": False, "reply": "No se pudo obtener el resumen de staff.", "action_taken": "ERROR", "refresh_needed": False}
+        acc = res.json()
+        staff = acc.get("staff_companies_summary", {})
+        used = staff.get("total_used", 0)
+        quota = staff.get("total_quota", 0)
+        companies = staff.get("companies_count", 0)
+
+        return {
+            "ok": True,
+            "reply": (
+                f"🦺 **Resumen de Personal y Staff — {event_name}:**\n\n"
+                f"• **Empresas Contratistas / Aliadas:** {companies} empresas\n"
+                f"• **Pases de Staff Acreditados:** **{used}** de {quota} cupos asignados\n"
+                f"• **Cupos Disponibles para Asignar:** {max(0, quota - used)} pases"
+            ),
+            "action_taken": "STAFF_SUMMARY",
+            "data": staff,
             "refresh_needed": False,
         }
 
