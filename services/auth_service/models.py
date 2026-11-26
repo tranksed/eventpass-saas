@@ -27,6 +27,7 @@ class Tenant(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     slug: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
+    custom_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -68,3 +69,24 @@ class RefreshToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class PlatformDomainConfig(Base):
+    """Global platform domain, DNS verification, and SSL certificate state."""
+
+    __tablename__ = "platform_domain_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    primary_domain: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    ssl_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ssl_status: Mapped[str] = mapped_column(String(40), default="NOT_CONFIGURED", nullable=False)
+    ssl_provider: Mapped[str] = mapped_column(String(40), default="LETS_ENCRYPT", nullable=False)
+    ssl_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ssl_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ssl_auto_renew: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    force_https_redirect: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    contact_email: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    last_dns_check_ip: Mapped[str] = mapped_column(String(60), default="", nullable=False)
+    last_dns_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)

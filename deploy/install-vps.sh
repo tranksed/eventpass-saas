@@ -122,10 +122,22 @@ else
   echo "    ${ENV_FILE} actualizado con APP_HTTP_PORT=${CHOSEN_PORT} (secretos preservados)."
 fi
 
-echo "=== [4/6] Configurando Firewall UFW (SSH 22 y puerto ${CHOSEN_PORT}) ==="
+echo "=== [4/6] Configurando Firewall UFW (SSH 22, HTTP 80, HTTPS 443 y puerto ${CHOSEN_PORT}) ==="
 ufw allow 22/tcp >/dev/null || true
+ufw allow 80/tcp >/dev/null || true
+ufw allow 443/tcp >/dev/null || true
 ufw allow "${CHOSEN_PORT}/tcp" >/dev/null || true
 ufw --force enable >/dev/null || true
+
+# Asegurar certificados SSL iniciales para arranque seguro de Nginx
+mkdir -p "${APP_DIR}/gateway/ssl"
+if [[ ! -f "${APP_DIR}/gateway/ssl/active_cert.pem" || ! -f "${APP_DIR}/gateway/ssl/active_key.pem" ]]; then
+  echo "    Generando certificado TLS base para Nginx..."
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout "${APP_DIR}/gateway/ssl/active_key.pem" \
+    -out "${APP_DIR}/gateway/ssl/active_cert.pem" \
+    -subj "/CN=eventpass-local" >/dev/null 2>&1 || true
+fi
 
 echo "=== [5/6] Construyendo e iniciando contenedores EventPass SaaS ==="
 cd "${INFRA_DIR}"
@@ -153,8 +165,9 @@ for route in "/" "/comprar" "/validar" "/acreditacion" "/admin" "/superadmin" "/
   echo "    HTTP ${code} -> ${route}"
 done
 
-chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh"
+chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh" "${APP_DIR}/deploy/setup-ssl.sh"
 ln -sf "${APP_DIR}/deploy/update-vps.sh" /usr/local/bin/eventpass-update
+ln -sf "${APP_DIR}/deploy/setup-ssl.sh" /usr/local/bin/eventpass-ssl
 
 PUBLIC_IP=$(curl -fsSL https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 BASE_URL="http://${PUBLIC_IP}"
@@ -174,9 +187,28 @@ echo "  Dashboard Organizador: ${BASE_URL}/admin"
 echo "  Consola SuperAdmin   : ${BASE_URL}/superadmin"
 echo "  Libro Reclamaciones  : ${BASE_URL}/reclamos"
 echo ""
-echo "  Comandos útiles:"
-echo "    Actualizar VPS: sudo eventpass-update"
-echo "    Ver estado    : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} ps"
-echo "    Ver logs      : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} logs -f"
-echo "    Cambiar pto.  : sudo bash ${APP_DIR}/deploy/install-vps.sh --port 9000"
+echo "  Gestión de Dominio y SSL HTTPS:"
+echo "    Configurar dominio : sudo eventpass-ssl setup midominio.pe admin@midominio.pe"
+echo "    Verificar DNS      : sudo eventpass-ssl check-dns midominio.pe"
+echo "    Ver estado SSL     : sudo eventpass-ssl status"
+echo "    O configúralo con 1 clic en la Consola SuperAdmin (/superadmin)"
+echo ""
+echo "  Comandos útiles del VPS:"
+echo "    Actualizar VPS     : sudo eventpass-update"
+echo "    Ver estado         : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} ps"
+echo "    Ver logs           : cd ${INFRA_DIR} && docker compose --env-file ${ENV_FILE} logs -f"
+echo "    Cambiar pto.       : sudo bash ${APP_DIR}/deploy/install-vps.sh --port 9000"
 echo "====================================================================="
+
+# Pregunta interactiva para activar SSL si el usuario ya tiene un dominio apuntando
+echo ""
+read -r -p "¿Deseas configurar un Dominio y activar SSL HTTPS (Let's Encrypt) ahora? [s/N]: " setup_ssl_now || true
+if [[ "${setup_ssl_now,,}" == "s" || "${setup_ssl_now,,}" == "y" ]]; then
+  read -r -p "Ingresa tu Dominio (ej: eventpass.pe o app.midominio.com): " custom_domain || true
+  read -r -p "Ingresa tu Correo para avisos de Let's Encrypt: " custom_email || true
+  if [[ -n "${custom_domain}" && -n "${custom_email}" ]]; then
+    bash "${APP_DIR}/deploy/setup-ssl.sh" setup "${custom_domain}" "${custom_email}" || true
+  else
+    echo "[!] Dominio o correo vacío. Puedes configurarlo más tarde con: sudo eventpass-ssl setup <dominio> <email>"
+  fi
+fi

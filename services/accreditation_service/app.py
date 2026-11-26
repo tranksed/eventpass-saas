@@ -239,12 +239,10 @@ def create_accreditation_app(
         db: AsyncSession = Depends(get_db),
     ) -> AccreditedCompanyResponse:
         """Expand or adjust staff quota: SUPERVISOR <= 10, ADMIN custom."""
-        company = await db.scalar(
-            select(AccreditedCompany).where(
-                AccreditedCompany.id == company_id,
-                AccreditedCompany.tenant_id == actor.tenant_id,
-            )
-        )
+        query = select(AccreditedCompany).where(AccreditedCompany.id == company_id)
+        if actor.role != Role.SUPERADMIN:
+            query = query.where(AccreditedCompany.tenant_id == actor.tenant_id)
+        company = await db.scalar(query)
         if company is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Accredited company not found.")
 
@@ -294,7 +292,9 @@ def create_accreditation_app(
         db: AsyncSession = Depends(get_db),
     ) -> list[AccreditedCompanyResponse]:
         """List accredited partner companies inside the actor's tenant."""
-        stmt = select(AccreditedCompany).where(AccreditedCompany.tenant_id == actor.tenant_id)
+        stmt = select(AccreditedCompany)
+        if actor.role != Role.SUPERADMIN:
+            stmt = stmt.where(AccreditedCompany.tenant_id == actor.tenant_id)
         if event_id:
             stmt = stmt.where(AccreditedCompany.event_id == event_id)
         rows = (await db.scalars(stmt.order_by(AccreditedCompany.created_at.desc()))).all()
@@ -831,30 +831,17 @@ def create_accreditation_app(
         actor: AuthenticatedActor = Depends(require_validator_module),
         db: AsyncSession = Depends(get_db),
     ) -> dict:
-        creds = list(
-            await db.scalars(
-                select(Credential).where(
-                    Credential.tenant_id == actor.tenant_id,
-                    Credential.event_id == event_id,
-                )
-            )
-        )
-        logs = list(
-            await db.scalars(
-                select(CheckInLog).where(
-                    CheckInLog.tenant_id == actor.tenant_id,
-                    CheckInLog.event_id == event_id,
-                )
-            )
-        )
-        companies = list(
-            await db.scalars(
-                select(AccreditedCompany).where(
-                    AccreditedCompany.tenant_id == actor.tenant_id,
-                    AccreditedCompany.event_id == event_id,
-                )
-            )
-        )
+        c_query = select(Credential).where(Credential.event_id == event_id)
+        l_query = select(CheckInLog).where(CheckInLog.event_id == event_id)
+        co_query = select(AccreditedCompany).where(AccreditedCompany.event_id == event_id)
+        if actor.role != Role.SUPERADMIN:
+            c_query = c_query.where(Credential.tenant_id == actor.tenant_id)
+            l_query = l_query.where(CheckInLog.tenant_id == actor.tenant_id)
+            co_query = co_query.where(AccreditedCompany.tenant_id == actor.tenant_id)
+
+        creds = list(await db.scalars(c_query))
+        logs = list(await db.scalars(l_query))
+        companies = list(await db.scalars(co_query))
 
         total_active_credentials = sum(1 for c in creds if c.status == "ACTIVE")
         by_holder_type: dict[str, dict[str, int]] = {

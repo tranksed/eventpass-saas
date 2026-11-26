@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from shared_kernel.security import Role
@@ -101,3 +102,58 @@ class SuperAdminUpdateUserRequest(StrictModel):
     email: str | None = Field(default=None, min_length=5, max_length=255)
     role: Role | None = None
     is_active: bool | None = None
+
+
+# -----------------------------------------------------------------------------
+# Domain & SSL Schemas
+# -----------------------------------------------------------------------------
+class CheckDnsRequest(StrictModel):
+    domain: str = Field(min_length=3, max_length=255)
+
+
+class CheckDnsResponse(BaseModel):
+    domain: str
+    resolved_ips: list[str]
+    server_ip: str
+    match: bool
+    message: str
+
+
+class ConfigureDomainSslRequest(StrictModel):
+    primary_domain: str = Field(min_length=3, max_length=255)
+    contact_email: str = Field(min_length=5, max_length=255)
+    ssl_enabled: bool = True
+    force_https_redirect: bool = True
+    ssl_auto_renew: bool = True
+
+
+class PlatformDomainConfigResponse(BaseModel):
+    primary_domain: str
+    ssl_enabled: bool
+    ssl_status: str
+    ssl_provider: str
+    ssl_issued_at: datetime | None = None
+    ssl_expires_at: datetime | None = None
+    days_remaining: int | None = None
+    ssl_auto_renew: bool
+    force_https_redirect: bool
+    contact_email: str
+    server_public_ip: str
+    current_scheme: str
+    last_dns_check_ip: str
+    last_dns_check_at: datetime | None = None
+    last_error: str = ""
+    updated_at: datetime
+
+
+class UpdateTenantCustomDomainRequest(StrictModel):
+    custom_domain: str | None = Field(default=None, max_length=255)
+
+
+class TenantDomainSummary(BaseModel):
+    tenant_id: str
+    name: str
+    slug: str
+    custom_domain: str | None = None
+    dns_match: bool = False
+    resolved_ip: str | None = None

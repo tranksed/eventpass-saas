@@ -425,6 +425,15 @@ def create_registration_app(
         )
         return _event_to_response(event)
 
+    async def _resolve_event(event_id: str, actor: CurrentActor, db: AsyncSession) -> Event:
+        if actor.role == Role.SUPERADMIN:
+            event = await db.scalar(select(Event).where(Event.id == event_id))
+        else:
+            event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        return event
+
     @app.patch("/api/v1/registration/events/{event_id}", response_model=EventResponse)
     async def update_event_details(
         event_id: str,
@@ -432,12 +441,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> EventResponse:
-        query = select(Event).where(Event.id == event_id)
-        if actor.role != Role.SUPERADMIN:
-            query = query.where(Event.tenant_id == actor.tenant_id)
-        event = await db.scalar(query)
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
 
         if payload.name is not None:
             event.name = payload.name
@@ -470,13 +474,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> EventResponse:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         event.max_purchases_per_dni = payload.max_purchases_per_dni
         await db.commit()
         await audit.record(
-            tenant_id=actor.tenant_id,
+            tenant_id=event.tenant_id,
             service=cfg.service_name,
             action="EVENT_DNI_LIMIT_UPDATED",
             actor_id=actor.user_id,
@@ -492,9 +494,12 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[EventResponse]:
-        events = (
-            await db.scalars(select(Event).where(Event.tenant_id == actor.tenant_id).order_by(Event.created_at.desc()))
-        ).all()
+        if actor.role == Role.SUPERADMIN:
+            events = (await db.scalars(select(Event).order_by(Event.created_at.desc()))).all()
+        else:
+            events = (
+                await db.scalars(select(Event).where(Event.tenant_id == actor.tenant_id).order_by(Event.created_at.desc()))
+            ).all()
         return [_event_to_response(e) for e in events]
 
     @app.get("/api/v1/registration/public/events", response_model=list[EventResponse])
@@ -515,9 +520,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> CatalogItemResponse:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
 
         existing = await db.scalar(
             select(CatalogItem).where(CatalogItem.event_id == event_id, CatalogItem.code == payload.code)
@@ -527,7 +530,7 @@ def create_registration_app(
 
         item = CatalogItem(
             event_id=event.id,
-            tenant_id=actor.tenant_id,
+            tenant_id=event.tenant_id,
             code=payload.code,
             name=payload.name,
             item_type=payload.item_type.value,
@@ -565,9 +568,7 @@ def create_registration_app(
         db: AsyncSession = Depends(get_db),
     ) -> CatalogItemResponse:
         """Update name, item_type, price or stock of an active catalog item."""
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
 
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == item_id, CatalogItem.event_id == event.id))
         if item is None:
@@ -596,7 +597,7 @@ def create_registration_app(
 
         await db.commit()
         await audit.record(
-            tenant_id=actor.tenant_id,
+            tenant_id=event.tenant_id,
             service=cfg.service_name,
             action="CATALOG_ITEM_UPDATED",
             actor_id=actor.user_id,
@@ -615,9 +616,10 @@ def create_registration_app(
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, Any]:
         """Delete an unused catalog item with 0 sold and 0 reserved (Admin only)."""
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == item_id, CatalogItem.event_id == event.id))
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog item not found.")
 
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == item_id, CatalogItem.event_id == event.id))
         if item is None:
@@ -1332,9 +1334,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> PromoterStatsResponse:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         existing = await db.scalar(
             select(Promoter).where(Promoter.event_id == event_id, Promoter.code_prefix == payload.code_prefix)
         )
@@ -1342,8 +1342,8 @@ def create_registration_app(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Promoter prefix already exists.")
 
         prom = Promoter(
-            tenant_id=actor.tenant_id,
-            event_id=event_id,
+            tenant_id=event.tenant_id,
+            event_id=event.id,
             name=payload.name,
             code_prefix=payload.code_prefix,
             email=payload.email.lower(),
@@ -1367,9 +1367,10 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[PromoterStatsResponse]:
+        event = await _resolve_event(event_id, actor, db)
         proms = (
             await db.scalars(
-                select(Promoter).where(Promoter.event_id == event_id, Promoter.tenant_id == actor.tenant_id)
+                select(Promoter).where(Promoter.event_id == event.id)
             )
         ).all()
         out: list[PromoterStatsResponse] = []
@@ -1415,9 +1416,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[CourtesyCodeResponse]:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         item = await db.scalar(
             select(CatalogItem).where(CatalogItem.id == payload.catalog_item_id, CatalogItem.event_id == event_id)
         )
@@ -1738,9 +1737,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, Any]:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
 
         content = await file.read()
         fname = (file.filename or "import.csv").lower()
@@ -1801,10 +1798,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[dict[str, Any]]:
+        event = await _resolve_event(event_id, actor, db)
         rows = (
             await db.scalars(
                 select(BulkDispatchJob)
-                .where(BulkDispatchJob.event_id == event_id, BulkDispatchJob.tenant_id == actor.tenant_id)
+                .where(BulkDispatchJob.event_id == event.id)
                 .order_by(BulkDispatchJob.created_at.desc())
             )
         ).all()
@@ -1910,9 +1908,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, Any]:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         return await _build_event_metrics(db, event)
 
     @app.get("/api/v1/registration/events/{event_id}/metrics/export.xlsx")
@@ -1921,9 +1917,7 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> Response:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         m = await _build_event_metrics(db, event)
 
         wb = openpyxl.Workbook()
@@ -2113,9 +2107,7 @@ def create_registration_app(
         db: AsyncSession = Depends(get_db),
     ) -> list[dict[str, Any]]:
         """List registered purchases/orders for an event (Admin/Supervisor)."""
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=404, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         orders = (
             await db.scalars(select(Order).where(Order.event_id == event.id).order_by(Order.created_at.desc()).limit(200))
         ).all()
@@ -2158,13 +2150,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, str]:
-        event = await db.scalar(select(Event).where(Event.id == event_id, Event.tenant_id == actor.tenant_id))
-        if event is None:
-            raise HTTPException(status_code=404, detail="Event not found.")
+        event = await _resolve_event(event_id, actor, db)
         await _delete_event_cascade(db, event.id)
         await db.commit()
         await audit.record(
-            tenant_id=actor.tenant_id,
+            tenant_id=event.tenant_id,
             service=cfg.service_name,
             action="EVENT_DELETED",
             actor_id=actor.user_id,

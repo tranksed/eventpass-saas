@@ -265,8 +265,12 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_HTTP_PORT:-8088}:80"
+      - "${APP_HTTPS_PORT:-443}:443"
     volumes:
       - ../gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../gateway/ssl:/etc/nginx/ssl:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       web-portal:
         condition: service_healthy
@@ -288,6 +292,8 @@ volumes:
   accred_pgdata:
   audit_pgdata:
   shared_public_keys:
+  certbot_www:
+  certbot_conf:
 
 networks:
   public_edge:

@@ -133,10 +133,13 @@ def make_role_dependency(
             ) from exc
 
         if allowed_roles and role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{role.value}' is not authorized for this operation.",
-            )
+            if role == Role.SUPERADMIN:
+                pass  # SuperAdmin has full platform-wide administrative authority
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Role '{role.value}' is not authorized for this operation.",
+                )
 
         tenant_id = payload.get("tenant_id")
         user_id = payload.get("sub")

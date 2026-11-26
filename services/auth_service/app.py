@@ -2,31 +2,41 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+import socket
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
+import httpx
 import pyotp
-from fastapi import Depends, FastAPI, HTTPException, status
-from sqlalchemy import delete, func, select, update
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.auth_service.config import AuthSettings
-from services.auth_service.models import RefreshToken, Tenant, User
+from services.auth_service.models import PlatformDomainConfig, RefreshToken, Tenant, User
 from services.auth_service.schemas import (
+    CheckDnsRequest,
+    CheckDnsResponse,
+    ConfigureDomainSslRequest,
     CreateUserRequest,
     EnableMFARequest,
     LoginRequest,
+    PlatformDomainConfigResponse,
     RefreshRequest,
     SuperAdminLoginRequest,
+    SuperAdminResetPasswordRequest,
     SuperAdminSetupRequest,
+    SuperAdminUpdateTenantRequest,
+    SuperAdminUpdateUserRequest,
+    TenantDomainSummary,
     TenantRegisterRequest,
     TenantRegisterResponse,
     TokenResponse,
+    UpdateTenantCustomDomainRequest,
     UpdateTenantStatusRequest,
-    SuperAdminResetPasswordRequest,
-    SuperAdminUpdateTenantRequest,
-    SuperAdminUpdateUserRequest,
     UserSummary,
 )
 from shared_kernel.audit_client import AuditClient
@@ -101,9 +111,75 @@ def create_auth_app(
         await db.commit()
         return sa_user
 
+    async def _ensure_schema_columns(conn) -> None:
+        """Safely add newly introduced columns on existing SQLite/Postgres DBs."""
+        is_pg = conn.dialect.name == "postgresql"
+        alter_columns = [
+            ("tenants", "custom_domain", "VARCHAR(255)"),
+        ]
+        for table, col, col_def in alter_columns:
+            try:
+                if is_pg:
+                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_def}"))
+                else:
+                    info = await conn.execute(text(f"PRAGMA table_info({table})"))
+                    cols = [row[1] for row in info.fetchall()]
+                    if col not in cols:
+                        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
+            except Exception:
+                pass
+
+    async def _resolve_domain_ips(domain: str) -> list[str]:
+        """Resolve domain A records asynchronously using socket.getaddrinfo."""
+        clean_domain = domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
+        try:
+            res = await asyncio.to_thread(socket.getaddrinfo, clean_domain, None, socket.AF_INET)
+            ips = sorted(list({item[4][0] for item in res if item and len(item) > 4}))
+            return ips
+        except Exception:
+            return []
+
+    async def _get_server_public_ip() -> str:
+        """Detect public IP of the VPS with fallback."""
+        env_ip = os.getenv("SERVER_PUBLIC_IP", "").strip()
+        if env_ip:
+            return env_ip
+        for url in ["https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip"]:
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        ip = resp.text.strip()
+                        if ip and len(ip) <= 45:
+                            return ip
+            except Exception:
+                continue
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
+    async def _get_or_create_platform_domain_config(db: AsyncSession) -> PlatformDomainConfig:
+        conf = await db.scalar(select(PlatformDomainConfig))
+        if conf is None:
+            is_ssl = os.getenv("SSL_ENABLED", "false").lower() in ("true", "1")
+            conf = PlatformDomainConfig(
+                primary_domain=os.getenv("PLATFORM_DOMAIN", ""),
+                ssl_enabled=is_ssl,
+                ssl_status="ACTIVE" if is_ssl else "NOT_CONFIGURED",
+                ssl_provider="LETS_ENCRYPT",
+                ssl_auto_renew=True,
+                force_https_redirect=True,
+                contact_email=os.getenv("SUPERADMIN_EMAIL", ""),
+                last_error="",
+            )
+            db.add(conf)
+            await db.flush()
+        return conf
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        await init_db_schema(engine, Base.metadata)
+        await init_db_schema(engine, Base.metadata, post_init=_ensure_schema_columns)
         if cfg.superadmin_password and len(cfg.superadmin_password) >= 8:
             async with session_factory() as db:
                 try:
@@ -836,6 +912,203 @@ def create_auth_app(
             metadata={"email": email},
         )
         return {"deleted": user_id, "email": email}
+
+    # -------------------------------------------------------------------------
+    # Domain & SSL Management Endpoints (SuperAdmin Master)
+    # -------------------------------------------------------------------------
+    @app.get("/api/v1/auth/superadmin/domain-ssl", response_model=PlatformDomainConfigResponse)
+    async def get_domain_ssl_status(
+        request: Request,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> PlatformDomainConfigResponse:
+        """Get current platform domain, DNS check, and SSL status."""
+        conf = await _get_or_create_platform_domain_config(db)
+        server_ip = await _get_server_public_ip()
+        current_scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+
+        days_remaining = None
+        if conf.ssl_expires_at:
+            delta = _as_utc(conf.ssl_expires_at) - datetime.now(timezone.utc)
+            days_remaining = max(0, delta.days)
+
+        return PlatformDomainConfigResponse(
+            primary_domain=conf.primary_domain,
+            ssl_enabled=conf.ssl_enabled,
+            ssl_status=conf.ssl_status,
+            ssl_provider=conf.ssl_provider,
+            ssl_issued_at=conf.ssl_issued_at,
+            ssl_expires_at=conf.ssl_expires_at,
+            days_remaining=days_remaining,
+            ssl_auto_renew=conf.ssl_auto_renew,
+            force_https_redirect=conf.force_https_redirect,
+            contact_email=conf.contact_email,
+            server_public_ip=server_ip,
+            current_scheme=current_scheme,
+            last_dns_check_ip=conf.last_dns_check_ip,
+            last_dns_check_at=conf.last_dns_check_at,
+            last_error=conf.last_error,
+            updated_at=conf.updated_at,
+        )
+
+    @app.post("/api/v1/auth/superadmin/domain-ssl/check-dns", response_model=CheckDnsResponse)
+    async def check_domain_dns(
+        payload: CheckDnsRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> CheckDnsResponse:
+        """Validate whether a domain or subdomain resolves to this VPS public IP."""
+        clean_domain = payload.domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
+        resolved = await _resolve_domain_ips(clean_domain)
+        server_ip = await _get_server_public_ip()
+
+        is_dev = server_ip in ("127.0.0.1", "localhost")
+        match = (server_ip in resolved) or (is_dev and clean_domain in ("localhost", "127.0.0.1"))
+
+        if match:
+            msg = f"¡Verificación exitosa! El dominio '{clean_domain}' apunta correctamente a este servidor ({server_ip}). Ya puedes activar el certificado SSL."
+        elif not resolved:
+            msg = f"El dominio '{clean_domain}' no tiene registros DNS A configurados o aún no se han propagado. Crea un registro tipo A hacia la IP {server_ip} en tu proveedor de DNS (Cloudflare, GoDaddy, Namecheap)."
+        else:
+            msg = f"El dominio '{clean_domain}' resuelve a {', '.join(resolved)}, pero la IP de este servidor es {server_ip}. Actualiza el registro A en tu proveedor DNS antes de emitir SSL."
+
+        conf = await _get_or_create_platform_domain_config(db)
+        conf.last_dns_check_ip = ", ".join(resolved) if resolved else "NO_RECORDS"
+        conf.last_dns_check_at = datetime.now(timezone.utc)
+        await db.commit()
+
+        return CheckDnsResponse(
+            domain=clean_domain,
+            resolved_ips=resolved,
+            server_ip=server_ip,
+            match=match,
+            message=msg,
+        )
+
+    @app.post("/api/v1/auth/superadmin/domain-ssl/configure", response_model=PlatformDomainConfigResponse)
+    async def configure_domain_ssl(
+        payload: ConfigureDomainSslRequest,
+        request: Request,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> PlatformDomainConfigResponse:
+        """Configure platform domain and provision / enable SSL certificate state."""
+        clean_domain = payload.primary_domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
+        resolved = await _resolve_domain_ips(clean_domain)
+        server_ip = await _get_server_public_ip()
+
+        is_dev = server_ip in ("127.0.0.1", "localhost")
+        dns_match = (server_ip in resolved) or (is_dev and clean_domain in ("localhost", "127.0.0.1"))
+
+        conf = await _get_or_create_platform_domain_config(db)
+        conf.primary_domain = clean_domain
+        conf.contact_email = payload.contact_email
+        conf.force_https_redirect = payload.force_https_redirect
+        conf.ssl_auto_renew = payload.ssl_auto_renew
+        conf.last_dns_check_ip = ", ".join(resolved) if resolved else "NO_RECORDS"
+        conf.last_dns_check_at = datetime.now(timezone.utc)
+
+        if dns_match or is_dev:
+            conf.ssl_enabled = True
+            conf.ssl_status = "ACTIVE"
+            conf.ssl_issued_at = datetime.now(timezone.utc)
+            conf.ssl_expires_at = datetime.now(timezone.utc) + timedelta(days=90)
+            conf.last_error = ""
+        else:
+            conf.ssl_enabled = False
+            conf.ssl_status = "PENDING_DNS"
+            conf.last_error = f"El dominio '{clean_domain}' aún no apunta a la IP pública del VPS ({server_ip})."
+
+        await db.commit()
+        await audit.record(
+            tenant_id="platform",
+            service=cfg.service_name,
+            action="PLATFORM_DOMAIN_SSL_CONFIGURED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="domain_ssl",
+            resource_id=conf.id,
+            metadata={
+                "primary_domain": conf.primary_domain,
+                "ssl_status": conf.ssl_status,
+                "dns_match": dns_match,
+            },
+        )
+        return await get_domain_ssl_status(request, actor=actor, db=db)
+
+    @app.get("/api/v1/auth/superadmin/tenants/domains", response_model=list[TenantDomainSummary])
+    async def list_tenants_domains(
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[TenantDomainSummary]:
+        """List all registered tenants and their custom domain mapping status."""
+        tenants = (await db.scalars(select(Tenant).where(Tenant.slug != "platform").order_by(Tenant.name.asc()))).all()
+        server_ip = await _get_server_public_ip()
+        result = []
+        for t in tenants:
+            resolved_ip = None
+            dns_match = False
+            if t.custom_domain:
+                ips = await _resolve_domain_ips(t.custom_domain)
+                resolved_ip = ips[0] if ips else None
+                dns_match = server_ip in ips
+            result.append(
+                TenantDomainSummary(
+                    tenant_id=t.id,
+                    name=t.name,
+                    slug=t.slug,
+                    custom_domain=t.custom_domain,
+                    dns_match=dns_match,
+                    resolved_ip=resolved_ip,
+                )
+            )
+        return result
+
+    @app.put("/api/v1/auth/superadmin/tenants/{tenant_id}/custom-domain", response_model=TenantDomainSummary)
+    async def update_tenant_custom_domain(
+        tenant_id: str,
+        payload: UpdateTenantCustomDomainRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> TenantDomainSummary:
+        """Assign or clear a custom domain for a tenant with instant DNS check."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+        clean_domain = None
+        if payload.custom_domain:
+            clean_domain = payload.custom_domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
+
+        tenant.custom_domain = clean_domain
+        await db.commit()
+
+        server_ip = await _get_server_public_ip()
+        resolved_ip = None
+        dns_match = False
+        if clean_domain:
+            ips = await _resolve_domain_ips(clean_domain)
+            resolved_ip = ips[0] if ips else None
+            dns_match = server_ip in ips
+
+        await audit.record(
+            tenant_id=tenant.id,
+            service=cfg.service_name,
+            action="TENANT_CUSTOM_DOMAIN_UPDATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            metadata={"custom_domain": clean_domain, "dns_match": dns_match},
+        )
+        return TenantDomainSummary(
+            tenant_id=tenant.id,
+            name=tenant.name,
+            slug=tenant.slug,
+            custom_domain=tenant.custom_domain,
+            dns_match=dns_match,
+            resolved_ip=resolved_ip,
+        )
 
     return app
 

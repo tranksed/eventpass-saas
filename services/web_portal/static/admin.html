@@ -1040,15 +1040,24 @@
     function refreshSession() {
       if (typeof EP.renderNavbar === "function") EP.renderNavbar("admin");
       const s = EP.getSession();
-      if (s.token && s.role === "SUPERADMIN") {
-        document.getElementById("authGateScreen").classList.remove("d-none");
-        document.getElementById("appShell").classList.add("d-none");
-        EP.showMsg("loginMsg", "warn", 'Sesión SuperAdmin activa. Ve a <a href="/superadmin" class="alert-link">/superadmin</a> para impersonar una empresa o inicia sesión como Admin del tenant.');
-        return;
-      }
       if (s.token) {
         document.getElementById("authGateScreen").classList.add("d-none");
         document.getElementById("appShell").classList.remove("d-none");
+        const alertHost = document.getElementById("globalAlert");
+        if (alertHost) {
+          if (s.role === "SUPERADMIN") {
+            alertHost.innerHTML = `
+              <div class="alert alert-primary py-2 px-3 small d-flex align-items-center justify-content-between mb-3 shadow-sm border-info">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-shield-lock-fill text-info fs-5"></i>
+                  <span><strong>Modo SuperAdmin:</strong> Control total de edición multi-empresa activo. Tienes acceso para gestionar y modificar todos los eventos e ítems del catálogo.</span>
+                </div>
+                <a href="/superadmin" class="btn btn-outline-info btn-sm py-1 px-2"><i class="bi bi-gear-wide-connected me-1"></i>Consola SuperAdmin</a>
+              </div>`;
+          } else {
+            alertHost.innerHTML = "";
+          }
+        }
         const tabParam = new URLSearchParams(location.search).get("tab");
         if (tabParam && document.getElementById(`tab-${tabParam}`)) {
           loadEvents().then(ok => { if (ok !== false) { loadCompanies(); switchTab(tabParam); } });

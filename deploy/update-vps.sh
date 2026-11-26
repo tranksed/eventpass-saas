@@ -57,17 +57,20 @@ else
     exit 1
   fi
 fi
-chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh"
+chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh" "${APP_DIR}/deploy/setup-ssl.sh"
+ln -sf "${APP_DIR}/deploy/setup-ssl.sh" /usr/local/bin/eventpass-ssl
 
 CHOSEN_PORT="$(grep -E '^APP_HTTP_PORT=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- || echo "8088")"
 CHOSEN_PORT="${CHOSEN_PORT:-8088}"
 
 grep -q '^SUPERADMIN_EMAIL=' "${ENV_FILE}" || echo 'SUPERADMIN_EMAIL=superadmin@eventpass.pe' >> "${ENV_FILE}"
 grep -q '^SUPERADMIN_PASSWORD=' "${ENV_FILE}" || echo 'SUPERADMIN_PASSWORD=' >> "${ENV_FILE}"
+grep -q '^UVICORN_WORKERS=' "${ENV_FILE}" || echo 'UVICORN_WORKERS=1' >> "${ENV_FILE}"
 
-echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}) ==="
+echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}, uvicorn workers: 1) ==="
 cd "${INFRA_DIR}"
 docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
+docker image prune -f >/dev/null 2>&1 || true
 
 echo "=== [3/4] Esperando que todos los microservicios estén HEALTHY (puerto ${CHOSEN_PORT}) ==="
 READY=0
