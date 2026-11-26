@@ -85,3 +85,19 @@ class SuperAdminLoginRequest(StrictModel):
 
 class UpdateTenantStatusRequest(StrictModel):
     is_active: bool
+
+
+class SuperAdminResetPasswordRequest(StrictModel):
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class SuperAdminUpdateTenantRequest(StrictModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    slug: str | None = Field(default=None, min_length=2, max_length=80, pattern=r"^[a-z0-9-]+$")
+
+
+class SuperAdminUpdateUserRequest(StrictModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    email: str | None = Field(default=None, min_length=5, max_length=255)
+    role: Role | None = None
+    is_active: bool | None = None

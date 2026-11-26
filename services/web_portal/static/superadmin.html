@@ -190,6 +190,203 @@
         </div>
       </div>
     </section>
+
+    <!-- MODAL: EDITAR TENANT -->
+    <div class="modal fade" id="modalEditTenant" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+          <form onsubmit="event.preventDefault(); submitEditTenant();">
+            <div class="modal-header border-secondary-subtle">
+              <h5 class="modal-title h6 fw-bold"><i class="bi bi-pencil-square text-info me-2"></i>Editar Empresa (Tenant)</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="editTenantId" />
+              <div class="mb-3">
+                <label class="form-label small">Nombre Comercial</label>
+                <input id="editTenantName" class="form-control form-control-sm" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label small">Slug URL (Solo minúsculas, números y guiones)</label>
+                <input id="editTenantSlug" class="form-control form-control-sm" pattern="[a-z0-9-]+" required />
+                <div class="form-text text-secondary small">Atención: cambiar el slug altera la URL de acceso del tenant.</div>
+              </div>
+              <div id="editTenantMsg"></div>
+            </div>
+            <div class="modal-footer border-secondary-subtle py-2">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" id="btnSubmitEditTenant" class="btn btn-primary btn-sm fw-semibold">
+                <i class="bi bi-check2-circle me-1"></i>Guardar Cambios
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: GESTIÓN DE USUARIOS Y ADMINS DE TENANT -->
+    <div class="modal fade" id="modalTenantUsers" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border-secondary">
+          <div class="modal-header border-secondary-subtle">
+            <div>
+              <h5 class="modal-title h6 fw-bold mb-0">
+                <i class="bi bi-people-fill text-primary me-2"></i>Administradores y Equipo: <span id="tuModalTenantName" class="text-info"></span>
+              </h5>
+              <small class="text-secondary mono" id="tuModalTenantSlug"></small>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="tuCurrentTenantId" />
+            <div id="tuGlobalMsg" class="mb-3"></div>
+
+            <!-- TABLA DE USUARIOS DEL TENANT -->
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold small"><i class="bi bi-person-badge text-warning me-1"></i>Usuarios Registrados</span>
+              <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="loadTenantUsersTable(document.getElementById('tuCurrentTenantId').value)">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refrescar
+              </button>
+            </div>
+            <div class="table-responsive mb-4">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead>
+                  <tr class="small text-secondary"><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr>
+                </thead>
+                <tbody id="tuUsersTableBody">
+                  <tr><td colspan="5" class="text-secondary text-center py-3">Cargando usuarios...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- FORMULARIO CREAR NUEVO USUARIO EN EL TENANT -->
+            <div class="ep-card p-3 border border-secondary-subtle">
+              <h6 class="small fw-bold text-success mb-2"><i class="bi bi-person-plus me-1"></i>Crear Nuevo Administrador o Staff para este Tenant</h6>
+              <form onsubmit="event.preventDefault(); submitCreateTenantUser();">
+                <div class="row g-2 mb-2">
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">Nombre Completo</label>
+                    <input id="tuNewFullName" class="form-control form-control-sm" placeholder="Ej. Juan Pérez" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">Correo Electrónico</label>
+                    <input id="tuNewEmail" type="email" class="form-control form-control-sm" placeholder="admin@empresa.pe" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">Contraseña Inicial (mín. 8 caracteres)</label>
+                    <input id="tuNewPassword" type="password" minlength="8" class="form-control form-control-sm" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">Rol de Acceso</label>
+                    <select id="tuNewRole" class="form-select form-select-sm">
+                      <option value="ADMIN">ADMIN (Control Total del Tenant)</option>
+                      <option value="SUPERVISOR">SUPERVISOR (Edición y Staff)</option>
+                      <option value="VALIDATOR">VALIDATOR (Solo Control de Puerta)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div id="tuNewUserMsg" class="flex-grow-1 me-2"></div>
+                  <button type="submit" id="btnSubmitNewTenantUser" class="btn btn-success btn-sm fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i>Crear Usuario
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="modal-footer border-secondary-subtle py-2">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: CAMBIAR / RESETEAR CONTRASEÑA -->
+    <div class="modal fade" id="modalResetPassword" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-warning">
+          <form onsubmit="event.preventDefault(); submitResetPassword();">
+            <div class="modal-header border-secondary-subtle">
+              <h5 class="modal-title h6 fw-bold text-warning">
+                <i class="bi bi-key-fill me-2"></i>Cambiar Contraseña de Administrador
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="rpTenantId" />
+              <input type="hidden" id="rpUserId" />
+              <div class="alert alert-secondary py-2 small mb-3">
+                Cambiando contraseña para: <strong id="rpUserLabel" class="text-white"></strong>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small">Nueva Contraseña (mínimo 8 caracteres) *</label>
+                <div class="input-group input-group-sm">
+                  <input id="rpNewPassword" type="password" minlength="8" class="form-control" placeholder="Escribe la nueva contraseña" required />
+                  <button class="btn btn-outline-secondary" type="button" onclick="togglePassVisibility('rpNewPassword', this)">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+                <div class="form-text text-secondary small">
+                  Esta acción restablecerá el acceso de inmediato y desconectará sesiones anteriores del usuario.
+                </div>
+              </div>
+              <div id="rpMsg"></div>
+            </div>
+            <div class="modal-footer border-secondary-subtle py-2">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" id="btnSubmitResetPassword" class="btn btn-warning btn-sm fw-semibold">
+                <i class="bi bi-check-circle-fill me-1"></i>Establecer Contraseña
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: EDITAR USUARIO INDIVIDUAL -->
+    <div class="modal fade" id="modalEditTenantUser" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+          <form onsubmit="event.preventDefault(); submitEditTenantUser();">
+            <div class="modal-header border-secondary-subtle">
+              <h5 class="modal-title h6 fw-bold"><i class="bi bi-pencil-square text-info me-2"></i>Editar Usuario</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <input type="hidden" id="euTenantId" />
+              <input type="hidden" id="euUserId" />
+              <div class="mb-2">
+                <label class="form-label small">Nombre Completo</label>
+                <input id="euFullName" class="form-control form-control-sm" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">Correo Electrónico</label>
+                <input id="euEmail" type="email" class="form-control form-control-sm" required />
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">Rol</label>
+                <select id="euRole" class="form-select form-select-sm">
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="SUPERVISOR">SUPERVISOR</option>
+                  <option value="VALIDATOR">VALIDATOR</option>
+                </select>
+              </div>
+              <div class="form-check form-switch mt-3">
+                <input class="form-check-input" type="checkbox" id="euIsActive" />
+                <label class="form-check-label small" for="euIsActive">Usuario Activo (Permite iniciar sesión)</label>
+              </div>
+              <div id="euMsg" class="mt-2"></div>
+            </div>
+            <div class="modal-footer border-secondary-subtle py-2">
+              <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" id="btnSubmitEditUser" class="btn btn-primary btn-sm fw-semibold">
+                <i class="bi bi-check2-circle me-1"></i>Guardar Cambios
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -323,10 +520,12 @@
             <tr>
               <td><strong>${EP.escapeHtml(t.name)}</strong></td>
               <td class="mono">${EP.escapeHtml(t.slug)}</td>
-              <td>${t.users_count}</td>
+              <td><span class="badge text-bg-secondary">${t.users_count} usuarios</span></td>
               <td><span class="badge ${t.is_active ? "text-bg-success" : "text-bg-danger"}">${t.is_active ? "ACTIVA" : "SUSPENDIDA"}</span></td>
               <td class="d-flex gap-1 flex-wrap">
-                <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateTenant('${t.id}')"><i class="bi bi-box-arrow-in-right me-1"></i>Entrar /admin</button>
+                <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateTenant('${t.id}')" title="Entrar al panel /admin de esta empresa"><i class="bi bi-box-arrow-in-right me-1"></i>/admin</button>
+                <button type="button" class="btn btn-outline-primary btn-sm py-0" onclick="openTenantUsersModal('${t.id}')" title="Administrar usuarios y cambiar contraseñas"><i class="bi bi-people-fill me-1"></i>Admins / Claves</button>
+                <button type="button" class="btn btn-outline-light btn-sm py-0" onclick="openEditTenantModal('${t.id}')" title="Modificar nombre o slug de empresa"><i class="bi bi-pencil me-1"></i>Editar</button>
                 <button type="button" class="btn ${t.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleTenant('${t.id}', ${!t.is_active})">${t.is_active ? "Suspender" : "Reactivar"}</button>
                 <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteTenantFromSa('${t.id}')" title="Eliminar empresa"><i class="bi bi-trash"></i></button>
               </td>
@@ -342,7 +541,8 @@
               <td>${e.tickets_sold} / ${e.tickets_capacity}</td>
               <td>S/ ${(e.revenue_cents / 100).toFixed(2)}</td>
               <td><span class="badge ${e.is_active ? "text-bg-success" : "text-bg-secondary"}">${e.is_active ? "ACTIVO" : "PAUSADO"}</span></td>
-              <td class="d-flex gap-1">
+              <td class="d-flex gap-1 flex-wrap">
+                <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="impersonateEvent('${e.tenant_id}', '${e.id}')" title="Abrir y editar en /admin"><i class="bi bi-pencil-square me-1"></i>Editar /admin</button>
                 <button type="button" class="btn ${e.is_active ? "btn-outline-warning" : "btn-outline-success"} btn-sm py-0" onclick="toggleEvent('${e.id}', ${!e.is_active})">${e.is_active ? "Pausar" : "Activar"}</button>
                 <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteEventFromSa('${e.id}')" title="Eliminar evento"><i class="bi bi-trash"></i></button>
               </td>
@@ -464,6 +664,227 @@
       } catch (e) {
         EP.showMsg("saGlobalMsg", "err", e.message);
         EP.toast(e.message, true);
+      }
+    }
+
+    function togglePassVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const isPass = input.type === "password";
+      input.type = isPass ? "text" : "password";
+      btn.innerHTML = `<i class="bi bi-eye${isPass ? "-slash" : ""}"></i>`;
+    }
+
+    async function impersonateEvent(tenantId, eventId) {
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/impersonate`, { method: "POST" });
+        EP.saveSession(res.access_token, "ADMIN", res.tenant_id, res.tenant_slug);
+        location.href = `/admin?event_id=${encodeURIComponent(eventId)}`;
+      } catch (e) { EP.showMsg("saGlobalMsg", "err", e.message); }
+    }
+
+    // --- EDICIÓN DE EMPRESA (TENANT) ---
+    function openEditTenantModal(tenantId) {
+      const t = saTenantsCache[tenantId];
+      if (!t) return;
+      document.getElementById("editTenantId").value = tenantId;
+      document.getElementById("editTenantName").value = t.name;
+      document.getElementById("editTenantSlug").value = t.slug;
+      document.getElementById("editTenantMsg").innerHTML = "";
+      const m = new bootstrap.Modal(document.getElementById("modalEditTenant"));
+      m.show();
+    }
+
+    async function submitEditTenant() {
+      const tenantId = document.getElementById("editTenantId").value;
+      const name = document.getElementById("editTenantName").value.trim();
+      const slug = document.getElementById("editTenantSlug").value.trim().toLowerCase();
+      setSaBtnLoading("btnSubmitEditTenant", true, "Guardando...");
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name, slug }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById("modalEditTenant"))?.hide();
+        EP.toast(`Empresa actualizada: ${res.name} (${res.slug})`);
+        await loadPlatformData();
+      } catch (e) {
+        EP.showMsg("editTenantMsg", "err", e.message);
+      } finally {
+        setSaBtnLoading("btnSubmitEditTenant", false);
+      }
+    }
+
+    // --- GESTIÓN DE USUARIOS Y ADMINS DE TENANT ---
+    let cachedTenantUsers = {};
+
+    function openTenantUsersModal(tenantId) {
+      const t = saTenantsCache[tenantId];
+      if (!t) return;
+      document.getElementById("tuCurrentTenantId").value = tenantId;
+      document.getElementById("tuModalTenantName").textContent = t.name;
+      document.getElementById("tuModalTenantSlug").textContent = `Slug: ${t.slug} · ID: ${t.id}`;
+      document.getElementById("tuGlobalMsg").innerHTML = "";
+      document.getElementById("tuNewUserMsg").innerHTML = "";
+      document.getElementById("tuNewFullName").value = "";
+      document.getElementById("tuNewEmail").value = "";
+      document.getElementById("tuNewPassword").value = "";
+      document.getElementById("tuNewRole").value = "ADMIN";
+
+      const m = new bootstrap.Modal(document.getElementById("modalTenantUsers"));
+      m.show();
+      loadTenantUsersTable(tenantId);
+    }
+
+    async function loadTenantUsersTable(tenantId) {
+      const tbody = document.getElementById("tuUsersTableBody");
+      tbody.innerHTML = `<tr><td colspan="5" class="text-secondary text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Cargando usuarios...</td></tr>`;
+      try {
+        const users = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/users`);
+        cachedTenantUsers[tenantId] = users;
+        if (!users.length) {
+          tbody.innerHTML = `<tr><td colspan="5" class="text-secondary text-center py-2">No hay usuarios registrados en este tenant.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = users.map(u => {
+          const roleBadge = u.role === "ADMIN" ? "text-bg-warning" : u.role === "SUPERVISOR" ? "text-bg-info" : "text-bg-secondary";
+          const statusBadge = u.is_active ? "text-bg-success" : "text-bg-danger";
+          const statusLabel = u.is_active ? "ACTIVO" : "INACTIVO";
+          const lockInfo = u.failed_attempts > 0 ? `<br><small class="text-warning">(${u.failed_attempts} fallos)</small>` : "";
+          return `
+            <tr>
+              <td><strong>${EP.escapeHtml(u.full_name)}</strong></td>
+              <td class="mono small">${EP.escapeHtml(u.email)}</td>
+              <td><span class="badge ${roleBadge}">${EP.escapeHtml(u.role)}</span></td>
+              <td><span class="badge ${statusBadge}">${statusLabel}</span>${lockInfo}</td>
+              <td>
+                <div class="d-flex gap-1 flex-wrap">
+                  <button type="button" class="btn btn-warning btn-sm py-0 fw-semibold" onclick="openResetPasswordModal('${tenantId}', '${u.id}', '${EP.escapeHtml(u.email)}', '${EP.escapeHtml(u.full_name)}')" title="Cambiar contraseña de este administrador">
+                    <i class="bi bi-key-fill me-1"></i>Cambiar Clave
+                  </button>
+                  <button type="button" class="btn btn-outline-info btn-sm py-0" onclick="openEditTenantUserModal('${tenantId}', '${u.id}', '${EP.escapeHtml(u.email)}', '${EP.escapeHtml(u.full_name)}', '${u.role}', ${u.is_active})" title="Editar usuario">
+                    <i class="bi bi-pencil me-1"></i>Editar
+                  </button>
+                  <button type="button" class="btn btn-outline-danger btn-sm py-0" onclick="deleteTenantUser('${tenantId}', '${u.id}', '${EP.escapeHtml(u.email)}')" title="Eliminar este usuario">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+        }).join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-danger py-2">Error al cargar usuarios: ${EP.escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+
+    async function submitCreateTenantUser() {
+      const tenantId = document.getElementById("tuCurrentTenantId").value;
+      const fullName = document.getElementById("tuNewFullName").value.trim();
+      const email = document.getElementById("tuNewEmail").value.trim();
+      const password = document.getElementById("tuNewPassword").value;
+      const role = document.getElementById("tuNewRole").value;
+
+      setSaBtnLoading("btnSubmitNewTenantUser", true, "Creando...");
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/users`, {
+          method: "POST",
+          body: JSON.stringify({ full_name: fullName, email, password, role }),
+        });
+        document.getElementById("tuNewFullName").value = "";
+        document.getElementById("tuNewEmail").value = "";
+        document.getElementById("tuNewPassword").value = "";
+        EP.showMsg("tuNewUserMsg", "ok", `Usuario '${res.email}' (${res.role}) creado exitosamente.`);
+        EP.toast(`Usuario '${res.email}' creado.`);
+        await loadTenantUsersTable(tenantId);
+        await loadPlatformData();
+      } catch (e) {
+        EP.showMsg("tuNewUserMsg", "err", e.message);
+      } finally {
+        setSaBtnLoading("btnSubmitNewTenantUser", false);
+      }
+    }
+
+    // --- RESET / CAMBIO DE CONTRASEÑA ---
+    function openResetPasswordModal(tenantId, userId, userEmail, userName) {
+      document.getElementById("rpTenantId").value = tenantId;
+      document.getElementById("rpUserId").value = userId;
+      document.getElementById("rpUserLabel").textContent = `${userName} (${userEmail})`;
+      document.getElementById("rpNewPassword").value = "";
+      document.getElementById("rpMsg").innerHTML = "";
+      const m = new bootstrap.Modal(document.getElementById("modalResetPassword"));
+      m.show();
+    }
+
+    async function submitResetPassword() {
+      const tenantId = document.getElementById("rpTenantId").value;
+      const userId = document.getElementById("rpUserId").value;
+      const newPassword = document.getElementById("rpNewPassword").value;
+      if (newPassword.length < 8) {
+        return EP.showMsg("rpMsg", "err", "La contraseña debe tener al menos 8 caracteres.");
+      }
+      setSaBtnLoading("btnSubmitResetPassword", true, "Actualizando...");
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/users/${userId}/reset-password`, {
+          method: "POST",
+          body: JSON.stringify({ new_password: newPassword }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById("modalResetPassword"))?.hide();
+        EP.showMsg("tuGlobalMsg", "ok", res.message || "Contraseña restablecida exitosamente.");
+        EP.toast("Contraseña actualizada con éxito.");
+        await loadTenantUsersTable(tenantId);
+      } catch (e) {
+        EP.showMsg("rpMsg", "err", e.message);
+      } finally {
+        setSaBtnLoading("btnSubmitResetPassword", false);
+      }
+    }
+
+    // --- EDICIÓN DE USUARIO INDIVIDUAL ---
+    function openEditTenantUserModal(tenantId, userId, userEmail, userName, role, isActive) {
+      document.getElementById("euTenantId").value = tenantId;
+      document.getElementById("euUserId").value = userId;
+      document.getElementById("euFullName").value = userName;
+      document.getElementById("euEmail").value = userEmail;
+      document.getElementById("euRole").value = role;
+      document.getElementById("euIsActive").checked = !!isActive;
+      document.getElementById("euMsg").innerHTML = "";
+      const m = new bootstrap.Modal(document.getElementById("modalEditTenantUser"));
+      m.show();
+    }
+
+    async function submitEditTenantUser() {
+      const tenantId = document.getElementById("euTenantId").value;
+      const userId = document.getElementById("euUserId").value;
+      const fullName = document.getElementById("euFullName").value.trim();
+      const email = document.getElementById("euEmail").value.trim();
+      const role = document.getElementById("euRole").value;
+      const isActive = document.getElementById("euIsActive").checked;
+
+      setSaBtnLoading("btnSubmitEditUser", true, "Guardando...");
+      try {
+        const res = await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/users/${userId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ full_name: fullName, email, role, is_active: isActive }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById("modalEditTenantUser"))?.hide();
+        EP.toast(`Usuario '${res.email}' actualizado.`);
+        await loadTenantUsersTable(tenantId);
+      } catch (e) {
+        EP.showMsg("euMsg", "err", e.message);
+      } finally {
+        setSaBtnLoading("btnSubmitEditUser", false);
+      }
+    }
+
+    async function deleteTenantUser(tenantId, userId, userEmail) {
+      if (!confirm(`¿Eliminar al usuario "${userEmail}"? Perderá el acceso de inmediato.`)) return;
+      try {
+        await EP.api(`/api/v1/auth/superadmin/tenants/${tenantId}/users/${userId}`, { method: "DELETE" });
+        EP.toast(`Usuario "${userEmail}" eliminado.`);
+        await loadTenantUsersTable(tenantId);
+        await loadPlatformData();
+      } catch (e) {
+        EP.showMsg("tuGlobalMsg", "err", e.message);
       }
     }
 

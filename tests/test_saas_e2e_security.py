@@ -866,6 +866,81 @@ async def test_superadmin_platform_control_and_impersonation(saas_cluster):
     )
     assert react.status_code == 200
 
+    # 3.b Test SuperAdmin tenant edit (name, slug)
+    up_ten = await auth.patch(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}",
+        headers=_bearer(sa_token),
+        json={"name": "Norte Fest Renombrado", "slug": "norte-fest-renombrado"},
+    )
+    assert up_ten.status_code == 200
+    assert up_ten.json()["name"] == "Norte Fest Renombrado"
+    assert up_ten.json()["slug"] == "norte-fest-renombrado"
+
+    # 3.c Test SuperAdmin list tenant users
+    t_users = await auth.get(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/users",
+        headers=_bearer(sa_token),
+    )
+    assert t_users.status_code == 200
+    users_list = t_users.json()
+    assert len(users_list) == 1
+    admin_user_id = users_list[0]["id"]
+    admin_email = users_list[0]["email"]
+
+    # 3.d Test SuperAdmin reset tenant admin password
+    reset_res = await auth.post(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/users/{admin_user_id}/reset-password",
+        headers=_bearer(sa_token),
+        json={"new_password": "NewAdminPass2026!"},
+    )
+    assert reset_res.status_code == 200
+    assert reset_res.json()["ok"] is True
+
+    # Old password fails now
+    assert (
+        await auth.post(
+            "/api/v1/auth/login",
+            json={"tenant_slug": "norte-fest-renombrado", "email": admin_email, "password": "TenantPass123!"},
+        )
+    ).status_code == 401
+
+    # New password succeeds
+    new_login = await auth.post(
+        "/api/v1/auth/login",
+        json={"tenant_slug": "norte-fest-renombrado", "email": admin_email, "password": "NewAdminPass2026!"},
+    )
+    assert new_login.status_code == 200, new_login.text
+
+    # 3.e Test SuperAdmin create new user inside tenant
+    create_u_res = await auth.post(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/users",
+        headers=_bearer(sa_token),
+        json={
+            "full_name": "Supervisor Puerta",
+            "email": "supervisor@nortefest.pe",
+            "password": "SupervisorPass2026!",
+            "role": "SUPERVISOR",
+        },
+    )
+    assert create_u_res.status_code == 201
+    new_u_id = create_u_res.json()["id"]
+
+    # 3.f Test SuperAdmin update user
+    update_u_res = await auth.patch(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/users/{new_u_id}",
+        headers=_bearer(sa_token),
+        json={"full_name": "Supervisor Jefe de Puerta"},
+    )
+    assert update_u_res.status_code == 200
+    assert update_u_res.json()["full_name"] == "Supervisor Jefe de Puerta"
+
+    # 3.g Test SuperAdmin delete secondary user
+    del_u_res = await auth.delete(
+        f"/api/v1/auth/superadmin/tenants/{tenant_id}/users/{new_u_id}",
+        headers=_bearer(sa_token),
+    )
+    assert del_u_res.status_code == 200
+
     # 4. Impersonate -> ADMIN token creates Event -> shows in global overviews & pause toggle
     imp = await auth.post(
         f"/api/v1/auth/superadmin/tenants/{tenant_id}/impersonate",

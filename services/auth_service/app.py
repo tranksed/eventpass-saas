@@ -24,6 +24,9 @@ from services.auth_service.schemas import (
     TenantRegisterResponse,
     TokenResponse,
     UpdateTenantStatusRequest,
+    SuperAdminResetPasswordRequest,
+    SuperAdminUpdateTenantRequest,
+    SuperAdminUpdateUserRequest,
     UserSummary,
 )
 from shared_kernel.audit_client import AuditClient
@@ -580,6 +583,259 @@ def create_auth_app(
             metadata={"slug": slug},
         )
         return {"deleted": tenant_id, "slug": slug}
+
+    @app.patch("/api/v1/auth/superadmin/tenants/{tenant_id}")
+    async def superadmin_update_tenant(
+        tenant_id: str,
+        payload: SuperAdminUpdateTenantRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict:
+        """SuperAdmin updates tenant commercial name or slug."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+        if payload.slug is not None:
+            new_slug = payload.slug.strip().lower()
+            if new_slug == "platform":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reserved slug 'platform'.")
+            existing = await db.scalar(
+                select(Tenant).where(Tenant.slug == new_slug, Tenant.id != tenant_id)
+            )
+            if existing is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Slug already in use by another tenant.")
+            tenant.slug = new_slug
+
+        if payload.name is not None:
+            tenant.name = payload.name.strip()
+
+        await db.commit()
+        await audit.record(
+            tenant_id=actor.tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_UPDATED_TENANT",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            metadata={"name": tenant.name, "slug": tenant.slug},
+        )
+        return {"id": tenant.id, "name": tenant.name, "slug": tenant.slug, "is_active": tenant.is_active}
+
+    @app.get("/api/v1/auth/superadmin/tenants/{tenant_id}/users")
+    async def superadmin_list_tenant_users(
+        tenant_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict]:
+        """SuperAdmin lists all users belonging to a tenant."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        users = (
+            await db.scalars(select(User).where(User.tenant_id == tenant_id).order_by(User.created_at.asc()))
+        ).all()
+        return [
+            {
+                "id": u.id,
+                "tenant_id": u.tenant_id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "role": u.role,
+                "is_active": u.is_active,
+                "mfa_enabled": u.mfa_enabled,
+                "failed_attempts": u.failed_attempts,
+                "created_at": u.created_at.isoformat(),
+            }
+            for u in users
+        ]
+
+    @app.post("/api/v1/auth/superadmin/tenants/{tenant_id}/users", status_code=status.HTTP_201_CREATED)
+    async def superadmin_create_tenant_user(
+        tenant_id: str,
+        payload: CreateUserRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> UserSummary:
+        """SuperAdmin creates an admin, supervisor, or validator user inside a tenant."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+        if payload.role == Role.SUPERADMIN:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign SUPERADMIN role to tenant user.")
+
+        existing = await db.scalar(
+            select(User).where(User.tenant_id == tenant_id, User.email == payload.email.lower())
+        )
+        if existing is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User email already exists in tenant.")
+
+        new_user = User(
+            tenant_id=tenant_id,
+            email=payload.email.lower(),
+            full_name=payload.full_name,
+            password_hash=hash_password(payload.password),
+            role=payload.role.value,
+        )
+        db.add(new_user)
+        await db.commit()
+        await audit.record(
+            tenant_id=tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_CREATED_TENANT_USER",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="user",
+            resource_id=new_user.id,
+            metadata={"assigned_role": payload.role.value, "email": new_user.email},
+        )
+        return UserSummary(
+            id=new_user.id,
+            tenant_id=new_user.tenant_id,
+            email=new_user.email,
+            full_name=new_user.full_name,
+            role=Role(new_user.role),
+            mfa_enabled=new_user.mfa_enabled,
+            is_active=new_user.is_active,
+        )
+
+    @app.post("/api/v1/auth/superadmin/tenants/{tenant_id}/users/{user_id}/reset-password")
+    async def superadmin_reset_user_password(
+        tenant_id: str,
+        user_id: str,
+        payload: SuperAdminResetPasswordRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """SuperAdmin changes/resets the password of any tenant administrator or user."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+        user = await db.scalar(select(User).where(User.id == user_id, User.tenant_id == tenant_id))
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in tenant.")
+
+        user.password_hash = hash_password(payload.new_password)
+        user.failed_attempts = 0
+        user.locked_until = None
+        user.is_active = True
+
+        # Invalidate existing active refresh tokens so stale sessions get terminated
+        await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+        await db.commit()
+
+        await audit.record(
+            tenant_id=tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_RESET_USER_PASSWORD",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="user",
+            resource_id=user.id,
+            metadata={"email": user.email, "role": user.role},
+        )
+        return {
+            "ok": True,
+            "message": f"Contraseña actualizada exitosamente para '{user.email}' ({user.full_name}).",
+            "user_id": user.id,
+            "email": user.email,
+        }
+
+    @app.patch("/api/v1/auth/superadmin/tenants/{tenant_id}/users/{user_id}")
+    async def superadmin_update_tenant_user(
+        tenant_id: str,
+        user_id: str,
+        payload: SuperAdminUpdateUserRequest,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> UserSummary:
+        """SuperAdmin updates user full name, email, role, or active status."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+        user = await db.scalar(select(User).where(User.id == user_id, User.tenant_id == tenant_id))
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in tenant.")
+
+        if payload.email is not None:
+            new_email = payload.email.strip().lower()
+            existing = await db.scalar(
+                select(User).where(User.tenant_id == tenant_id, User.email == new_email, User.id != user_id)
+            )
+            if existing is not None:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use by another user in tenant.")
+            user.email = new_email
+
+        if payload.full_name is not None:
+            user.full_name = payload.full_name.strip()
+
+        if payload.role is not None:
+            if payload.role == Role.SUPERADMIN:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign SUPERADMIN to tenant user.")
+            user.role = payload.role.value
+
+        if payload.is_active is not None:
+            user.is_active = payload.is_active
+            if user.is_active:
+                user.failed_attempts = 0
+                user.locked_until = None
+
+        await db.commit()
+        await audit.record(
+            tenant_id=tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_UPDATED_TENANT_USER",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="user",
+            resource_id=user.id,
+            metadata={"email": user.email, "role": user.role, "is_active": user.is_active},
+        )
+        return UserSummary(
+            id=user.id,
+            tenant_id=user.tenant_id,
+            email=user.email,
+            full_name=user.full_name,
+            role=Role(user.role),
+            mfa_enabled=user.mfa_enabled,
+            is_active=user.is_active,
+        )
+
+    @app.delete("/api/v1/auth/superadmin/tenants/{tenant_id}/users/{user_id}")
+    async def superadmin_delete_tenant_user(
+        tenant_id: str,
+        user_id: str,
+        actor: CurrentActor = Depends(require_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """SuperAdmin deletes an individual tenant user."""
+        tenant = await db.scalar(select(Tenant).where(Tenant.id == tenant_id, Tenant.slug != "platform"))
+        if tenant is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found.")
+
+        user = await db.scalar(select(User).where(User.id == user_id, User.tenant_id == tenant_id))
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in tenant.")
+
+        email = user.email
+        await db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+        await db.delete(user)
+        await db.commit()
+
+        await audit.record(
+            tenant_id=tenant_id,
+            service=cfg.service_name,
+            action="SUPERADMIN_DELETED_TENANT_USER",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="user",
+            resource_id=user_id,
+            metadata={"email": email},
+        )
+        return {"deleted": user_id, "email": email}
 
     return app
 
