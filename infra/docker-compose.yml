@@ -238,6 +238,7 @@ services:
       ACCREDITATION_SERVICE_URL: http://accreditation-service:8000
       AUDIT_SERVICE_URL: http://audit-service:8000
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET}
+      KEYS_DIR: /app/data/keys
       UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
@@ -245,11 +246,17 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    volumes:
+      - shared_public_keys:/app/data/keys
     depends_on:
-      - auth-service
-      - registration-service
-      - accreditation-service
-      - audit-service
+      auth-service:
+        condition: service_healthy
+      registration-service:
+        condition: service_healthy
+      accreditation-service:
+        condition: service_healthy
+      audit-service:
+        condition: service_healthy
     networks:
       - service_mesh
 
