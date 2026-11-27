@@ -160,10 +160,15 @@ cmd_setup() {
   fi
 
   # 5. Enlazar certificados al Nginx de EventPass
-  if [[ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]]; then
-    echo "--> Enlazando certificados a ${SSL_DIR}..."
-    cp -L "/etc/letsencrypt/live/${domain}/fullchain.pem" "${SSL_DIR}/active_cert.pem"
-    cp -L "/etc/letsencrypt/live/${domain}/privkey.pem" "${SSL_DIR}/active_key.pem"
+  local cert_file
+  cert_file=$(ls -1d /etc/letsencrypt/live/${domain}*/fullchain.pem 2>/dev/null | tail -n1 || true)
+  local key_file
+  key_file=$(ls -1d /etc/letsencrypt/live/${domain}*/privkey.pem 2>/dev/null | tail -n1 || true)
+
+  if [[ -n "${cert_file}" && -f "${cert_file}" && -n "${key_file}" && -f "${key_file}" ]]; then
+    echo "--> Enlazando certificados (${cert_file}) a ${SSL_DIR}..."
+    cp -L "${cert_file}" "${SSL_DIR}/active_cert.pem"
+    cp -L "${key_file}" "${SSL_DIR}/active_key.pem"
     chmod 600 "${SSL_DIR}/active_key.pem"
     chmod 644 "${SSL_DIR}/active_cert.pem"
 
@@ -219,11 +224,16 @@ cmd_renew() {
   certbot renew --webroot -w "${CERTBOT_DIR}"
   local dom
   dom=$(grep "^PLATFORM_DOMAIN=" "${ENV_FILE}" 2>/dev/null | cut -d'=' -f2 || true)
-  if [[ -n "${dom}" && -f "/etc/letsencrypt/live/${dom}/fullchain.pem" ]]; then
-    cp -L "/etc/letsencrypt/live/${dom}/fullchain.pem" "${SSL_DIR}/active_cert.pem"
-    cp -L "/etc/letsencrypt/live/${dom}/privkey.pem" "${SSL_DIR}/active_key.pem"
-    docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
-    echo "✅ Certificados renovados y NGINX recargado."
+  if [[ -n "${dom}" ]]; then
+    local cert_file key_file
+    cert_file=$(ls -1d /etc/letsencrypt/live/${dom}*/fullchain.pem 2>/dev/null | tail -n1 || true)
+    key_file=$(ls -1d /etc/letsencrypt/live/${dom}*/privkey.pem 2>/dev/null | tail -n1 || true)
+    if [[ -n "${cert_file}" && -f "${cert_file}" && -n "${key_file}" && -f "${key_file}" ]]; then
+      cp -L "${cert_file}" "${SSL_DIR}/active_cert.pem"
+      cp -L "${key_file}" "${SSL_DIR}/active_key.pem"
+      docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
+      echo "✅ Certificados renovados y NGINX recargado."
+    fi
   fi
 }
 

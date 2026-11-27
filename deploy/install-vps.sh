@@ -86,11 +86,11 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y ca-certificates curl gnupg openssl ufw git
 
-if ! command -v docker >/dev/null 2>&1; then
+if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo "=== [2/6] Instalando Docker Engine y Docker Compose v2 ==="
   install -m 0755 -d /etc/apt/keyrings
   . /etc/os-release
-  curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | gpg --yes --dearmor -o /etc/apt/keyrings/docker.gpg
   chmod a+r /etc/apt/keyrings/docker.gpg
   echo \
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${ID} \
@@ -99,7 +99,7 @@ if ! command -v docker >/dev/null 2>&1; then
   apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   systemctl enable --now docker
 else
-  echo "=== [2/6] Docker ya instalado ==="
+  echo "=== [2/6] Docker y Docker Compose v2 ya instalados ==="
 fi
 
 echo "=== [3/6] Configurando secretos y puerto (${CHOSEN_PORT}) en ${ENV_FILE} ==="
@@ -171,7 +171,7 @@ docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
 
 echo "=== [6/6] Verificando salud de los servicios en http://127.0.0.1:${CHOSEN_PORT} ==="
 READY=0
-for i in $(seq 1 30); do
+for i in $(seq 1 45); do
   if curl -fsS "http://127.0.0.1:${CHOSEN_PORT}/health" >/dev/null 2>&1; then
     READY=1
     break
