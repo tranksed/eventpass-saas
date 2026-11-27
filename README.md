@@ -97,10 +97,13 @@ sudo eventpass-ssl setup tickets.tuempresa.com admin@tuempresa.com
 ```
 
 Este comando:
-1. Solicita y valida el certificado con Let's Encrypt vía ACME Challenge webroot.
-2. Vincula los certificados en `gateway/ssl/active_cert.pem` y `active_key.pem`.
-3. Configura Nginx en los puertos estándar `80` y `443` con redirección automática HTTP -> HTTPS.
+1. Solicita y valida el certificado oficial con Let's Encrypt vía ACME Challenge webroot en el puerto 80.
+2. Reemplaza automáticamente el certificado provisional autofirmado de fábrica por el certificado oficial en `gateway/ssl/active_cert.pem`.
+3. Reinicia Nginx en los puertos estándar **80 (HTTP)** y **443 (HTTPS)** con redirección automática HTTP -> HTTPS.
 4. Instala un cronjob de auto-renovación diaria en `/etc/cron.d/eventpass-ssl-renew`.
+
+> **¿Por qué el navegador muestra "No seguro" al inicio?**
+> En una instalación limpia, el sistema genera inicialmente un certificado SSL autofirmado de contingencia (`CN=eventpass.local`) para que el contenedor Nginx pueda arrancar y responder sin fallar antes de tener un dominio apuntado. Los navegadores muestran "No seguro" ante certificados autofirmados. En cuanto ejecutas `sudo eventpass-ssl setup midominio.com tu@correo.com`, se instala el certificado oficial de Let's Encrypt y el navegador muestra de inmediato el candado de conexión segura.
 
 ---
 

@@ -62,7 +62,14 @@ Ejecuta el asistente oficial de certificados:
 ```bash
 sudo eventpass-ssl setup tickets.tuempresa.pe contacto@tuempresa.pe
 ```
-Este comando configura automáticamente NGINX para escuchar en los puertos estándar **80** y **443**, solicita el certificado a Let's Encrypt y activa la auto-renovación diaria.
+Este comando:
+1. Valida el dominio mediante el desafío ACME de Let's Encrypt por el puerto 80.
+2. Reemplaza el certificado autofirmado temporal (`CN=eventpass.local`) por el certificado oficial en `gateway/ssl/active_cert.pem`.
+3. Reinicia NGINX en los puertos estándar **80 (HTTP)** y **443 (HTTPS)** con redirección automática a HTTPS.
+4. Programa la auto-renovación desatendida en el cron del sistema (`/etc/cron.d/eventpass-ssl-renew`).
+
+> **💡 ¿Por qué el navegador muestra "No seguro" tras la instalación inicial?**  
+> Al instalar el sistema por primera vez, Nginx arranca con un certificado autofirmado de contingencia (`eventpass.local`) para que el contenedor pueda responder de inmediato. Dado que las autoridades públicas no reconocen certificados autofirmados, el navegador muestra la advertencia roja de "No seguro". En cuanto ejecutas `sudo eventpass-ssl setup`, se instala el certificado oficial de Let's Encrypt y el navegador muestra el candado seguro de inmediato.
 
 ---
 
@@ -102,7 +109,12 @@ Para descargar e implementar nuevas mejoras desde GitHub **sin perder tus claves
 sudo eventpass-update
 ```
 
-El script actualiza el código, reconstruye los microservicios y valida que todas las rutas devuelvan código HTTP `200`.
+El script de actualización realiza las siguientes operaciones automáticas:
+1. Sincroniza la última versión estable desde `main` en GitHub (resolviendo automáticamente cambios de archivos rastreados sin requerir banderas manuales).
+2. **Preserva el archivo `infra/.env`**, tus claves secretas AES/Ed25519 y todos los volúmenes de datos persistentes de PostgreSQL, Redis y RabbitMQ.
+3. Asegura la estandarización de puertos (`APP_HTTP_PORT=80` y `APP_HTTPS_PORT=443`).
+4. Reconstruye las imágenes Docker de los microservicios y ejecuta las migraciones de base de datos.
+5. Valida la salud de todos los endpoints (`/health`) confirmando que devuelvan código HTTP `200`.
 
 ---
 
