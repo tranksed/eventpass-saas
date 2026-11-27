@@ -10,9 +10,16 @@
 # =============================================================================
 set -euo pipefail
 
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+APP_DIR="$(cd "$(dirname "${SCRIPT_PATH}")/.." && pwd)"
 INFRA_DIR="${APP_DIR}/infra"
 ENV_FILE="${INFRA_DIR}/.env"
+
+if [[ ! -f "${ENV_FILE}" && -f "/opt/eventpass-saas/infra/.env" ]]; then
+  APP_DIR="/opt/eventpass-saas"
+  INFRA_DIR="${APP_DIR}/infra"
+  ENV_FILE="${INFRA_DIR}/.env"
+fi
 CHOSEN_PORT="${APP_PORT:-}"
 
 while [[ $# -gt 0 ]]; do
