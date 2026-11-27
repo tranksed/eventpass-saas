@@ -60,8 +60,28 @@ fi
 chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh" "${APP_DIR}/deploy/setup-ssl.sh"
 ln -sf "${APP_DIR}/deploy/setup-ssl.sh" /usr/local/bin/eventpass-ssl
 
-CHOSEN_PORT="$(grep -E '^APP_HTTP_PORT=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- || echo "8088")"
-CHOSEN_PORT="${CHOSEN_PORT:-8088}"
+CHOSEN_PORT="$(grep -E '^APP_HTTP_PORT=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- || echo "80")"
+CHOSEN_PORT="${CHOSEN_PORT:-80}"
+
+# Si se ha configurado un dominio o SSL, migrar automáticamente a puertos estándar 80 y 443
+HAS_DOMAIN="$(grep -E '^PLATFORM_DOMAIN=' "${ENV_FILE}" | cut -d= -f2- | tr -d ' ' || true)"
+IS_SSL="$(grep -E '^SSL_ENABLED=' "${ENV_FILE}" | cut -d= -f2- | tr -d ' ' || true)"
+if [[ -n "${HAS_DOMAIN}" || "${IS_SSL}" == "true" ]]; then
+  if [[ "${CHOSEN_PORT}" != "80" ]]; then
+    echo "    [i] Dominio o SSL detectado (${HAS_DOMAIN:-activo}). Migrando puerto público de ${CHOSEN_PORT} a los puertos estándar 80 (HTTP) y 443 (HTTPS)..."
+    sed -i "s|^APP_HTTP_PORT=.*|APP_HTTP_PORT=80|" "${ENV_FILE}"
+    CHOSEN_PORT=80
+  fi
+  if grep -q "^APP_HTTPS_PORT=" "${ENV_FILE}"; then
+    sed -i "s|^APP_HTTPS_PORT=.*|APP_HTTPS_PORT=443|" "${ENV_FILE}"
+  else
+    echo "APP_HTTPS_PORT=443" >> "${ENV_FILE}"
+  fi
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 80/tcp >/dev/null 2>&1 || true
+    ufw allow 443/tcp >/dev/null 2>&1 || true
+  fi
+fi
 
 grep -q '^SUPERADMIN_EMAIL=' "${ENV_FILE}" || echo 'SUPERADMIN_EMAIL=superadmin@eventpass.pe' >> "${ENV_FILE}"
 grep -q '^SUPERADMIN_PASSWORD=' "${ENV_FILE}" || echo 'SUPERADMIN_PASSWORD=' >> "${ENV_FILE}"

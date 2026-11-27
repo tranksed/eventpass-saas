@@ -63,7 +63,7 @@ cd /opt/eventpass-saas
 sudo bash deploy/install-vps.sh
 ```
 
-El script permite elegir el puerto público (por defecto `8088` para pruebas o `80` si ya tienes el dominio apuntado) y configurará automáticamente:
+El script configura automáticamente los puertos estándar **80 (HTTP)** y **443 (HTTPS)** para que el dominio funcione directamente sin números de puerto en la URL (si el puerto 80 estuviese ocupado, te permite elegir uno alternativo):
 * Instalación de Docker Engine y Docker Compose v2.
 * Generación de secretos en `infra/.env` con permisos `600` (AES-256-GCM, blind index de DNI, contraseñas de las 4 BDs, Redis y RabbitMQ).
 * Configuración del firewall UFW (puertos 22, 80, 443).

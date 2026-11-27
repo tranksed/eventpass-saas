@@ -48,16 +48,26 @@ is_port_in_use() {
 }
 
 if [[ -z "${CHOSEN_PORT}" ]]; then
-  echo "=== Configuración de Puerto Público ==="
+  echo "=== Configuración de Puerto Público y Dominio ==="
+  echo "Para que tu dominio funcione de forma limpia y directa (https://midominio.com),"
+  echo "el puerto estándar mundial es 80 (HTTP) y 443 (HTTPS)."
+
+  DEFAULT_PORT=80
+  if is_port_in_use 80; then
+    DEFAULT_PORT=8088
+    echo "[!] El puerto 80 ya está en uso en este VPS (posible Apache/Nginx externo u otro servicio)."
+    echo "    Si deseas usar tu dominio principal directamente, libera el puerto 80 primero."
+  fi
+
   while true; do
-    read -r -p "Elige el puerto público para EventPass [Enter = 8088, ej: 80, 8080, 9000]: " input_port || true
-    CHOSEN_PORT="${input_port:-8088}"
+    read -r -p "Puerto público HTTP para EventPass [Enter = ${DEFAULT_PORT}]: " input_port || true
+    CHOSEN_PORT="${input_port:-${DEFAULT_PORT}}"
     if ! [[ "${CHOSEN_PORT}" =~ ^[0-9]+$ ]] || (( CHOSEN_PORT < 1 || CHOSEN_PORT > 65535 )); then
       echo "[!] Puerto inválido. Ingresa un número entre 1 y 65535."
       continue
     fi
     if is_port_in_use "${CHOSEN_PORT}"; then
-      read -r -p "[!] El puerto ${CHOSEN_PORT} está ocupado (puede ser una instancia previa de EventPass). ¿Usarlo igualmente? [s/N]: " reuse || true
+      read -r -p "[!] El puerto ${CHOSEN_PORT} ya está ocupado (puede ser una instancia previa de EventPass). ¿Usarlo igualmente? [s/N]: " reuse || true
       if [[ "${reuse,,}" != "s" && "${reuse,,}" != "y" ]]; then
         continue
       fi
@@ -98,6 +108,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   cat > "${ENV_FILE}" <<EOF
 ENVIRONMENT=production
 APP_HTTP_PORT=${CHOSEN_PORT}
+APP_HTTPS_PORT=443
 SERVER_PUBLIC_IP=${PUBLIC_IP}
 PII_MASTER_KEY_B64=$(openssl rand -base64 32)
 DNI_BLIND_INDEX_PEPPER=$(openssl rand -hex 32)
@@ -121,6 +132,11 @@ else
     sed -i "s/^APP_HTTP_PORT=.*/APP_HTTP_PORT=${CHOSEN_PORT}/" "${ENV_FILE}"
   else
     echo "APP_HTTP_PORT=${CHOSEN_PORT}" >> "${ENV_FILE}"
+  fi
+  if grep -q "^APP_HTTPS_PORT=" "${ENV_FILE}"; then
+    sed -i "s/^APP_HTTPS_PORT=.*/APP_HTTPS_PORT=443/" "${ENV_FILE}"
+  else
+    echo "APP_HTTPS_PORT=443" >> "${ENV_FILE}"
   fi
   if [[ -n "${PUBLIC_IP}" ]]; then
     if grep -q '^SERVER_PUBLIC_IP=' "${ENV_FILE}"; then

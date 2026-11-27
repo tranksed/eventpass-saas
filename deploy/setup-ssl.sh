@@ -187,6 +187,12 @@ cmd_setup() {
       echo "APP_HTTPS_PORT=443" >> "${ENV_FILE}"
     fi
 
+    # Asegurar apertura de puertos estándar 80 y 443 en UFW Firewall
+    if command -v ufw >/dev/null 2>&1; then
+      ufw allow 80/tcp >/dev/null 2>&1 || true
+      ufw allow 443/tcp >/dev/null 2>&1 || true
+    fi
+
     # Recargar o reiniciar Nginx para vincular puertos 80 y 443 con SSL
     echo "--> Recargando e iniciando NGINX en puertos 80 y 443..."
     docker compose -f "${INFRA_DIR}/docker-compose.yml" --env-file "${ENV_FILE}" up -d api-gateway 2>/dev/null || \

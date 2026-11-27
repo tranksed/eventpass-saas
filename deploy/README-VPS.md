@@ -30,7 +30,7 @@ Esta guía describe el procedimiento de instalación, configuración de dominio/
 
 3. Durante la instalación:
    * El instalador detecta automáticamente la **IP pública real de tu servidor**.
-   * Puedes elegir el puerto de acceso inicial (por defecto `8088` para pruebas o `80` si ya vas a usar un dominio con SSL).
+   * Por defecto se configuran los puertos estándar **80 (HTTP)** y **443 (HTTPS)** para que tu dominio funcione de forma limpia y directa sin requerir números de puerto en la URL (ej. `https://midominio.com`). Si el puerto 80 estuviese ocupado por otro servicio previo, el instalador te avisará y te permitirá elegir uno alternativo.
    * Se generan automáticamente claves criptográficas únicas de 256 bits y contraseñas independientes para las 4 bases de datos PostgreSQL, Redis y RabbitMQ en `/opt/eventpass-saas/infra/.env`.
    * Se habilitan los comandos globales `eventpass-update` y `eventpass-ssl`.
 
