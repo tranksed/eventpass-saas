@@ -67,6 +67,16 @@ grep -q '^SUPERADMIN_EMAIL=' "${ENV_FILE}" || echo 'SUPERADMIN_EMAIL=superadmin@
 grep -q '^SUPERADMIN_PASSWORD=' "${ENV_FILE}" || echo 'SUPERADMIN_PASSWORD=' >> "${ENV_FILE}"
 grep -q '^UVICORN_WORKERS=' "${ENV_FILE}" || echo 'UVICORN_WORKERS=1' >> "${ENV_FILE}"
 
+# Asegurar certificados SSL iniciales para arranque seguro de Nginx
+mkdir -p "${APP_DIR}/gateway/ssl"
+if [[ ! -f "${APP_DIR}/gateway/ssl/active_cert.pem" || ! -f "${APP_DIR}/gateway/ssl/active_key.pem" ]]; then
+  echo "    Generando certificado TLS base para Nginx..."
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout "${APP_DIR}/gateway/ssl/active_key.pem" \
+    -out "${APP_DIR}/gateway/ssl/active_cert.pem" \
+    -subj "/CN=eventpass-local" >/dev/null 2>&1 || true
+fi
+
 echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}, uvicorn workers: 1) ==="
 cd "${INFRA_DIR}"
 docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans

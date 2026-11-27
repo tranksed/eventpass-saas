@@ -13,6 +13,8 @@ data/
 *.db
 *.pem
 *.key
+!gateway/ssl/*.pem
+!gateway/ssl/*.key
 
 # Environment & secret files
 .env
