@@ -21,8 +21,8 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import qrcode
 from fastapi import Depends, FastAPI, HTTPException, Response, status
-from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select, text, update
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from services.accreditation_service.config import AccreditationSettings
 from services.accreditation_service.models import (
@@ -74,6 +74,18 @@ def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
+async def _ensure_accreditation_schema_columns(conn: AsyncConnection) -> None:
+    is_pg = conn.dialect.name == "postgresql"
+    try:
+        if is_pg:
+            await conn.execute(text("ALTER TABLE accredited_companies ADD COLUMN IF NOT EXISTS invite_token_encrypted VARCHAR(512)"))
+        else:
+            async with conn.begin_nested():
+                await conn.execute(text("ALTER TABLE accredited_companies ADD COLUMN invite_token_encrypted VARCHAR(512)"))
+    except Exception:
+        pass
+
+
 def create_accreditation_app(
     settings: AccreditationSettings | None = None,
     audit_client: AuditClient | None = None,
@@ -103,7 +115,7 @@ def create_accreditation_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        await init_db_schema(engine, Base.metadata)
+        await init_db_schema(engine, Base.metadata, post_init=_ensure_accreditation_schema_columns)
         yield
         await engine.dispose()
 
@@ -198,6 +210,7 @@ def create_accreditation_app(
             company_name=payload.company_name,
             contact_email_encrypted=pii_crypto.encrypt(payload.contact_email.lower(), aad=actor.tenant_id),
             invite_token_hash=hash_opaque_token(raw_invite),
+            invite_token_encrypted=pii_crypto.encrypt(raw_invite, aad=actor.tenant_id),
             staff_quota=quota,
             staff_used=0,
             link_expires_at=expires_at,
@@ -223,7 +236,7 @@ def create_accreditation_app(
             company_name=company.company_name,
             staff_quota=company.staff_quota,
             staff_used=company.staff_used,
-            invite_url=f"/api/v1/accreditation/invite/{raw_invite}/staff",
+            invite_url=f"/acreditacion?token={raw_invite}",
             invite_token=raw_invite,
             link_expires_at=company.link_expires_at,
         )
@@ -291,25 +304,112 @@ def create_accreditation_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[AccreditedCompanyResponse]:
-        """List accredited partner companies inside the actor's tenant."""
+        """List accredited partner companies inside the actor's tenant with decrypted invite tokens."""
         stmt = select(AccreditedCompany)
         if actor.role != Role.SUPERADMIN:
             stmt = stmt.where(AccreditedCompany.tenant_id == actor.tenant_id)
         if event_id:
             stmt = stmt.where(AccreditedCompany.event_id == event_id)
         rows = (await db.scalars(stmt.order_by(AccreditedCompany.created_at.desc()))).all()
-        return [
-            AccreditedCompanyResponse(
-                company_id=c.id,
-                tenant_id=c.tenant_id,
-                event_id=c.event_id,
-                company_name=c.company_name,
-                staff_quota=c.staff_quota,
-                staff_used=c.staff_used,
-                link_expires_at=c.link_expires_at,
+        result: list[AccreditedCompanyResponse] = []
+        for c in rows:
+            raw_token: str | None = None
+            if c.invite_token_encrypted:
+                try:
+                    raw_token = pii_crypto.decrypt(c.invite_token_encrypted, aad=c.tenant_id)
+                except Exception:
+                    raw_token = None
+            result.append(
+                AccreditedCompanyResponse(
+                    company_id=c.id,
+                    tenant_id=c.tenant_id,
+                    event_id=c.event_id,
+                    company_name=c.company_name,
+                    staff_quota=c.staff_quota,
+                    staff_used=c.staff_used,
+                    invite_url=f"/acreditacion?token={raw_token}" if raw_token else None,
+                    invite_token=raw_token,
+                    link_expires_at=c.link_expires_at,
+                )
             )
-            for c in rows
-        ]
+        return result
+
+    @app.post(
+        "/api/v1/accreditation/companies/{company_id}/regenerate-link",
+        response_model=AccreditedCompanyResponse,
+    )
+    async def regenerate_company_invite_link(
+        company_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> AccreditedCompanyResponse:
+        """Regenerate a fresh private accreditation invite link for a company."""
+        company = await db.scalar(select(AccreditedCompany).where(AccreditedCompany.id == company_id))
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        if actor.role != Role.SUPERADMIN and company.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=403, detail="No autorizado")
+
+        raw_invite = generate_secure_token(32)
+        company.invite_token_hash = hash_opaque_token(raw_invite)
+        company.invite_token_encrypted = pii_crypto.encrypt(raw_invite, aad=company.tenant_id)
+        now = datetime.now(timezone.utc)
+        if _as_utc(company.link_expires_at) <= now:
+            company.link_expires_at = now + timedelta(days=30)
+        await db.commit()
+
+        await audit.record(
+            tenant_id=company.tenant_id,
+            service=cfg.service_name,
+            action="ACCREDITED_COMPANY_LINK_REGENERATED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="accredited_company",
+            resource_id=company.id,
+        )
+        return AccreditedCompanyResponse(
+            company_id=company.id,
+            tenant_id=company.tenant_id,
+            event_id=company.event_id,
+            company_name=company.company_name,
+            staff_quota=company.staff_quota,
+            staff_used=company.staff_used,
+            invite_url=f"/acreditacion?token={raw_invite}",
+            invite_token=raw_invite,
+            link_expires_at=company.link_expires_at,
+        )
+
+    @app.delete("/api/v1/accreditation/companies/{company_id}")
+    async def delete_accredited_company(
+        company_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """Delete an accredited company and revoke all issued staff credentials."""
+        company = await db.scalar(select(AccreditedCompany).where(AccreditedCompany.id == company_id))
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa no encontrada")
+        if actor.role != Role.SUPERADMIN and company.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=403, detail="No autorizado")
+
+        staff = (await db.scalars(select(StaffMember).where(StaffMember.company_id == company.id))).all()
+        for s in staff:
+            if s.credential_id:
+                await db.execute(update(Credential).where(Credential.id == s.credential_id).values(status="REVOKED"))
+        await db.execute(delete(StaffMember).where(StaffMember.company_id == company.id))
+        await db.execute(delete(AccreditedCompany).where(AccreditedCompany.id == company.id))
+        await db.commit()
+
+        await audit.record(
+            tenant_id=company.tenant_id,
+            service=cfg.service_name,
+            action="ACCREDITED_COMPANY_DELETED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="accredited_company",
+            resource_id=company.id,
+        )
+        return {"status": "deleted", "company_id": company_id}
 
     @app.get(
         "/api/v1/accreditation/invite/{invite_token}",

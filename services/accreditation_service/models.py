@@ -38,6 +38,7 @@ class AccreditedCompany(Base):
     company_name: Mapped[str] = mapped_column(String(160), nullable=False)
     contact_email_encrypted: Mapped[str] = mapped_column(String(512), nullable=False)
     invite_token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    invite_token_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
     staff_quota: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
     staff_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

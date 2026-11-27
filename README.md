@@ -140,6 +140,26 @@ cd /opt/eventpass-saas/infra && docker compose --env-file .env up -d
 
 ---
 
+## 📧 Notificaciones por Correo Electrónico y Tickets QR con Logo
+
+La plataforma integra un sistema de correo transaccional para el despacho de entradas y credenciales:
+* **Generación de QR con Branding**: Incorpora el logo del evento centrado con nivel de redundancia y corrección de error alto (`ERROR_CORRECT_H`).
+* **Plantilla HTML Responsiva**: Envío de entrada oficial con detalles del evento, titular, desglose de ítems, fecha y advertencias de seguridad.
+* **Despacho Automático y Manual**: Se envía automáticamente tras confirmarse el pago por pasarela o puede reenviarse manualmente desde el panel de control.
+* **Configuración SMTP en `infra/.env`**:
+  ```env
+  SMTP_HOST=smtp.tuservidor.com
+  SMTP_PORT=587
+  SMTP_USER=notificaciones@tuempresa.pe
+  SMTP_PASSWORD=tu_password_o_app_token
+  SMTP_FROM_EMAIL=entradas@tuempresa.pe
+  SMTP_FROM_NAME="Tu Empresa Tickets"
+  SMTP_USE_TLS=true
+  ```
+  *(Si `SMTP_HOST` está vacío, el sistema opera en modo simulación guardando una copia local en `data/sent_emails/`).*
+
+---
+
 ## 🎭 Entradas e Interacciones con Artistas / Personajes
 
 El sistema permite segmentar y vender tanto entradas tradicionales como experiencias e interacciones nominadas por artista:

@@ -133,6 +133,13 @@ class OrderResponse(BaseModel):
     qr_token: str | None = None
 
 
+class UpdateOrderRequest(StrictModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    email: str | None = Field(default=None, min_length=5, max_length=255)
+    status: str | None = Field(default=None, pattern=r"^(PAID|PENDING|CANCELLED)$")
+    payment_method: str | None = Field(default=None, min_length=2, max_length=40)
+
+
 class PaymentWebhookPayload(StrictModel):
     order_id: str = Field(min_length=1, max_length=36)
     payment_reference: str = Field(min_length=3, max_length=120)

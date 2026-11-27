@@ -1,6 +1,7 @@
 # Python & Virtualenvs
 .venv/
 venv/
+uv.lock
 __pycache__/
 *.py[cod]
 *$py.class

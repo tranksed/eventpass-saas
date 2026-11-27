@@ -55,6 +55,16 @@ class BaseServiceSettings(BaseSettings):
     rate_limit_requests: int = Field(default=120)
     rate_limit_window_seconds: int = Field(default=60)
 
+    # SMTP & Email Notification Settings
+    smtp_host: str = Field(default="", description="SMTP host (e.g. smtp.gmail.com). Empty = simulated delivery.")
+    smtp_port: int = Field(default=587, description="SMTP port (587 TLS, 465 SSL, 25)")
+    smtp_user: str = Field(default="", description="SMTP username/email")
+    smtp_password: str = Field(default="", description="SMTP password or app token")
+    smtp_from_email: str = Field(default="entradas@eventpass.pe", description="Sender email address")
+    smtp_from_name: str = Field(default="EventPass Tickets", description="Sender display name")
+    smtp_use_tls: bool = Field(default=True, description="Enable STARTTLS")
+    smtp_use_ssl: bool = Field(default=False, description="Enable SSL direct connection")
+
 
 @lru_cache
 def get_base_settings() -> BaseServiceSettings:

@@ -80,6 +80,7 @@ from services.registration_service.schemas import (
     UpdateCatalogItemRequest,
     UpdateEventDetailsRequest,
     UpdateEventLimitRequest,
+    UpdateOrderRequest,
     UpdatePaymentGatewayConfigRequest,
     YapeConfirmRequest,
 )
@@ -92,6 +93,11 @@ from shared_kernel.crypto import (
     verify_webhook_signature,
 )
 from shared_kernel.database import Base, create_service_db, get_db_session, init_db_schema
+from shared_kernel.email_service import (
+    generate_qr_with_logo,
+    render_ticket_email_html,
+    send_email_async,
+)
 from shared_kernel.security import (
     CurrentActor,
     Role,
@@ -905,6 +911,32 @@ def create_registration_app(
             resource_id=order.id,
             metadata={"credential_id": credential_id, "entitlements": dict(entitlements)},
         )
+
+        # Auto-dispatch official tickets email with styled QR
+        try:
+            buyer_email = pii_crypto.decrypt(participant.email_encrypted, aad=event.id)
+            buyer_name = display_name
+            items_str = ", ".join(f"{oi.quantity}x {oi.item_code}" for oi in order_items) or "Entrada"
+            soles_str = f"{(order.total_cents / 100):.2f}"
+            starts_str = event.starts_at.strftime("%d/%m/%Y %H:%M") if event.starts_at else ""
+            qr_bytes = generate_qr_with_logo(qr_token, brand_color=event.brand_color or "#8b5cf6")
+            html_content = render_ticket_email_html(
+                event_name=event.name,
+                buyer_name=buyer_name,
+                dni_last4=participant.dni_last4,
+                order_id=order.id,
+                items_summary=items_str,
+                total_soles=soles_str,
+                venue=event.venue,
+                venue_address=event.venue_address,
+                starts_at_str=starts_str,
+                brand_color=event.brand_color or "#8b5cf6",
+            )
+            subj = f"🎟️ Tus Entradas — {event.name} [Orden {order.id[:8]}]"
+            asyncio.create_task(send_email_async(cfg, buyer_email, subj, html_content, qr_bytes))
+        except Exception as exc:
+            logger.warning("Could not auto-dispatch ticket email for order %s: %s", order.id, exc)
+
         return {
             "order_id": order.id,
             "status": order.status,
@@ -2143,6 +2175,205 @@ def create_registration_app(
                 }
             )
         return result
+
+    @app.patch("/api/v1/registration/orders/{order_id}")
+    async def update_order(
+        order_id: str,
+        payload: UpdateOrderRequest,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Update buyer contact information, payment method, or payment status of an order."""
+        order = await db.scalar(select(Order).where(Order.id == order_id))
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta orden")
+
+        event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
+        if not event or not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento o participante no encontrado")
+
+        if payload.full_name is not None and payload.full_name.strip():
+            participant.full_name_encrypted = pii_crypto.encrypt(payload.full_name.strip(), aad=event.id)
+        if payload.email is not None and payload.email.strip():
+            participant.email_encrypted = pii_crypto.encrypt(payload.email.strip().lower(), aad=event.id)
+
+        if payload.payment_method is not None and payload.payment_method.strip():
+            order.payment_method = payload.payment_method.strip().upper()
+
+        if payload.status is not None and payload.status.upper() != order.status:
+            old_status = order.status
+            new_status = payload.status.upper()
+            oitems = (await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id))).all()
+
+            if old_status == "PENDING" and new_status == "PAID":
+                for oi in oitems:
+                    ci = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+                    if ci:
+                        ci.stock_reserved = max(0, ci.stock_reserved - oi.quantity)
+                        ci.stock_sold += oi.quantity
+                order.status = "PAID"
+                order.paid_at = datetime.now(timezone.utc)
+                if not order.credential_id:
+                    entitlements = {oi.item_code: oi.quantity for oi in oitems}
+                    disp_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
+                    cid, qr_tok = await _issue_participant_qr(
+                        event, disp_name, participant.dni_last4, participant.id, order.id, entitlements
+                    )
+                    order.credential_id = cid
+                    order.qr_token = qr_tok
+            elif old_status == "PAID" and new_status in ("CANCELLED", "PENDING"):
+                for oi in oitems:
+                    ci = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+                    if ci:
+                        ci.stock_sold = max(0, ci.stock_sold - oi.quantity)
+                        if new_status == "PENDING":
+                            ci.stock_reserved += oi.quantity
+                order.status = new_status
+            elif old_status == "PENDING" and new_status == "CANCELLED":
+                for oi in oitems:
+                    ci = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+                    if ci:
+                        ci.stock_reserved = max(0, ci.stock_reserved - oi.quantity)
+                order.status = "CANCELLED"
+
+        await db.commit()
+        return {"status": "ok", "order_id": order.id, "order_status": order.status}
+
+    @app.delete("/api/v1/registration/orders/{order_id}")
+    async def delete_order(
+        order_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        """Permanently delete a purchase order, restore catalog item stock, and revoke QR credential."""
+        order = await db.scalar(select(Order).where(Order.id == order_id))
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta orden")
+
+        # Restore catalog item stock
+        oitems = (await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id))).all()
+        for oi in oitems:
+            citem = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+            if citem:
+                if order.status == "PAID":
+                    citem.stock_sold = max(0, citem.stock_sold - oi.quantity)
+                elif order.status == "PENDING":
+                    citem.stock_reserved = max(0, citem.stock_reserved - oi.quantity)
+
+        # Reset courtesy codes redeemed for this order
+        courtesies = (await db.scalars(select(CourtesyCode).where(CourtesyCode.order_id == order.id))).all()
+        for cc in courtesies:
+            cc.status = "AVAILABLE"
+            cc.redeemed_by_dni_idx = None
+            cc.order_id = None
+            cc.credential_id = None
+            cc.redeemed_at = None
+
+        # Revoke credential in accreditation service if present
+        if order.credential_id:
+            try:
+                headers = {
+                    "X-Internal-Service-Token": cfg.internal_service_token,
+                    "Authorization": f"Bearer {cfg.internal_service_token}",
+                }
+                if accreditation_client_factory is not None:
+                    async with accreditation_client_factory() as acc_cli:
+                        await acc_cli.post(f"/api/v1/accreditation/credentials/{order.credential_id}/revoke", headers=headers, timeout=5.0)
+                else:
+                    async with httpx.AsyncClient(base_url=cfg.accreditation_service_url, timeout=5.0) as acc_cli:
+                        await acc_cli.post(f"/api/v1/accreditation/credentials/{order.credential_id}/revoke", headers=headers)
+            except Exception:
+                pass
+
+        part_id = order.participant_id
+        event_id = order.event_id
+
+        # Remove order items & order
+        await db.execute(delete(OrderItem).where(OrderItem.order_id == order.id))
+        await db.execute(delete(Order).where(Order.id == order.id))
+
+        # Clean up participant if they have no remaining orders (allows testing with same DNI again)
+        remaining_count = await db.scalar(
+            select(func.count(Order.id)).where(Order.participant_id == part_id, Order.event_id == event_id)
+        )
+        if not remaining_count:
+            await db.execute(delete(Participant).where(Participant.id == part_id))
+
+        await db.commit()
+
+        await audit.record(
+            tenant_id=order.tenant_id,
+            service=cfg.service_name,
+            action="ORDER_DELETED",
+            actor_id=actor.user_id,
+            actor_role=actor.role.value,
+            resource_type="order",
+            resource_id=order.id,
+            metadata={"event_id": event_id, "restored_items": len(oitems)},
+        )
+        return {"status": "deleted", "order_id": order_id}
+
+    @app.post("/api/v1/registration/orders/{order_id}/send-email")
+    async def send_order_email(
+        order_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Send or resend official purchase tickets with embedded branded QR code to the buyer email."""
+        order = await db.scalar(select(Order).where(Order.id == order_id))
+        if not order:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
+
+        event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
+        if not event or not participant:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Datos de orden incompletos")
+
+        order_items = (await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id))).all()
+
+        if not order.qr_token:
+            entitlements = {oi.item_code: oi.quantity for oi in order_items}
+            display_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
+            cid, qr_tok = await _issue_participant_qr(
+                event, display_name, participant.dni_last4, participant.id, order.id, entitlements
+            )
+            order.credential_id = cid
+            order.qr_token = qr_tok
+            await db.commit()
+
+        buyer_email = pii_crypto.decrypt(participant.email_encrypted, aad=event.id)
+        buyer_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
+        items_summary = ", ".join(f"{oi.quantity}x {oi.item_code}" for oi in order_items) or "Entrada General"
+        total_soles = f"{(order.total_cents / 100):.2f}"
+        starts_at_str = event.starts_at.strftime("%d/%m/%Y %H:%M") if event.starts_at else ""
+
+        qr_bytes = generate_qr_with_logo(order.qr_token or "", brand_color=event.brand_color or "#8b5cf6")
+        html = render_ticket_email_html(
+            event_name=event.name,
+            buyer_name=buyer_name,
+            dni_last4=participant.dni_last4,
+            order_id=order.id,
+            items_summary=items_summary,
+            total_soles=total_soles,
+            venue=event.venue,
+            venue_address=event.venue_address,
+            starts_at_str=starts_at_str,
+            brand_color=event.brand_color or "#8b5cf6",
+        )
+        subject = f"🎟️ Tus Entradas Oficiales — {event.name} [Orden {order.id[:8]}]"
+        delivery_res = await send_email_async(cfg, buyer_email, subject, html, qr_bytes)
+        return {
+            "status": "ok",
+            "recipient": buyer_email,
+            "delivery": delivery_res,
+        }
 
     @app.delete("/api/v1/registration/events/{event_id}")
     async def delete_tenant_event(
