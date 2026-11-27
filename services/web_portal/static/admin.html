@@ -1290,11 +1290,57 @@
       </div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/static/shared.js?v=3"></script>
   <script>
     const charts = {};
     let cachedCodes = [];
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+        try {
+          const inst = bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
+          inst.show();
+          return;
+        } catch (_) {}
+      }
+      el.classList.add("show");
+      el.style.display = "block";
+      document.body.classList.add("modal-open");
+      if (!document.querySelector(`.modal-backdrop[data-modal="${id}"]`)) {
+        const backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop fade show";
+        backdrop.dataset.modal = id;
+        document.body.appendChild(backdrop);
+      }
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+        try {
+          const inst = bootstrap.Modal.getInstance(el);
+          if (inst) inst.hide();
+        } catch (_) {}
+      }
+      el.classList.remove("show");
+      el.style.display = "none";
+      document.body.classList.remove("modal-open");
+      const backdrop = document.querySelector(`.modal-backdrop[data-modal="${id}"]`) || document.querySelector(".modal-backdrop");
+      if (backdrop) backdrop.remove();
+    }
+
+    document.addEventListener("click", function(e) {
+      const dismissBtn = e.target.closest('[data-bs-dismiss="modal"]');
+      if (dismissBtn) {
+        const modal = dismissBtn.closest('.modal');
+        if (modal) closeModal(modal.id);
+      }
+    });
 
     function slugify(val) {
       return String(val || "")
@@ -1729,7 +1775,7 @@
       document.getElementById("editOrderStatus").value = o.status || "PAID";
       document.getElementById("editOrderMethod").value = o.payment_method || "MERCADOPAGO";
       document.getElementById("editOrderMsg").innerHTML = "";
-      new bootstrap.Modal(document.getElementById("modalEditOrder")).show();
+      openModal("modalEditOrder");
     }
 
     async function submitEditOrder() {
@@ -1754,7 +1800,7 @@
             payment_method: method
           })
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalEditOrder"))?.hide();
+        closeModal("modalEditOrder");
         EP.toast("Orden actualizada correctamente.");
         loadOrdersList();
         loadItemsOnly();
@@ -1864,7 +1910,7 @@
         `Vendidas: ${item.stock_sold || 0} | Reservadas: ${item.stock_reserved || 0} (Mínimo stock permitido: ${minStock}).`;
       document.getElementById("editItemMsg").innerHTML = "";
 
-      new bootstrap.Modal(document.getElementById("modalEditItem")).show();
+      openModal("modalEditItem");
     }
 
     async function submitEditItem() {
@@ -1906,7 +1952,7 @@
         });
 
         EP.toast(`Ítem '${res.name}' (${res.code}) actualizado.`);
-        bootstrap.Modal.getInstance(document.getElementById("modalEditItem"))?.hide();
+        closeModal("modalEditItem");
         await loadItemsOnly();
       } catch (err) {
         EP.showMsg("editItemMsg", "err", err.message);
@@ -2119,7 +2165,7 @@
         if (ev.banner_image_url) bannerBadge.textContent = "Banner Actual";
       }
 
-      new bootstrap.Modal(document.getElementById("editEventModal")).show();
+      openModal("editEventModal");
     }
 
     async function submitEditEvent() {
@@ -2146,7 +2192,7 @@
         });
 
         EP.toast(`Evento '${res.name}' actualizado correctamente.`);
-        bootstrap.Modal.getInstance(document.getElementById("editEventModal"))?.hide();
+        closeModal("editEventModal");
         await loadEvents();
         await loadEventsAndItemsTable();
         await loadDashboardMetrics();
@@ -2414,7 +2460,7 @@
       document.getElementById("editPromPrefix").value = p.code_prefix;
       document.getElementById("editPromEmail").value = p.email;
       document.getElementById("editPromActive").checked = !!p.is_active;
-      new bootstrap.Modal(document.getElementById("modalEditPromoter")).show();
+      openModal("modalEditPromoter");
     }
 
     async function submitEditPromoter() {
@@ -2430,7 +2476,7 @@
             is_active: document.getElementById("editPromActive").checked,
           }),
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalEditPromoter")).hide();
+        closeModal("modalEditPromoter");
         EP.toast("Promotor actualizado.");
         await loadCodesModule();
       } catch (e) { EP.showMsg("editPromMsg", "err", e.message); }
@@ -2551,7 +2597,7 @@
         previewContainer.innerHTML = '<div class="text-center p-4"><span class="spinner-border text-warning me-2"></span>Generando QRs de alta resolución...</div>';
         printArea.innerHTML = "";
 
-        new bootstrap.Modal(document.getElementById("modalThermalPrint")).show();
+        openModal("modalThermalPrint");
 
         const cardsHtml = [];
         const printHtml = [];
@@ -2736,7 +2782,7 @@
       document.getElementById("qrModalInfo").textContent = `Titular: ${name}`;
       document.getElementById("qrModalToken").value = token;
       document.getElementById("qrModalImg").src = await EP.renderQrDataUrl(token);
-      new bootstrap.Modal(document.getElementById("qrModal")).show();
+      openModal("qrModal");
     }
 
     async function downloadBulkTemplate() {
