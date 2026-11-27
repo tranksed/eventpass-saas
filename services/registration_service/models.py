@@ -194,6 +194,8 @@ class CourtesyCode(Base):
     redeemed_by_dni_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
     order_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     credential_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_day: Mapped[str | None] = mapped_column(String(40), nullable=True)
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -311,3 +313,70 @@ class PaymentGatewayConfig(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class TenantEmailConfig(Base):
+    """Custom SMTP credentials & preferences per Tenant."""
+
+    __tablename__ = "tenant_email_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True, index=True)
+    smtp_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    smtp_host: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    smtp_port: Mapped[int] = mapped_column(Integer, default=587, nullable=False)
+    smtp_user: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    smtp_password_encrypted: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    smtp_from_email: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    smtp_from_name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    smtp_use_tls: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    smtp_use_ssl: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+
+class PhysicalTicketBatch(Base):
+    """Batch of pre-issued numbered tickets intended for physical POS / thermal printing."""
+
+    __tablename__ = "physical_ticket_batches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    catalog_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("catalog_items.id", ondelete="CASCADE"), nullable=False
+    )
+    batch_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    prefix: Mapped[str] = mapped_column(String(20), default="TICK", nullable=False)
+    start_sequence: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    end_sequence: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    paper_width: Mapped[str] = mapped_column(String(10), default="80mm", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class PhysicalTicket(Base):
+    """Individual serialized physical ticket with valid door-scannable Ed25519 QR."""
+
+    __tablename__ = "physical_tickets"
+    __table_args__ = (UniqueConstraint("batch_id", "sequence_number", name="uq_physical_batch_seq"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    batch_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("physical_ticket_batches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    event_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    catalog_item_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("catalog_items.id", ondelete="CASCADE"), nullable=False
+    )
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    ticket_number: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    credential_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    qr_token: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="ISSUED", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)

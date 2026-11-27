@@ -7,6 +7,54 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/shared.css?v=3" />
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #thermalPrintArea, #thermalPrintArea * { visibility: visible !important; }
+      #thermalPrintArea {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        color: black !important;
+      }
+      .thermal-ticket-print {
+        page-break-after: always;
+        break-after: page;
+        margin: 0 auto 20px auto;
+        padding: 12px 6px;
+        border-bottom: 2px dashed #000;
+        font-family: 'Courier New', Courier, monospace;
+        color: #000 !important;
+        background: #fff !important;
+        text-align: center;
+      }
+      .thermal-ticket-print.w-80 { width: 76mm; }
+      .thermal-ticket-print.w-58 { width: 54mm; }
+    }
+    .thermal-preview-container {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 8px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .thermal-ticket-card {
+      background: #ffffff;
+      color: #000000;
+      margin: 0 auto 16px auto;
+      padding: 14px 10px;
+      border: 1px dashed #475569;
+      font-family: 'Courier New', Courier, monospace;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .thermal-80mm { width: 290px; font-size: 13px; }
+    .thermal-58mm { width: 220px; font-size: 11px; }
+  </style>
 </head>
 <body>
   <div id="epNavbarHost"></div>
@@ -135,22 +183,28 @@
             <button type="button" class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
               <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos Excel
             </button>
+            <button type="button" class="ep-nav-btn" data-tab="thermal" onclick="switchTab('thermal', this)">
+              <i class="bi bi-printer text-warning"></i> 6. Impresión Térmica & Físicos
+            </button>
           </div>
 
           <div class="ep-section-label">Acreditación y Seguridad</div>
           <div class="d-grid gap-1">
             <button type="button" class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
-              <i class="bi bi-building-check text-primary"></i> 6. Acreditaciones Staff
+              <i class="bi bi-building-check text-primary"></i> 7. Acreditaciones Staff
             </button>
             <button type="button" class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
-              <i class="bi bi-shield-lock text-danger"></i> 7. Equipo, Auditoría y Reclamos
+              <i class="bi bi-shield-lock text-danger"></i> 8. Equipo, Auditoría y Reclamos
             </button>
           </div>
 
           <div class="ep-section-label">Finanzas y Configuración</div>
           <div class="d-grid gap-1">
             <button type="button" class="ep-nav-btn" data-tab="payments" onclick="switchTab('payments', this)">
-              <i class="bi bi-credit-card-2-front text-warning"></i> 8. Pasarelas de Pago
+              <i class="bi bi-credit-card-2-front text-warning"></i> 9. Pasarelas de Pago
+            </button>
+            <button type="button" class="ep-nav-btn" data-tab="smtp" onclick="switchTab('smtp', this)">
+              <i class="bi bi-envelope-at text-info"></i> 10. Configuración SMTP
             </button>
           </div>
         </div>
@@ -387,47 +441,70 @@
         <!-- TAB 3: CODIGOS, CORTESIAS Y RRPP -->
         <section id="tab-codes" class="ep-tab d-none">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h4 fw-bold mb-0"><i class="bi bi-ticket-perforated text-warning me-2"></i>Códigos Nominativos y Promotores RR.PP.</h2>
-            <button class="btn btn-outline-light btn-sm" onclick="loadCodesModule()"><i class="bi bi-arrow-clockwise"></i></button>
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-ticket-perforated text-warning me-2"></i>Códigos Nominativos y Promotores RR.PP.</h2>
+              <small class="text-secondary">Emisión de códigos nominativos con validez por día, límite de tiempo y gestión de promotores.</small>
+            </div>
+            <button class="btn btn-outline-light btn-sm" onclick="loadCodesModule()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
           </div>
           <div class="row g-3 mb-3">
             <div class="col-lg-5">
               <div class="ep-card p-3 h-100">
-                <h5 class="h6 fw-bold mb-3">Registrar Promotor RR.PP.</h5>
-                <div class="mb-2"><label class="form-label small">Nombre</label><input id="promName" class="form-control form-control-sm" placeholder="Ej. Agencia Vibe" /></div>
+                <h5 class="h6 fw-bold mb-2"><i class="bi bi-person-plus text-warning me-1"></i>Registrar Promotor RR.PP.</h5>
+                <div class="mb-2"><label class="form-label small">Nombre del Promotor / Agencia</label><input id="promName" class="form-control form-control-sm" placeholder="Ej. Agencia Vibe" /></div>
                 <div class="row g-2 mb-2">
                   <div class="col-5"><label class="form-label small">Prefijo</label><input id="promPrefix" class="form-control form-control-sm" placeholder="VIBE" /></div>
                   <div class="col-7"><label class="form-label small">Correo</label><input id="promEmail" type="email" class="form-control form-control-sm" placeholder="rrpp@agencia.pe" /></div>
                 </div>
-                <button class="btn btn-warning btn-sm" onclick="createPromoter()">Crear Promotor</button>
-                <div id="promMsg"></div>
+                <button class="btn btn-warning btn-sm" onclick="createPromoter()"><i class="bi bi-plus-circle me-1"></i>Crear Promotor</button>
+                <div id="promMsg" class="mt-2"></div>
               </div>
             </div>
             <div class="col-lg-7">
               <div class="ep-card p-3 h-100">
-                <h5 class="h6 fw-bold mb-3">Generar Lote de Códigos</h5>
+                <h5 class="h6 fw-bold mb-2"><i class="bi bi-magic text-primary me-1"></i>Generar Lote de Códigos</h5>
                 <div class="row g-2 mb-2">
-                  <div class="col-md-4"><label class="form-label small">Ítem</label><select id="codeItemSelect" class="form-select form-select-sm"></select></div>
-                  <div class="col-md-5"><label class="form-label small">Promotor (opc.)</label><select id="codePromoterSelect" class="form-select form-select-sm"><option value="">-- Cortesía Directa --</option></select></div>
+                  <div class="col-md-5"><label class="form-label small">Ítem / Entrada</label><select id="codeItemSelect" class="form-select form-select-sm"></select></div>
+                  <div class="col-md-4"><label class="form-label small">Promotor (opc.)</label><select id="codePromoterSelect" class="form-select form-select-sm"><option value="">-- Cortesía Directa --</option></select></div>
                   <div class="col-md-3"><label class="form-label small">Cantidad</label><input id="codeQty" type="number" min="1" max="500" class="form-control form-control-sm" value="10" /></div>
+                  <div class="col-md-6"><label class="form-label small">Día Válido / Alcance (ej. Día 1, Full Pass)</label><input id="codeValidDay" class="form-control form-control-sm" placeholder="Ej. Día 1 - Apertura" /></div>
+                  <div class="col-md-6"><label class="form-label small">Vigencia en Horas (vacío = sin expiración)</label><input id="codeValidityHours" type="number" min="1" max="8760" class="form-control form-control-sm" placeholder="Ej. 24, 48 o vacío" /></div>
                 </div>
-                <button class="btn btn-primary btn-sm" onclick="generateCodeBatch()"><i class="bi bi-magic me-1"></i>Generar Códigos</button>
-                <div id="codeBatchMsg"></div>
+                <button class="btn btn-primary btn-sm" onclick="generateCodeBatch()"><i class="bi bi-lightning-charge me-1"></i>Generar Lote de Códigos</button>
+                <div id="codeBatchMsg" class="mt-2"></div>
               </div>
             </div>
           </div>
 
+          <!-- Promoters Table -->
+          <div class="ep-card p-3 mb-3">
+            <h6 class="fw-semibold mb-2"><i class="bi bi-people text-info me-1"></i>Promotores Registrados (Comisiones y Gestión)</h6>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead><tr><th>Promotor</th><th>Prefijo</th><th>Correo</th><th>Códigos (Total / Canjeados)</th><th>Ventas Pagadas</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
+                <tbody id="promotersTable"><tr><td colspan="7" class="text-secondary">Sin promotores registrados</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Codes Table -->
           <div class="ep-card p-3">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-              <h6 class="fw-semibold mb-0">Códigos Generados</h6>
-              <select id="codeStatusFilter" class="form-select form-select-sm" style="max-width:170px;" onchange="renderFilteredCodes()">
-                <option value="ALL">Todos</option>
-                <option value="AVAILABLE">Disponibles</option>
-                <option value="REDEEMED">Canjeados</option>
-              </select>
+              <h6 class="fw-semibold mb-0"><i class="bi bi-ticket-detailed text-warning me-1"></i>Códigos de Cortesía / RR.PP. Generados</h6>
+              <div class="d-flex gap-2">
+                <select id="codeStatusFilter" class="form-select form-select-sm" style="max-width:160px;" onchange="renderFilteredCodes()">
+                  <option value="ALL">Todos los estados</option>
+                  <option value="AVAILABLE">Disponibles</option>
+                  <option value="REDEEMED">Canjeados</option>
+                  <option value="EXPIRED">Expirados</option>
+                </select>
+              </div>
             </div>
-            <div class="table-responsive" style="max-height:320px;">
-              <table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Código</th><th>Estado</th><th>Canjeado</th><th>Acción</th></tr></thead><tbody id="codesTable"><tr><td colspan="4" class="text-secondary">Sin códigos</td></tr></tbody></table>
+            <div class="table-responsive" style="max-height:360px;">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead><tr><th>Código</th><th>Ítem</th><th>Promotor</th><th>Día Válido</th><th>Expiración</th><th>Estado</th><th>Canjeado</th><th class="text-end">Acciones</th></tr></thead>
+                <tbody id="codesTable"><tr><td colspan="8" class="text-secondary">Sin códigos</td></tr></tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -480,7 +557,85 @@
           </div>
         </section>
 
-        <!-- TAB 6: ACREDITACIONES STAFF -->
+        <!-- TAB 6: IMPRESION TERMICA & TICKETS FISICOS -->
+        <section id="tab-thermal" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-printer text-warning me-2"></i>Impresión Térmica & Emisión de Tickets Físicos</h2>
+              <small class="text-secondary">Genera lotes masivos numerados con QR Ed25519 para taquilla física e impresión en rollos térmicos de 80mm y 58mm.</small>
+            </div>
+            <button class="btn btn-outline-light btn-sm" onclick="loadThermalBatches()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-lg-5">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-3"><i class="bi bi-ticket-fill text-warning me-1"></i>Emitir Lote de Tickets Físicos</h5>
+                <div class="mb-2">
+                  <label class="form-label small">Nombre / Identificador del Lote *</label>
+                  <input id="thermBatchName" class="form-control form-control-sm" placeholder="Ej. Taquilla Puerta Sur - Lote 1" required />
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-7">
+                    <label class="form-label small">Tipo de Entrada *</label>
+                    <select id="thermItemSelect" class="form-select form-select-sm"></select>
+                  </div>
+                  <div class="col-5">
+                    <label class="form-label small">Formato Papel</label>
+                    <select id="thermPaperWidth" class="form-select form-select-sm">
+                      <option value="80mm">80mm (Estándar POS)</option>
+                      <option value="58mm">58mm (Caja / Portátil)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-4">
+                    <label class="form-label small">Prefijo</label>
+                    <input id="thermPrefix" class="form-control form-control-sm" placeholder="TICK" value="TICK" />
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">N° Inicio</label>
+                    <input id="thermStartSeq" type="number" min="1" class="form-control form-control-sm" value="1" />
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Cantidad (1..500)</label>
+                    <input id="thermQty" type="number" min="1" max="500" class="form-control form-control-sm" value="50" />
+                  </div>
+                </div>
+                <button class="btn btn-warning btn-sm w-100 fw-semibold mt-2" onclick="createThermalBatch()">
+                  <i class="bi bi-printer me-1"></i>Generar Lote Criptográfico
+                </button>
+                <div id="thermMsg" class="mt-2"></div>
+              </div>
+            </div>
+            <div class="col-lg-7">
+              <div class="ep-card p-3 h-100">
+                <h5 class="h6 fw-bold mb-2"><i class="bi bi-info-circle text-info me-1"></i>Especificaciones de Impresión Térmica</h5>
+                <ul class="small text-secondary ps-3 mb-2">
+                  <li><strong>Seguridad Criptográfica:</strong> Cada entrada física contiene un QR único firmado con Ed25519 válido para las puertas de acceso.</li>
+                  <li><strong>Control Secuencial:</strong> Permite conciliar la caja en taquilla controlando el rango de numeración física (ej. <code>GEN-0001</code> al <code>GEN-0050</code>).</li>
+                  <li><strong>Compatibilidad Térmica:</strong> Optimizado para rollos continuos ESC/POS (80mm o 58mm) sin márgenes ni tinta.</li>
+                </ul>
+                <div class="alert alert-dark border-secondary p-2 small mb-0">
+                  <i class="bi bi-lightbulb text-warning me-1"></i><strong>Tip de Taquilla:</strong> Puedes emitir un lote con antelación, imprimirlo en masa y entregar las tiras pre-impresas a los cajeros en las puertas.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lotes Registrados -->
+          <div class="ep-card p-3">
+            <h6 class="fw-semibold mb-2"><i class="bi bi-collection text-light me-1"></i>Lotes de Tickets Físicos Emitidos</h6>
+            <div class="table-responsive">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead><tr><th>Nombre del Lote</th><th>Ítem</th><th>Cantidad</th><th>Numeración</th><th>Formato</th><th>Fecha</th><th class="text-end">Acciones</th></tr></thead>
+                <tbody id="thermBatchesTable"><tr><td colspan="7" class="text-secondary">Sin lotes emitidos</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 7: ACREDITACIONES STAFF -->
         <section id="tab-staff" class="ep-tab d-none">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <div>
@@ -721,7 +876,183 @@
             </div>
           </form>
         </section>
+
+        <!-- TAB 10: CONFIGURACION SMTP -->
+        <section id="tab-smtp" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-envelope-at text-info me-2"></i>Configuración de Correo Saliente (SMTP)</h2>
+              <small class="text-secondary">Configura el servidor SMTP corporativo para enviar entradas, credenciales y QRs desde el dominio de tu evento.</small>
+            </div>
+            <button class="btn btn-outline-light btn-sm" onclick="loadEmailConfig()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-lg-7">
+              <div class="ep-card p-3">
+                <form onsubmit="event.preventDefault(); saveEmailConfig();">
+                  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary-subtle">
+                    <span class="fw-semibold"><i class="bi bi-gear text-info me-1"></i>Credenciales del Servidor SMTP</span>
+                    <div class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" id="smtpEnabled" checked />
+                      <label class="form-check-label small" for="smtpEnabled">Activar SMTP</label>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-2">
+                    <div class="col-md-8">
+                      <label class="form-label small">Servidor SMTP (Host) *</label>
+                      <input id="smtpHost" class="form-control form-control-sm" placeholder="smtp.gmail.com / mail.miempresa.pe" required />
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Puerto *</label>
+                      <input id="smtpPort" type="number" class="form-control form-control-sm" placeholder="587" value="587" required />
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-2">
+                    <div class="col-md-6">
+                      <label class="form-label small">Usuario SMTP / Correo *</label>
+                      <input id="smtpUser" class="form-control form-control-sm" placeholder="tickets@miempresa.pe" />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small">Contraseña SMTP</label>
+                      <div class="input-group input-group-sm">
+                        <input id="smtpPassword" type="password" class="form-control form-control-sm" placeholder="Dejar en blanco para mantener" />
+                        <button class="btn btn-outline-secondary" type="button" onclick="toggleSecretVisibility('smtpPassword')"><i class="bi bi-eye"></i></button>
+                      </div>
+                      <div id="smtpPassHint" class="form-text small text-secondary"></div>
+                    </div>
+                  </div>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                      <label class="form-label small">Remitente (From Email) *</label>
+                      <input id="smtpFromEmail" type="email" class="form-control form-control-sm" placeholder="tickets@miempresa.pe" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small">Nombre Visible (From Name) *</label>
+                      <input id="smtpFromName" class="form-control form-control-sm" placeholder="EventPass Tickets" required />
+                    </div>
+                  </div>
+
+                  <div class="d-flex gap-4 mb-3">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="smtpUseTls" checked />
+                      <label class="form-check-label small" for="smtpUseTls">Usar TLS (STARTTLS - Puerto 587)</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="smtpUseSsl" />
+                      <label class="form-check-label small" for="smtpUseSsl">Usar SSL Directo (Puerto 465)</label>
+                    </div>
+                  </div>
+
+                  <button type="submit" id="btnSaveSmtp" class="btn btn-primary btn-sm fw-semibold">
+                    <i class="bi bi-check2-circle me-1"></i>Guardar Configuración SMTP
+                  </button>
+                  <div id="smtpSaveMsg" class="mt-2"></div>
+                </form>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <div class="ep-card p-3 mb-3">
+                <h5 class="h6 fw-bold mb-2"><i class="bi bi-send-check text-success me-1"></i>Prueba de Envío en Vivo</h5>
+                <p class="small text-secondary mb-2">Envía un correo de prueba inmediatamente para verificar que las credenciales y puertos SMTP funcionen sin errores.</p>
+                <div class="mb-2">
+                  <label class="form-label small">Destinatario de Prueba</label>
+                  <input id="smtpTestEmail" type="email" class="form-control form-control-sm" placeholder="tu-correo@gmail.com" />
+                </div>
+                <button type="button" class="btn btn-success btn-sm w-100 fw-semibold" onclick="sendTestEmail()">
+                  <i class="bi bi-envelope-paper me-1"></i>Enviar Correo de Prueba
+                </button>
+                <div id="smtpTestMsg" class="mt-2"></div>
+              </div>
+
+              <div class="ep-card p-3">
+                <h6 class="small fw-bold text-secondary mb-2"><i class="bi bi-shield-check me-1"></i>Recomendaciones de Seguridad</h6>
+                <ul class="small text-secondary ps-3 mb-0">
+                  <li>Si usas <strong>Gmail / Google Workspace</strong>, activa la verificación en 2 pasos y genera una <em>Contraseña de Aplicación</em>.</li>
+                  <li>Las contraseñas se almacenan cifradas en base de datos con AES-GCM-256.</li>
+                  <li>Si no configuras un SMTP personalizado, el sistema utilizará el servidor global por defecto o el simulador local de pruebas.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
+    </div>
+  </div>
+
+  <!-- Modal Impresión Térmica (Vista Previa e Impresión) -->
+  <div class="modal fade" id="modalThermalPrint" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content bg-dark border-secondary text-white">
+        <div class="modal-header border-secondary-subtle py-2">
+          <h5 class="modal-title h6 fw-bold"><i class="bi bi-printer text-warning me-2"></i>Impresión de Tickets Térmicos</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span id="thermalModalBatchTitle" class="fw-semibold text-warning">Lote</span>
+            <button class="btn btn-warning btn-sm fw-bold" onclick="window.print()">
+              <i class="bi bi-printer-fill me-1"></i>Imprimir Todos (ESC/POS)
+            </button>
+          </div>
+          <p class="small text-secondary mb-3">Se muestra la vista previa con diseño térmico continuo. Haz clic en "Imprimir Todos" y selecciona tu impresora térmica en el diálogo del navegador.</p>
+
+          <div class="thermal-preview-container" id="thermalPreviewList"></div>
+        </div>
+        <div class="modal-footer border-secondary-subtle py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+          <button type="button" class="btn btn-warning btn-sm fw-bold" onclick="window.print()">
+            <i class="bi bi-printer-fill me-1"></i>Imprimir Todos
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenedor para el @media print del navegador -->
+  <div id="thermalPrintArea" class="d-none d-print-block"></div>
+
+  <!-- Modal Editar Promotor -->
+  <div class="modal fade" id="modalEditPromoter" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-secondary text-white">
+        <form onsubmit="event.preventDefault(); submitEditPromoter();">
+          <div class="modal-header border-secondary-subtle py-2">
+            <h5 class="modal-title h6 fw-bold"><i class="bi bi-pencil-square text-warning me-2"></i>Editar Promotor RR.PP.</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-3">
+            <input type="hidden" id="editPromId" />
+            <div class="mb-2">
+              <label class="form-label small">Nombre del Promotor / Agencia *</label>
+              <input id="editPromName" class="form-control form-control-sm" required />
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-5">
+                <label class="form-label small">Prefijo de Códigos *</label>
+                <input id="editPromPrefix" class="form-control form-control-sm" required />
+              </div>
+              <div class="col-7">
+                <label class="form-label small">Correo *</label>
+                <input id="editPromEmail" type="email" class="form-control form-control-sm" required />
+              </div>
+            </div>
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" type="checkbox" id="editPromActive" />
+              <label class="form-check-label small" for="editPromActive">Promotor Activo</label>
+            </div>
+            <div id="editPromMsg" class="mt-2"></div>
+          </div>
+          <div class="modal-footer border-secondary-subtle py-2">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-warning btn-sm fw-semibold">Guardar Cambios</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -1012,9 +1343,11 @@
       if (tabName === "codes") loadCodesModule();
       if (tabName === "guestlist") loadGuestList();
       if (tabName === "bulk") loadBulkJobs();
+      if (tabName === "thermal") loadThermalBatches();
       if (tabName === "staff") loadCompanies();
       if (tabName === "team") { loadTeamUsers(); loadAuditLogs(); loadComplaints(); }
       if (tabName === "payments") loadPaymentGatewayConfig();
+      if (tabName === "smtp") loadEmailConfig();
     }
 
     function toggleSecretVisibility(inputId) {
@@ -1107,8 +1440,10 @@
       else if (tab === "codes") await loadCodesModule();
       else if (tab === "guestlist") await loadGuestList();
       else if (tab === "bulk") await loadBulkJobs();
+      else if (tab === "thermal") await loadThermalBatches();
       else if (tab === "staff") await loadCompanies();
       else if (tab === "payments") await loadPaymentGatewayConfig();
+      else if (tab === "smtp") await loadEmailConfig();
     }
 
     function refreshSession() {
@@ -1974,18 +2309,63 @@
       catch (e) { EP.showMsg("globalAlert", "err", e.message); }
     }
 
+    let cachedPromoters = [];
+
     function renderFilteredCodes() {
       const f = document.getElementById("codeStatusFilter").value;
       const list = f === "ALL" ? cachedCodes : cachedCodes.filter(c => c.status === f);
+      const origin = window.location.origin;
       document.getElementById("codesTable").innerHTML = list.length
-        ? list.map(c => `
+        ? list.map(c => {
+          const statusCls = c.status === "AVAILABLE" ? "text-bg-success" : c.status === "REDEEMED" ? "text-bg-primary" : "text-bg-secondary";
+          const redeemUrl = `${origin}/canje?code=${c.code}`;
+          const isDeletable = c.status !== "REDEEMED";
+          return `
           <tr>
-            <td class="mono fw-bold">${EP.escapeHtml(c.code)}</td>
-            <td><span class="badge ${c.status === "AVAILABLE" ? "text-bg-success" : "text-bg-secondary"}">${c.status}</span></td>
+            <td class="mono fw-bold text-warning">${EP.escapeHtml(c.code)}</td>
+            <td>${EP.escapeHtml(c.item_name || "-")}</td>
+            <td class="small text-secondary">${EP.escapeHtml(c.promoter_name || "Cortesía Directa")}</td>
+            <td><span class="badge text-bg-dark border border-secondary">${EP.escapeHtml(c.valid_day || "Todos los días")}</span></td>
+            <td class="small text-secondary">${c.expires_at ? new Date(c.expires_at).toLocaleString() : "Sin expiración"}</td>
+            <td><span class="badge ${statusCls}">${c.status}</span></td>
             <td class="small">${c.redeemed_at ? new Date(c.redeemed_at).toLocaleString() : "-"}</td>
-            <td><button class="btn btn-outline-light btn-sm py-0" onclick="EP.copyText('${c.code}', 'Código copiado')">Copiar</button></td>
-          </tr>`).join("")
-        : `<tr><td colspan="4" class="text-secondary">Sin códigos</td></tr>`;
+            <td class="text-end">
+              <button class="btn btn-outline-info btn-sm py-0 me-1" onclick="EP.copyText('${redeemUrl}', 'Link de canje copiado')" title="Copiar link público para el asistente">
+                <i class="bi bi-link-45deg me-1"></i>Link
+              </button>
+              ${isDeletable ? `<button class="btn btn-outline-danger btn-sm py-0" onclick="deleteCode('${c.id}')" title="Eliminar código">
+                <i class="bi bi-trash"></i>
+              </button>` : `<span class="small text-secondary">-</span>`}
+            </td>
+          </tr>`;
+        }).join("")
+        : `<tr><td colspan="8" class="text-secondary text-center py-3">Sin códigos generados</td></tr>`;
+    }
+
+    function renderPromotersTable() {
+      document.getElementById("promotersTable").innerHTML = cachedPromoters.length
+        ? cachedPromoters.map(p => {
+          const revSoles = (p.revenue_cents / 100).toFixed(2);
+          const activeBadge = p.is_active ? '<span class="badge text-bg-success">Activo</span>' : '<span class="badge text-bg-secondary">Inactivo</span>';
+          return `
+          <tr>
+            <td class="fw-semibold text-white">${EP.escapeHtml(p.name)}</td>
+            <td><span class="badge text-bg-warning mono">${EP.escapeHtml(p.code_prefix)}</span></td>
+            <td class="small text-secondary">${EP.escapeHtml(p.email)}</td>
+            <td><strong>${p.codes_redeemed}</strong> <span class="text-secondary">/ ${p.codes_total}</span></td>
+            <td><span class="text-success fw-bold">S/ ${revSoles}</span> <small class="text-secondary">(${p.orders_paid} ord.)</small></td>
+            <td>${activeBadge}</td>
+            <td class="text-end">
+              <button class="btn btn-outline-warning btn-sm py-0 me-1" onclick="editPromoterModal('${p.id}')">
+                <i class="bi bi-pencil me-1"></i>Editar
+              </button>
+              <button class="btn btn-outline-danger btn-sm py-0" onclick="deletePromoter('${p.id}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>`;
+        }).join("")
+        : `<tr><td colspan="7" class="text-secondary text-center py-3">Sin promotores registrados</td></tr>`;
     }
 
     async function loadCodesModule() {
@@ -1998,8 +2378,10 @@
           EP.api(`/api/v1/registration/events/${eventId}/codes`),
         ]);
         cachedCodes = codes;
-        document.getElementById("codeItemSelect").innerHTML = items.map(i => `<option value="${i.id}">${EP.escapeHtml(i.code)}</option>`).join("");
+        cachedPromoters = promoters;
+        document.getElementById("codeItemSelect").innerHTML = items.map(i => `<option value="${i.id}">${EP.escapeHtml(i.name)} (${EP.escapeHtml(i.code)})</option>`).join("");
         document.getElementById("codePromoterSelect").innerHTML = `<option value="">-- Cortesía Directa --</option>` + promoters.map(p => `<option value="${p.id}">${EP.escapeHtml(p.name)} (${EP.escapeHtml(p.code_prefix)})</option>`).join("");
+        renderPromotersTable();
         renderFilteredCodes();
       } catch (e) { EP.showMsg("codeBatchMsg", "err", e.message); }
     }
@@ -2011,14 +2393,56 @@
         const res = await EP.api(`/api/v1/registration/events/${eventId}/promoters`, {
           method: "POST",
           body: JSON.stringify({
-            name: document.getElementById("promName").value,
+            name: document.getElementById("promName").value.trim(),
             code_prefix: document.getElementById("promPrefix").value.trim().toUpperCase(),
-            email: document.getElementById("promEmail").value,
+            email: document.getElementById("promEmail").value.trim(),
           }),
         });
         EP.toast(`Promotor '${res.name}' registrado.`);
-        loadCodesModule();
+        document.getElementById("promName").value = "";
+        document.getElementById("promPrefix").value = "";
+        document.getElementById("promEmail").value = "";
+        await loadCodesModule();
       } catch (e) { EP.showMsg("promMsg", "err", e.message); }
+    }
+
+    function editPromoterModal(promId) {
+      const p = cachedPromoters.find(x => x.id === promId);
+      if (!p) return;
+      document.getElementById("editPromId").value = p.id;
+      document.getElementById("editPromName").value = p.name;
+      document.getElementById("editPromPrefix").value = p.code_prefix;
+      document.getElementById("editPromEmail").value = p.email;
+      document.getElementById("editPromActive").checked = !!p.is_active;
+      new bootstrap.Modal(document.getElementById("modalEditPromoter")).show();
+    }
+
+    async function submitEditPromoter() {
+      const promId = document.getElementById("editPromId").value;
+      if (!promId) return;
+      try {
+        await EP.api(`/api/v1/registration/promoters/${promId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            name: document.getElementById("editPromName").value.trim(),
+            code_prefix: document.getElementById("editPromPrefix").value.trim().toUpperCase(),
+            email: document.getElementById("editPromEmail").value.trim(),
+            is_active: document.getElementById("editPromActive").checked,
+          }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById("modalEditPromoter")).hide();
+        EP.toast("Promotor actualizado.");
+        await loadCodesModule();
+      } catch (e) { EP.showMsg("editPromMsg", "err", e.message); }
+    }
+
+    async function deletePromoter(promId) {
+      if (!confirm("⚠️ ¿Estás seguro de eliminar este promotor y sus códigos no canjeados?\\nEsta acción no se puede deshacer.")) return;
+      try {
+        await EP.api(`/api/v1/registration/promoters/${promId}`, { method: "DELETE" });
+        EP.toast("Promotor eliminado.");
+        await loadCodesModule();
+      } catch (e) { EP.showMsg("globalAlert", "err", e.message); }
     }
 
     async function generateCodeBatch() {
@@ -2026,13 +2450,246 @@
       if (!eventId) return;
       try {
         const promId = document.getElementById("codePromoterSelect").value || null;
+        const validDay = document.getElementById("codeValidDay").value.trim() || null;
+        const validityHours = Number(document.getElementById("codeValidityHours").value) || null;
         const rows = await EP.api(`/api/v1/registration/events/${eventId}/codes/batch`, {
           method: "POST",
-          body: JSON.stringify({ catalog_item_id: document.getElementById("codeItemSelect").value, promoter_id: promId, quantity: Number(document.getElementById("codeQty").value) }),
+          body: JSON.stringify({
+            catalog_item_id: document.getElementById("codeItemSelect").value,
+            promoter_id: promId,
+            quantity: Number(document.getElementById("codeQty").value),
+            valid_day: validDay,
+            validity_hours: validityHours,
+          }),
         });
-        EP.toast(`${rows.length} códigos generados.`);
-        loadCodesModule();
+        EP.toast(`${rows.length} códigos generados exitosamente.`);
+        await loadCodesModule();
       } catch (e) { EP.showMsg("codeBatchMsg", "err", e.message); }
+    }
+
+    async function deleteCode(codeId) {
+      if (!confirm("⚠️ ¿Eliminar este código de cortesía?\\nEl código quedará invalidado permanentemente.")) return;
+      try {
+        await EP.api(`/api/v1/registration/codes/${codeId}`, { method: "DELETE" });
+        EP.toast("Código eliminado.");
+        await loadCodesModule();
+      } catch (e) { EP.showMsg("globalAlert", "err", e.message); }
+    }
+
+    // ------------------------------------------------------------------
+    // Impresión Térmica & Tickets Físicos
+    // ------------------------------------------------------------------
+    let cachedThermalBatches = [];
+
+    async function loadThermalBatches() {
+      const eventId = currentEventId();
+      if (!eventId || !EP.getSession().token) return;
+      try {
+        const [items, batches] = await Promise.all([
+          EP.api(`/api/v1/registration/events/${eventId}/items`, { auth: false }),
+          EP.api(`/api/v1/registration/events/${eventId}/physical-tickets/batches`),
+        ]);
+        cachedThermalBatches = batches;
+        document.getElementById("thermItemSelect").innerHTML = items.map(i => {
+          const avail = i.stock_available ?? Math.max(0, i.stock_total - i.stock_sold - i.stock_reserved);
+          return `<option value="${i.id}">${EP.escapeHtml(i.name)} (${i.code}) — Disp: ${avail}</option>`;
+        }).join("");
+
+        document.getElementById("thermBatchesTable").innerHTML = batches.length
+          ? batches.map(b => `
+          <tr>
+            <td class="fw-bold text-white">${EP.escapeHtml(b.batch_name)}</td>
+            <td><span class="badge text-bg-info">${EP.escapeHtml(b.prefix)}</span></td>
+            <td><strong>${b.quantity}</strong> unid.</td>
+            <td class="mono small">${EP.escapeHtml(b.prefix)}-${String(b.start_sequence).padStart(4, '0')} a ${EP.escapeHtml(b.prefix)}-${String(b.end_sequence).padStart(4, '0')}</td>
+            <td><span class="badge text-bg-warning">${EP.escapeHtml(b.paper_width)}</span></td>
+            <td class="small text-secondary">${new Date(b.created_at).toLocaleString()}</td>
+            <td class="text-end">
+              <button class="btn btn-warning btn-sm py-0 me-1" onclick="viewThermalBatch('${b.id}')">
+                <i class="bi bi-printer me-1"></i>Ver e Imprimir
+              </button>
+              <button class="btn btn-outline-danger btn-sm py-0" onclick="deleteThermalBatch('${b.id}')" title="Eliminar lote y restaurar stock">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>`).join("")
+          : `<tr><td colspan="7" class="text-secondary text-center py-3">Sin lotes de tickets físicos emitidos</td></tr>`;
+      } catch (e) { EP.showMsg("thermMsg", "err", e.message); }
+    }
+
+    async function createThermalBatch() {
+      const eventId = currentEventId();
+      if (!eventId) return;
+      const name = document.getElementById("thermBatchName").value.trim();
+      if (!name) return EP.showMsg("thermMsg", "err", "Ingresa un nombre para el lote.");
+      try {
+        const res = await EP.api(`/api/v1/registration/events/${eventId}/physical-tickets/batches`, {
+          method: "POST",
+          body: JSON.stringify({
+            catalog_item_id: document.getElementById("thermItemSelect").value,
+            batch_name: name,
+            quantity: Number(document.getElementById("thermQty").value),
+            prefix: document.getElementById("thermPrefix").value.trim().toUpperCase() || "TICK",
+            start_sequence: Number(document.getElementById("thermStartSeq").value) || 1,
+            paper_width: document.getElementById("thermPaperWidth").value,
+          }),
+        });
+        EP.toast(`Lote '${res.batch_name}' emitido con ${res.quantity} tickets.`);
+        document.getElementById("thermBatchName").value = "";
+        await loadThermalBatches();
+        await viewThermalBatch(res.id);
+      } catch (e) { EP.showMsg("thermMsg", "err", e.message); }
+    }
+
+    async function viewThermalBatch(batchId) {
+      try {
+        const batch = await EP.api(`/api/v1/registration/physical-tickets/batches/${batchId}`);
+        document.getElementById("thermalModalBatchTitle").textContent = `${batch.batch_name} — ${batch.item_name} (${batch.quantity} entradas - Formato ${batch.paper_width})`;
+
+        const previewContainer = document.getElementById("thermalPreviewList");
+        const printArea = document.getElementById("thermalPrintArea");
+        previewContainer.innerHTML = '<div class="text-center p-4"><span class="spinner-border text-warning me-2"></span>Generando QRs de alta resolución...</div>';
+        printArea.innerHTML = "";
+
+        new bootstrap.Modal(document.getElementById("modalThermalPrint")).show();
+
+        const cardsHtml = [];
+        const printHtml = [];
+        const is80 = batch.paper_width === "80mm";
+        const widthClass = is80 ? "thermal-80mm" : "thermal-58mm";
+        const printWidthClass = is80 ? "w-80" : "w-58";
+        const priceStr = `S/ ${(batch.price_cents / 100).toFixed(2)}`;
+        const dateStr = batch.starts_at ? new Date(batch.starts_at).toLocaleString() : "";
+
+        for (const t of batch.tickets) {
+          const qrDataUrl = await EP.renderQrDataUrl(t.qr_token);
+          const shortToken = t.qr_token ? t.qr_token.substring(0, 18) + "..." : "";
+
+          const singleTicket = `
+            <div class="thermal-ticket-card ${widthClass}">
+              <div style="font-weight:bold;font-size:1.15em;text-transform:uppercase;margin-bottom:4px;">${EP.escapeHtml(batch.event_name)}</div>
+              <div style="font-size:0.85em;margin-bottom:2px;">${EP.escapeHtml(batch.venue || "")}</div>
+              <div style="font-size:0.8em;margin-bottom:6px;">${dateStr}</div>
+              <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin:6px 0;">
+                <div style="font-size:1.2em;font-weight:bold;">${EP.escapeHtml(t.item_name)}</div>
+                <div style="font-size:0.9em;font-weight:bold;">TICKET N°: ${EP.escapeHtml(t.ticket_number)}</div>
+                <div style="font-size:0.85em;">PRECIO: ${priceStr}</div>
+              </div>
+              <div style="margin:10px 0;">
+                <img src="${qrDataUrl}" style="width:${is80 ? '160px' : '130px'};height:${is80 ? '160px' : '130px'};display:block;margin:0 auto;" />
+              </div>
+              <div style="font-size:0.75em;word-break:break-all;color:#333;">SEC: ${shortToken}</div>
+              <div style="font-size:0.75em;margin-top:4px;">*** VÁLIDO PARA 1 INGRESO ***</div>
+              <div style="font-size:0.7em;color:#666;margin-top:2px;">EVENTPASS SAAS · ED25519 VERIFIED</div>
+              <div style="margin-top:8px;font-size:0.75em;letter-spacing:2px;">- - - - - - - - - - - - - -</div>
+            </div>`;
+
+          const singlePrint = `
+            <div class="thermal-ticket-print ${printWidthClass}">
+              <div style="font-weight:bold;font-size:14pt;text-transform:uppercase;margin-bottom:4px;">${EP.escapeHtml(batch.event_name)}</div>
+              <div style="font-size:9pt;margin-bottom:2px;">${EP.escapeHtml(batch.venue || "")}</div>
+              <div style="font-size:9pt;margin-bottom:6px;">${dateStr}</div>
+              <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin:6px 0;">
+                <div style="font-size:13pt;font-weight:bold;">${EP.escapeHtml(t.item_name)}</div>
+                <div style="font-size:11pt;font-weight:bold;">TICKET: ${EP.escapeHtml(t.ticket_number)}</div>
+                <div style="font-size:10pt;">PRECIO: ${priceStr}</div>
+              </div>
+              <div style="margin:8px 0;">
+                <img src="${qrDataUrl}" style="width:${is80 ? '170px' : '135px'};height:${is80 ? '170px' : '135px'};margin:0 auto;display:block;" />
+              </div>
+              <div style="font-size:8pt;">SEC: ${shortToken}</div>
+              <div style="font-size:8pt;font-weight:bold;margin-top:4px;">*** VÁLIDO PARA 1 INGRESO ***</div>
+              <div style="font-size:7pt;margin-top:2px;">EVENTPASS SAAS · ED25519 VERIFIED</div>
+            </div>`;
+
+          cardsHtml.push(singleTicket);
+          printHtml.push(singlePrint);
+        }
+
+        previewContainer.innerHTML = cardsHtml.join("");
+        printArea.innerHTML = printHtml.join("");
+      } catch (e) { EP.showMsg("globalAlert", "err", e.message); }
+    }
+
+    async function deleteThermalBatch(batchId) {
+      if (!confirm("⚠️ ¿Estás seguro de eliminar este lote de tickets físicos?\\nSe restaurará el stock de entradas disponible en el evento.")) return;
+      try {
+        await EP.api(`/api/v1/registration/physical-tickets/batches/${batchId}`, { method: "DELETE" });
+        EP.toast("Lote físico eliminado y stock restaurado.");
+        await loadThermalBatches();
+      } catch (e) { EP.showMsg("thermMsg", "err", e.message); }
+    }
+
+    // ------------------------------------------------------------------
+    // Configuración SMTP Per-Tenant
+    // ------------------------------------------------------------------
+    async function loadEmailConfig() {
+      if (!EP.getSession().token) return;
+      try {
+        const conf = await EP.api("/api/v1/registration/email-config");
+        document.getElementById("smtpEnabled").checked = !!conf.smtp_enabled;
+        document.getElementById("smtpHost").value = conf.smtp_host || "";
+        document.getElementById("smtpPort").value = conf.smtp_port || 587;
+        document.getElementById("smtpUser").value = conf.smtp_user || "";
+        document.getElementById("smtpPassword").value = "";
+        document.getElementById("smtpFromEmail").value = conf.smtp_from_email || "";
+        document.getElementById("smtpFromName").value = conf.smtp_from_name || "EventPass Tickets";
+        document.getElementById("smtpUseTls").checked = !!conf.smtp_use_tls;
+        document.getElementById("smtpUseSsl").checked = !!conf.smtp_use_ssl;
+        document.getElementById("smtpPassHint").textContent = conf.has_password
+          ? "🔐 Contraseña configurada y protegida en servidor (dejar en blanco para conservar)."
+          : "⚠️ Sin contraseña configurada.";
+      } catch (e) { EP.showMsg("smtpSaveMsg", "err", e.message); }
+    }
+
+    async function saveEmailConfig() {
+      setBtnLoading("btnSaveSmtp", true);
+      try {
+        const pwd = document.getElementById("smtpPassword").value;
+        const payload = {
+          smtp_enabled: document.getElementById("smtpEnabled").checked,
+          smtp_host: document.getElementById("smtpHost").value.trim(),
+          smtp_port: Number(document.getElementById("smtpPort").value) || 587,
+          smtp_user: document.getElementById("smtpUser").value.trim(),
+          smtp_from_email: document.getElementById("smtpFromEmail").value.trim(),
+          smtp_from_name: document.getElementById("smtpFromName").value.trim(),
+          smtp_use_tls: document.getElementById("smtpUseTls").checked,
+          smtp_use_ssl: document.getElementById("smtpUseSsl").checked,
+        };
+        if (pwd && pwd.trim().length > 0) {
+          payload.smtp_password = pwd.trim();
+        }
+        await EP.api("/api/v1/registration/email-config", {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        EP.showMsg("smtpSaveMsg", "ok", "Configuración SMTP guardada exitosamente.");
+        EP.toast("Configuración SMTP guardada.");
+        await loadEmailConfig();
+      } catch (e) {
+        EP.showMsg("smtpSaveMsg", "err", e.message);
+      } finally {
+        setBtnLoading("btnSaveSmtp", false);
+      }
+    }
+
+    async function sendTestEmail() {
+      const email = document.getElementById("smtpTestEmail").value.trim();
+      if (!email) return EP.showMsg("smtpTestMsg", "err", "Ingresa un correo electrónico de prueba.");
+      EP.showMsg("smtpTestMsg", "info", "Enviando correo de prueba...");
+      try {
+        const res = await EP.api("/api/v1/registration/email-config/test", {
+          method: "POST",
+          body: JSON.stringify({ recipient_email: email }),
+        });
+        if (res.status === "failed") {
+          EP.showMsg("smtpTestMsg", "err", `Error al conectar con servidor SMTP: ${res.error || 'Revisa host y credenciales'}`);
+        } else if (res.status === "simulated") {
+          EP.showMsg("smtpTestMsg", "ok", `Simulación exitosa: Correo encolado localmente (sin host SMTP activo).`);
+        } else {
+          EP.showMsg("smtpTestMsg", "ok", `¡Correo entregado con éxito a ${res.recipient}! Revisa tu bandeja de entrada.`);
+        }
+      } catch (e) { EP.showMsg("smtpTestMsg", "err", e.message); }
     }
 
     async function loadGuestList() {

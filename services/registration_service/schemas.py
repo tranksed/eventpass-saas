@@ -152,6 +152,13 @@ class CreatePromoterRequest(StrictModel):
     email: str = Field(min_length=5, max_length=255)
 
 
+class UpdatePromoterRequest(StrictModel):
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    code_prefix: str | None = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    email: str | None = Field(default=None, min_length=5, max_length=255)
+    is_active: bool | None = None
+
+
 class PromoterStatsResponse(BaseModel):
     id: str
     name: str
@@ -161,21 +168,108 @@ class PromoterStatsResponse(BaseModel):
     codes_redeemed: int
     orders_paid: int
     revenue_cents: int
+    is_active: bool = True
 
 
 class CreateCodeBatchRequest(StrictModel):
     catalog_item_id: str = Field(min_length=1, max_length=36)
     promoter_id: str | None = Field(default=None, max_length=36)
     quantity: int = Field(ge=1, le=500)
+    valid_day: str | None = Field(default=None, max_length=40)
+    validity_hours: int | None = Field(default=None, ge=1, le=8760)
+    expires_at: datetime | None = None
+
+
+class UpdateCourtesyCodeRequest(StrictModel):
+    status: str | None = Field(default=None, pattern=r"^(AVAILABLE|CANCELLED|EXPIRED)$")
+    valid_day: str | None = Field(default=None, max_length=40)
+    expires_at: datetime | None = None
 
 
 class CourtesyCodeResponse(BaseModel):
     id: str
     code: str
     catalog_item_id: str
+    item_name: str | None = None
     promoter_id: str | None = None
+    promoter_name: str | None = None
+    valid_day: str | None = None
+    expires_at: datetime | None = None
     status: str
     redeemed_at: datetime | None = None
+
+
+class TenantEmailConfigRequest(StrictModel):
+    smtp_enabled: bool = True
+    smtp_host: str = Field(min_length=2, max_length=255)
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str = Field(default="", max_length=255)
+    smtp_password: str | None = Field(default=None, max_length=255)
+    smtp_from_email: str = Field(min_length=5, max_length=255)
+    smtp_from_name: str = Field(default="EventPass Tickets", max_length=120)
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+
+
+class TenantEmailConfigResponse(BaseModel):
+    tenant_id: str
+    smtp_enabled: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_from_email: str
+    smtp_from_name: str
+    smtp_use_tls: bool
+    smtp_use_ssl: bool
+    has_password: bool
+
+
+class TestEmailRequest(StrictModel):
+    recipient_email: str = Field(min_length=5, max_length=255)
+
+
+class CreatePhysicalBatchRequest(StrictModel):
+    catalog_item_id: str = Field(min_length=1, max_length=36)
+    batch_name: str = Field(min_length=2, max_length=120)
+    quantity: int = Field(ge=1, le=500)
+    prefix: str = Field(default="TICK", min_length=1, max_length=20)
+    start_sequence: int = Field(default=1, ge=1, le=1000000)
+    paper_width: str = Field(default="80mm", pattern=r"^(58mm|80mm)$")
+
+
+class PhysicalTicketResponse(BaseModel):
+    id: str
+    sequence_number: int
+    ticket_number: str
+    credential_id: str
+    qr_token: str
+    status: str
+    item_name: str
+    item_code: str
+    price_cents: int
+
+
+class PhysicalBatchResponse(BaseModel):
+    id: str
+    event_id: str
+    catalog_item_id: str
+    batch_name: str
+    quantity: int
+    prefix: str
+    start_sequence: int
+    end_sequence: int
+    paper_width: str
+    created_at: datetime
+
+
+class PhysicalBatchDetailResponse(PhysicalBatchResponse):
+    event_name: str
+    venue: str
+    venue_address: str
+    starts_at: datetime
+    item_name: str
+    price_cents: int
+    tickets: list[PhysicalTicketResponse]
 
 
 class RedeemCodeRequest(StrictModel):

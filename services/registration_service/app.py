@@ -16,9 +16,11 @@ import csv
 import io
 import json
 import secrets
+import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, Callable
 
 import httpx
@@ -53,7 +55,10 @@ from services.registration_service.models import (
     OutboxEvent,
     Participant,
     PaymentGatewayConfig,
+    PhysicalTicket,
+    PhysicalTicketBatch,
     Promoter,
+    TenantEmailConfig,
 )
 from services.registration_service.schemas import (
     CatalogItemResponse,
@@ -63,6 +68,7 @@ from services.registration_service.schemas import (
     CreateCodeBatchRequest,
     CreateEventRequest,
     CreateOrderRequest,
+    CreatePhysicalBatchRequest,
     CreatePromoterRequest,
     EventResponse,
     GuestListDecisionRequest,
@@ -74,14 +80,22 @@ from services.registration_service.schemas import (
     OrderResponse,
     PaymentGatewayConfigResponse,
     PaymentWebhookPayload,
+    PhysicalBatchDetailResponse,
+    PhysicalBatchResponse,
+    PhysicalTicketResponse,
     PromoterStatsResponse,
     PublicPaymentMethodsResponse,
     RedeemCodeRequest,
+    TenantEmailConfigRequest,
+    TenantEmailConfigResponse,
+    TestEmailRequest,
     UpdateCatalogItemRequest,
+    UpdateCourtesyCodeRequest,
     UpdateEventDetailsRequest,
     UpdateEventLimitRequest,
     UpdateOrderRequest,
     UpdatePaymentGatewayConfigRequest,
+    UpdatePromoterRequest,
     YapeConfirmRequest,
 )
 from shared_kernel.audit_client import AuditClient
@@ -170,6 +184,9 @@ async def _ensure_schema_columns(conn) -> None:
         ("catalog_items", "artist_name", "VARCHAR(120) NOT NULL DEFAULT ''"),
         ("catalog_items", "interaction_type", "VARCHAR(40) NOT NULL DEFAULT ''"),
         ("catalog_items", "description", "VARCHAR(255) NOT NULL DEFAULT ''"),
+        ("courtesy_codes", "expires_at", "TIMESTAMP WITH TIME ZONE" if is_pg else "DATETIME"),
+        ("courtesy_codes", "valid_day", "VARCHAR(40) NOT NULL DEFAULT ''"),
+        ("promoters", "is_active", "BOOLEAN NOT NULL DEFAULT TRUE" if is_pg else "BOOLEAN NOT NULL DEFAULT 1"),
     ]
     for table, col, col_def in alter_columns:
         try:
@@ -933,7 +950,8 @@ def create_registration_app(
                 brand_color=event.brand_color or "#8b5cf6",
             )
             subj = f"🎟️ Tus Entradas — {event.name} [Orden {order.id[:8]}]"
-            asyncio.create_task(send_email_async(cfg, buyer_email, subj, html_content, qr_bytes))
+            mail_cfg = await _get_tenant_email_settings(db, event.tenant_id)
+            asyncio.create_task(send_email_async(mail_cfg, buyer_email, subj, html_content, qr_bytes))
         except Exception as exc:
             logger.warning("Could not auto-dispatch ticket email for order %s: %s", order.id, exc)
 
@@ -943,6 +961,28 @@ def create_registration_app(
             "credential_id": credential_id,
             "qr_token": qr_token,
         }
+
+    async def _get_tenant_email_settings(db: AsyncSession, tenant_id: str):
+        cfg_row = await db.scalar(select(TenantEmailConfig).where(TenantEmailConfig.tenant_id == tenant_id))
+        if cfg_row and cfg_row.smtp_enabled and cfg_row.smtp_host:
+            password = ""
+            if cfg_row.smtp_password_encrypted:
+                try:
+                    password = pii_crypto.decrypt(cfg_row.smtp_password_encrypted, aad="smtp")
+                except Exception:
+                    password = ""
+            return SimpleNamespace(
+                smtp_host=cfg_row.smtp_host,
+                smtp_port=cfg_row.smtp_port,
+                smtp_user=cfg_row.smtp_user,
+                smtp_password=password,
+                smtp_from_email=cfg_row.smtp_from_email,
+                smtp_from_name=cfg_row.smtp_from_name,
+                smtp_use_tls=cfg_row.smtp_use_tls,
+                smtp_use_ssl=cfg_row.smtp_use_ssl,
+                data_dir=cfg.data_dir,
+            )
+        return cfg
 
     async def _get_gateway_config(
         db: AsyncSession, tenant_id: str, event_id: str | None = None
@@ -1367,8 +1407,9 @@ def create_registration_app(
         db: AsyncSession = Depends(get_db),
     ) -> PromoterStatsResponse:
         event = await _resolve_event(event_id, actor, db)
+        clean_prefix = payload.code_prefix.strip().upper()
         existing = await db.scalar(
-            select(Promoter).where(Promoter.event_id == event_id, Promoter.code_prefix == payload.code_prefix)
+            select(Promoter).where(Promoter.event_id == event_id, Promoter.code_prefix == clean_prefix)
         )
         if existing is not None:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Promoter prefix already exists.")
@@ -1376,9 +1417,10 @@ def create_registration_app(
         prom = Promoter(
             tenant_id=event.tenant_id,
             event_id=event.id,
-            name=payload.name,
-            code_prefix=payload.code_prefix,
-            email=payload.email.lower(),
+            name=payload.name.strip(),
+            code_prefix=clean_prefix,
+            email=payload.email.lower().strip(),
+            is_active=True,
         )
         db.add(prom)
         await db.commit()
@@ -1391,7 +1433,93 @@ def create_registration_app(
             codes_redeemed=0,
             orders_paid=0,
             revenue_cents=0,
+            is_active=True,
         )
+
+    @app.patch("/api/v1/registration/promoters/{promoter_id}", response_model=PromoterStatsResponse)
+    async def update_promoter(
+        promoter_id: str,
+        payload: UpdatePromoterRequest,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> PromoterStatsResponse:
+        prom = await db.scalar(
+            select(Promoter).where(Promoter.id == promoter_id, Promoter.tenant_id == actor.tenant_id)
+        )
+        if prom is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
+        if payload.name is not None and payload.name.strip():
+            prom.name = payload.name.strip()
+        if payload.email is not None and payload.email.strip():
+            prom.email = payload.email.lower().strip()
+        if payload.code_prefix is not None and payload.code_prefix.strip():
+            clean_prefix = payload.code_prefix.strip().upper()
+            if clean_prefix != prom.code_prefix:
+                existing = await db.scalar(
+                    select(Promoter).where(
+                        Promoter.event_id == prom.event_id,
+                        Promoter.code_prefix == clean_prefix,
+                        Promoter.id != prom.id,
+                    )
+                )
+                if existing is not None:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Prefix already in use.")
+                prom.code_prefix = clean_prefix
+        if payload.is_active is not None:
+            prom.is_active = payload.is_active
+        await db.commit()
+
+        codes_total = await db.scalar(select(func.count(CourtesyCode.id)).where(CourtesyCode.promoter_id == prom.id))
+        codes_redeemed = await db.scalar(
+            select(func.count(CourtesyCode.id)).where(
+                CourtesyCode.promoter_id == prom.id, CourtesyCode.status == "REDEEMED"
+            )
+        )
+        orders_paid = await db.scalar(
+            select(func.count(Order.id)).where(Order.promoter_id == prom.id, Order.status == "PAID")
+        )
+        rev = await db.scalar(
+            select(func.coalesce(func.sum(Order.total_cents), 0)).where(
+                Order.promoter_id == prom.id, Order.status == "PAID"
+            )
+        )
+        return PromoterStatsResponse(
+            id=prom.id,
+            name=prom.name,
+            code_prefix=prom.code_prefix,
+            email=prom.email,
+            codes_total=int(codes_total or 0),
+            codes_redeemed=int(codes_redeemed or 0),
+            orders_paid=int(orders_paid or 0),
+            revenue_cents=int(rev or 0),
+            is_active=bool(prom.is_active),
+        )
+
+    @app.delete("/api/v1/registration/promoters/{promoter_id}")
+    async def delete_promoter(
+        promoter_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        prom = await db.scalar(
+            select(Promoter).where(Promoter.id == promoter_id, Promoter.tenant_id == actor.tenant_id)
+        )
+        if prom is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
+        redeemed = await db.scalar(
+            select(func.count(CourtesyCode.id)).where(
+                CourtesyCode.promoter_id == prom.id, CourtesyCode.status == "REDEEMED"
+            )
+        )
+        if redeemed and redeemed > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"No se puede eliminar el promotor porque ya tiene {redeemed} código(s) canjeado(s). Puedes desactivarlo.",
+            )
+        await db.execute(delete(CourtesyCode).where(CourtesyCode.promoter_id == prom.id))
+        await db.delete(prom)
+        await db.commit()
+        return {"status": "deleted", "promoter_id": promoter_id}
 
     @app.get("/api/v1/registration/events/{event_id}/promoters", response_model=list[PromoterStatsResponse])
     async def list_promoters(
@@ -1433,6 +1561,7 @@ def create_registration_app(
                     codes_redeemed=int(codes_redeemed or 0),
                     orders_paid=int(orders_paid or 0),
                     revenue_cents=int(rev or 0),
+                    is_active=bool(p.is_active),
                 )
             )
         return out
@@ -1456,6 +1585,7 @@ def create_registration_app(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog item not found.")
 
         prefix = "CORT"
+        prom_name = ""
         if payload.promoter_id:
             prom = await db.scalar(
                 select(Promoter).where(Promoter.id == payload.promoter_id, Promoter.event_id == event_id)
@@ -1463,6 +1593,12 @@ def create_registration_app(
             if prom is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
             prefix = prom.code_prefix
+            prom_name = prom.name
+
+        now = datetime.now(timezone.utc)
+        expires_at = payload.expires_at
+        if expires_at is None and payload.validity_hours is not None:
+            expires_at = now + timedelta(hours=payload.validity_hours)
 
         created: list[CourtesyCode] = []
         for _ in range(payload.quantity):
@@ -1473,6 +1609,8 @@ def create_registration_app(
                 catalog_item_id=item.id,
                 promoter_id=payload.promoter_id,
                 code=code_str,
+                valid_day=payload.valid_day or "",
+                expires_at=expires_at,
             )
             db.add(c)
             created.append(c)
@@ -1482,7 +1620,11 @@ def create_registration_app(
                 id=c.id,
                 code=c.code,
                 catalog_item_id=c.catalog_item_id,
+                item_name=item.name,
                 promoter_id=c.promoter_id,
+                promoter_name=prom_name or None,
+                valid_day=c.valid_day or None,
+                expires_at=c.expires_at,
                 status=c.status,
                 redeemed_at=c.redeemed_at,
             )
@@ -1492,28 +1634,92 @@ def create_registration_app(
     @app.get("/api/v1/registration/events/{event_id}/codes", response_model=list[CourtesyCodeResponse])
     async def list_courtesy_codes(
         event_id: str,
+        promoter_id: str | None = Query(None),
+        code_status: str | None = Query(None, alias="status"),
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[CourtesyCodeResponse]:
-        rows = (
-            await db.scalars(
-                select(CourtesyCode)
-                .where(CourtesyCode.event_id == event_id, CourtesyCode.tenant_id == actor.tenant_id)
-                .order_by(CourtesyCode.created_at.desc())
-                .limit(200)
-            )
-        ).all()
+        stmt = (
+            select(CourtesyCode, CatalogItem.name, Promoter.name)
+            .join(CatalogItem, CourtesyCode.catalog_item_id == CatalogItem.id)
+            .outerjoin(Promoter, CourtesyCode.promoter_id == Promoter.id)
+            .where(CourtesyCode.event_id == event_id, CourtesyCode.tenant_id == actor.tenant_id)
+        )
+        if promoter_id:
+            stmt = stmt.where(CourtesyCode.promoter_id == promoter_id)
+        if code_status:
+            stmt = stmt.where(CourtesyCode.status == code_status)
+        stmt = stmt.order_by(CourtesyCode.created_at.desc()).limit(300)
+        rows = (await db.execute(stmt)).all()
         return [
             CourtesyCodeResponse(
                 id=c.id,
                 code=c.code,
                 catalog_item_id=c.catalog_item_id,
+                item_name=item_name or "",
                 promoter_id=c.promoter_id,
+                promoter_name=p_name or None,
+                valid_day=c.valid_day or None,
+                expires_at=c.expires_at,
                 status=c.status,
                 redeemed_at=c.redeemed_at,
             )
-            for c in rows
+            for c, item_name, p_name in rows
         ]
+
+    @app.patch("/api/v1/registration/codes/{code_id}", response_model=CourtesyCodeResponse)
+    async def update_courtesy_code(
+        code_id: str,
+        payload: UpdateCourtesyCodeRequest,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> CourtesyCodeResponse:
+        c = await db.scalar(
+            select(CourtesyCode).where(CourtesyCode.id == code_id, CourtesyCode.tenant_id == actor.tenant_id)
+        )
+        if c is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
+        if payload.status is not None:
+            c.status = payload.status
+        if payload.valid_day is not None:
+            c.valid_day = payload.valid_day.strip()
+        if payload.expires_at is not None:
+            c.expires_at = payload.expires_at
+        await db.commit()
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == c.catalog_item_id))
+        prom = await db.scalar(select(Promoter).where(Promoter.id == c.promoter_id)) if c.promoter_id else None
+        return CourtesyCodeResponse(
+            id=c.id,
+            code=c.code,
+            catalog_item_id=c.catalog_item_id,
+            item_name=item.name if item else "",
+            promoter_id=c.promoter_id,
+            promoter_name=prom.name if prom else None,
+            valid_day=c.valid_day or None,
+            expires_at=c.expires_at,
+            status=c.status,
+            redeemed_at=c.redeemed_at,
+        )
+
+    @app.delete("/api/v1/registration/codes/{code_id}")
+    async def delete_courtesy_code(
+        code_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        c = await db.scalar(
+            select(CourtesyCode).where(CourtesyCode.id == code_id, CourtesyCode.tenant_id == actor.tenant_id)
+        )
+        if c is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
+        if c.status == "REDEEMED":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No se puede eliminar un código ya canjeado; el ticket ya fue emitido.",
+            )
+        await db.delete(c)
+        await db.commit()
+        return {"status": "deleted", "code_id": code_id}
 
     @app.post("/api/v1/registration/public/redeem-code")
     async def redeem_courtesy_code(
@@ -1529,6 +1735,337 @@ def create_registration_app(
         )
         if cc is None or cc.status != "AVAILABLE":
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Code invalid or already redeemed.")
+
+        now = datetime.now(timezone.utc)
+        if cc.expires_at is not None:
+            exp = cc.expires_at if cc.expires_at.tzinfo else cc.expires_at.replace(tzinfo=timezone.utc)
+            if exp < now:
+                cc.status = "EXPIRED"
+                await db.commit()
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="El código de cortesía ha expirado.")
+
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == cc.catalog_item_id))
+        assert item is not None
+
+        order, cred_id, qr_token = await _issue_complimentary_pass(
+            db,
+            event=event,
+            catalog_item=item,
+            raw_dni=payload.dni,
+            full_name=payload.full_name,
+            email=payload.email,
+            source="CODE",
+            promoter_id=cc.promoter_id,
+            enforce_dni_limit=True,
+        )
+        cc.status = "REDEEMED"
+        cc.redeemed_by_dni_idx = order.dni_blind_index
+        cc.order_id = order.id
+        cc.credential_id = cred_id
+        cc.redeemed_at = now
+        await db.commit()
+        return {
+            "status": "REDEEMED",
+            "order_id": order.id,
+            "credential_id": cred_id,
+            "qr_token": qr_token,
+            "item_name": item.name,
+            "event_name": event.name,
+        }
+
+    # ------------------------------------------------------------------
+    # Physical / Thermal Tickets Batches
+    # ------------------------------------------------------------------
+    @app.post(
+        "/api/v1/registration/events/{event_id}/physical-tickets/batches",
+        response_model=PhysicalBatchResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_physical_ticket_batch(
+        event_id: str,
+        payload: CreatePhysicalBatchRequest,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> PhysicalBatchResponse:
+        event = await _resolve_event(event_id, actor, db)
+        item = await db.scalar(
+            select(CatalogItem).where(CatalogItem.id == payload.catalog_item_id, CatalogItem.event_id == event_id)
+        )
+        if item is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog item not found.")
+
+        avail = item.stock_total - item.stock_reserved - item.stock_sold
+        if avail < payload.quantity:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Stock disponible insuficiente ({avail} restantes, solicitados {payload.quantity}).",
+            )
+
+        item.stock_sold += payload.quantity
+        end_seq = payload.start_sequence + payload.quantity - 1
+        batch = PhysicalTicketBatch(
+            tenant_id=actor.tenant_id,
+            event_id=event.id,
+            catalog_item_id=item.id,
+            batch_name=payload.batch_name.strip(),
+            quantity=payload.quantity,
+            prefix=payload.prefix.strip().upper(),
+            start_sequence=payload.start_sequence,
+            end_sequence=end_seq,
+            paper_width=payload.paper_width,
+        )
+        db.add(batch)
+        await db.flush()
+
+        for seq in range(payload.start_sequence, end_seq + 1):
+            t_num = f"{batch.prefix}-{seq:04d}"
+            ticket_id = str(uuid.uuid4())
+            cid, qr_tok = await _issue_participant_qr(
+                event=event,
+                display_name=f"Entrada Física #{t_num}",
+                dni_last4="----",
+                holder_ref_id=ticket_id,
+                order_id=None,
+                entitlements={item.code: 1},
+            )
+            pt = PhysicalTicket(
+                id=ticket_id,
+                batch_id=batch.id,
+                tenant_id=actor.tenant_id,
+                event_id=event.id,
+                catalog_item_id=item.id,
+                sequence_number=seq,
+                ticket_number=t_num,
+                credential_id=cid,
+                qr_token=qr_tok,
+                status="ISSUED",
+            )
+            db.add(pt)
+
+        await db.commit()
+        return PhysicalBatchResponse(
+            id=batch.id,
+            event_id=batch.event_id,
+            catalog_item_id=batch.catalog_item_id,
+            batch_name=batch.batch_name,
+            quantity=batch.quantity,
+            prefix=batch.prefix,
+            start_sequence=batch.start_sequence,
+            end_sequence=batch.end_sequence,
+            paper_width=batch.paper_width,
+            created_at=batch.created_at,
+        )
+
+    @app.get(
+        "/api/v1/registration/events/{event_id}/physical-tickets/batches",
+        response_model=list[PhysicalBatchResponse],
+    )
+    async def list_physical_ticket_batches(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[PhysicalBatchResponse]:
+        event = await _resolve_event(event_id, actor, db)
+        batches = (
+            await db.scalars(
+                select(PhysicalTicketBatch)
+                .where(PhysicalTicketBatch.event_id == event.id, PhysicalTicketBatch.tenant_id == actor.tenant_id)
+                .order_by(PhysicalTicketBatch.created_at.desc())
+            )
+        ).all()
+        return [
+            PhysicalBatchResponse(
+                id=b.id,
+                event_id=b.event_id,
+                catalog_item_id=b.catalog_item_id,
+                batch_name=b.batch_name,
+                quantity=b.quantity,
+                prefix=b.prefix,
+                start_sequence=b.start_sequence,
+                end_sequence=b.end_sequence,
+                paper_width=b.paper_width,
+                created_at=b.created_at,
+            )
+            for b in batches
+        ]
+
+    @app.get(
+        "/api/v1/registration/physical-tickets/batches/{batch_id}",
+        response_model=PhysicalBatchDetailResponse,
+    )
+    async def get_physical_ticket_batch(
+        batch_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> PhysicalBatchDetailResponse:
+        batch = await db.scalar(
+            select(PhysicalTicketBatch).where(
+                PhysicalTicketBatch.id == batch_id, PhysicalTicketBatch.tenant_id == actor.tenant_id
+            )
+        )
+        if batch is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+        event = await db.scalar(select(Event).where(Event.id == batch.event_id))
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
+        assert event is not None and item is not None
+
+        tickets = (
+            await db.scalars(
+                select(PhysicalTicket)
+                .where(PhysicalTicket.batch_id == batch.id)
+                .order_by(PhysicalTicket.sequence_number.asc())
+            )
+        ).all()
+
+        t_res = [
+            PhysicalTicketResponse(
+                id=t.id,
+                sequence_number=t.sequence_number,
+                ticket_number=t.ticket_number,
+                credential_id=t.credential_id,
+                qr_token=t.qr_token,
+                status=t.status,
+                item_name=item.name,
+                item_code=item.code,
+                price_cents=item.price_cents,
+            )
+            for t in tickets
+        ]
+
+        return PhysicalBatchDetailResponse(
+            id=batch.id,
+            event_id=batch.event_id,
+            catalog_item_id=batch.catalog_item_id,
+            batch_name=batch.batch_name,
+            quantity=batch.quantity,
+            prefix=batch.prefix,
+            start_sequence=batch.start_sequence,
+            end_sequence=batch.end_sequence,
+            paper_width=batch.paper_width,
+            created_at=batch.created_at,
+            event_name=event.name,
+            venue=event.venue,
+            venue_address=event.venue_address,
+            starts_at=event.starts_at,
+            item_name=item.name,
+            price_cents=item.price_cents,
+            tickets=t_res,
+        )
+
+    @app.delete("/api/v1/registration/physical-tickets/batches/{batch_id}")
+    async def delete_physical_ticket_batch(
+        batch_id: str,
+        actor: CurrentActor = Depends(require_admin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, str]:
+        batch = await db.scalar(
+            select(PhysicalTicketBatch).where(
+                PhysicalTicketBatch.id == batch_id, PhysicalTicketBatch.tenant_id == actor.tenant_id
+            )
+        )
+        if batch is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+
+        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
+        if item is not None:
+            item.stock_sold = max(0, item.stock_sold - batch.quantity)
+
+        await db.execute(delete(PhysicalTicket).where(PhysicalTicket.batch_id == batch.id))
+        await db.delete(batch)
+        await db.commit()
+        return {"status": "deleted", "batch_id": batch_id}
+
+    # ------------------------------------------------------------------
+    # SMTP / Custom Email Configuration Per Tenant
+    # ------------------------------------------------------------------
+    @app.get("/api/v1/registration/email-config", response_model=TenantEmailConfigResponse)
+    async def get_email_config(
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> TenantEmailConfigResponse:
+        row = await db.scalar(select(TenantEmailConfig).where(TenantEmailConfig.tenant_id == actor.tenant_id))
+        if row is None:
+            return TenantEmailConfigResponse(
+                tenant_id=actor.tenant_id,
+                smtp_enabled=bool(cfg.smtp_host),
+                smtp_host=cfg.smtp_host or "",
+                smtp_port=cfg.smtp_port or 587,
+                smtp_user=cfg.smtp_user or "",
+                smtp_from_email=cfg.smtp_from_email or "tickets@eventpass.pe",
+                smtp_from_name=cfg.smtp_from_name or "EventPass Tickets",
+                smtp_use_tls=cfg.smtp_use_tls,
+                smtp_use_ssl=cfg.smtp_use_ssl,
+                has_password=bool(cfg.smtp_password),
+            )
+        return TenantEmailConfigResponse(
+            tenant_id=row.tenant_id,
+            smtp_enabled=row.smtp_enabled,
+            smtp_host=row.smtp_host,
+            smtp_port=row.smtp_port,
+            smtp_user=row.smtp_user,
+            smtp_from_email=row.smtp_from_email,
+            smtp_from_name=row.smtp_from_name,
+            smtp_use_tls=row.smtp_use_tls,
+            smtp_use_ssl=row.smtp_use_ssl,
+            has_password=bool(row.smtp_password_encrypted),
+        )
+
+    @app.put("/api/v1/registration/email-config", response_model=TenantEmailConfigResponse)
+    async def update_email_config(
+        payload: TenantEmailConfigRequest,
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> TenantEmailConfigResponse:
+        row = await db.scalar(select(TenantEmailConfig).where(TenantEmailConfig.tenant_id == actor.tenant_id))
+        if row is None:
+            row = TenantEmailConfig(tenant_id=actor.tenant_id)
+            db.add(row)
+
+        row.smtp_enabled = payload.smtp_enabled
+        row.smtp_host = payload.smtp_host.strip()
+        row.smtp_port = payload.smtp_port
+        row.smtp_user = payload.smtp_user.strip()
+        row.smtp_from_email = payload.smtp_from_email.strip()
+        row.smtp_from_name = payload.smtp_from_name.strip()
+        row.smtp_use_tls = payload.smtp_use_tls
+        row.smtp_use_ssl = payload.smtp_use_ssl
+        if payload.smtp_password is not None and payload.smtp_password != "":
+            row.smtp_password_encrypted = pii_crypto.encrypt(payload.smtp_password, aad="smtp")
+        await db.commit()
+        return TenantEmailConfigResponse(
+            tenant_id=row.tenant_id,
+            smtp_enabled=row.smtp_enabled,
+            smtp_host=row.smtp_host,
+            smtp_port=row.smtp_port,
+            smtp_user=row.smtp_user,
+            smtp_from_email=row.smtp_from_email,
+            smtp_from_name=row.smtp_from_name,
+            smtp_use_tls=row.smtp_use_tls,
+            smtp_use_ssl=row.smtp_use_ssl,
+            has_password=bool(row.smtp_password_encrypted),
+        )
+
+    @app.post("/api/v1/registration/email-config/test")
+    async def test_email_config(
+        payload: TestEmailRequest,
+        actor: CurrentActor = Depends(require_admin_or_superadmin),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        mail_settings = await _get_tenant_email_settings(db, actor.tenant_id)
+        test_html = """
+        <div style="font-family:sans-serif;max-width:500px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;">
+            <h2 style="color:#8b5cf6;margin-top:0;">Prueba de Conexión SMTP Exitosa</h2>
+            <p>Este es un correo de prueba enviado desde el panel de administración de <strong>EventPass SaaS</strong>.</p>
+            <p style="font-size:13px;color:#64748b;">Tu configuración de correo saliente está funcionando correctamente.</p>
+        </div>
+        """
+        res = await send_email_async(
+            mail_settings,
+            to_email=payload.recipient_email,
+            subject="✅ Verificación de Conexión SMTP — EventPass SaaS",
+            html_body=test_html,
+        )
+        return res
 
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == cc.catalog_item_id))
         assert item is not None
@@ -2368,7 +2905,8 @@ def create_registration_app(
             brand_color=event.brand_color or "#8b5cf6",
         )
         subject = f"🎟️ Tus Entradas Oficiales — {event.name} [Orden {order.id[:8]}]"
-        delivery_res = await send_email_async(cfg, buyer_email, subject, html, qr_bytes)
+        mail_cfg = await _get_tenant_email_settings(db, event.tenant_id)
+        delivery_res = await send_email_async(mail_cfg, buyer_email, subject, html, qr_bytes)
         return {
             "status": "ok",
             "recipient": buyer_email,
