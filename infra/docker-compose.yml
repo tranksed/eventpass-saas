@@ -110,6 +110,7 @@ services:
       KEYS_DIR: /app/data/keys
       SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
       SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-}
+      SERVER_PUBLIC_IP: ${SERVER_PUBLIC_IP:-}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]

@@ -109,6 +109,7 @@ class SuperAdminUpdateUserRequest(StrictModel):
 # -----------------------------------------------------------------------------
 class CheckDnsRequest(StrictModel):
     domain: str = Field(min_length=3, max_length=255)
+    override_server_ip: str | None = Field(default=None, max_length=45)
 
 
 class CheckDnsResponse(BaseModel):
@@ -125,6 +126,7 @@ class ConfigureDomainSslRequest(StrictModel):
     ssl_enabled: bool = True
     force_https_redirect: bool = True
     ssl_auto_renew: bool = True
+    override_server_ip: str | None = Field(default=None, max_length=45)
 
 
 class PlatformDomainConfigResponse(BaseModel):

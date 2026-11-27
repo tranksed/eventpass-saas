@@ -67,6 +67,16 @@ grep -q '^SUPERADMIN_EMAIL=' "${ENV_FILE}" || echo 'SUPERADMIN_EMAIL=superadmin@
 grep -q '^SUPERADMIN_PASSWORD=' "${ENV_FILE}" || echo 'SUPERADMIN_PASSWORD=' >> "${ENV_FILE}"
 grep -q '^UVICORN_WORKERS=' "${ENV_FILE}" || echo 'UVICORN_WORKERS=1' >> "${ENV_FILE}"
 
+# Auto-detectar IP pública del VPS en el host (donde sí hay salida directa a internet)
+PUBLIC_IP=$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || curl -fsSL --max-time 4 https://icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+if [[ -n "${PUBLIC_IP}" ]]; then
+  if grep -q '^SERVER_PUBLIC_IP=' "${ENV_FILE}"; then
+    sed -i "s|^SERVER_PUBLIC_IP=.*|SERVER_PUBLIC_IP=${PUBLIC_IP}|" "${ENV_FILE}"
+  else
+    echo "SERVER_PUBLIC_IP=${PUBLIC_IP}" >> "${ENV_FILE}"
+  fi
+fi
+
 # Asegurar certificados SSL iniciales para arranque seguro de Nginx
 mkdir -p "${APP_DIR}/gateway/ssl"
 if [[ ! -f "${APP_DIR}/gateway/ssl/active_cert.pem" || ! -f "${APP_DIR}/gateway/ssl/active_key.pem" ]]; then

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 import socket
 from contextlib import asynccontextmanager
@@ -139,25 +140,64 @@ def create_auth_app(
         except Exception:
             return []
 
-    async def _get_server_public_ip() -> str:
-        """Detect public IP of the VPS with fallback."""
+    def _is_valid_public_ip(candidate: str | None) -> bool:
+        if not candidate:
+            return False
+        candidate = candidate.strip().split(":")[0]
+        try:
+            ip_obj = ipaddress.ip_address(candidate)
+            return bool(ip_obj.is_global and not ip_obj.is_private)
+        except Exception:
+            return False
+
+    async def _get_server_public_ip(request: Request | None = None, override_ip: str | None = None) -> str:
+        """Detect public IP of the VPS with multi-layer fallback, strictly filtering out private docker bridge IPs."""
+        # 0. Explicit override (if provided and valid)
+        if override_ip and _is_valid_public_ip(override_ip):
+            return override_ip.strip()
+
+        # 1. Environment variable explicitly set by VPS install/update scripts
         env_ip = os.getenv("SERVER_PUBLIC_IP", "").strip()
-        if env_ip:
+        if _is_valid_public_ip(env_ip):
             return env_ip
-        for url in ["https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.me/ip"]:
+
+        # 2. Extract host from incoming HTTP request if user accessed directly via public IP
+        if request is not None:
+            for header_name in ["x-forwarded-host", "x-forwarded-server", "host"]:
+                val = request.headers.get(header_name, "")
+                if val:
+                    candidate = val.split(":")[0].strip()
+                    if _is_valid_public_ip(candidate):
+                        return candidate
+
+        # 3. External IP detection services (with 3.5s timeout & curl User-Agent)
+        for url in [
+            "https://api.ipify.org",
+            "https://icanhazip.com",
+            "https://ifconfig.me/ip",
+            "https://ipinfo.io/ip",
+            "https://checkip.amazonaws.com",
+        ]:
             try:
-                async with httpx.AsyncClient(timeout=2.0) as client:
+                async with httpx.AsyncClient(timeout=3.5, headers={"User-Agent": "curl/8.0"}) as client:
                     resp = await client.get(url)
                     if resp.status_code == 200:
-                        ip = resp.text.strip()
-                        if ip and len(ip) <= 45:
-                            return ip
+                        candidate = resp.text.strip()
+                        if _is_valid_public_ip(candidate):
+                            return candidate
             except Exception:
                 continue
-        try:
-            return socket.gethostbyname(socket.gethostname())
-        except Exception:
+
+        # 4. In test / dev environments, fallback to 127.0.0.1
+        env_name = os.getenv("ENVIRONMENT", "").lower()
+        if env_name in ("development", "test", "local") or not env_name:
             return "127.0.0.1"
+
+        # 5. Fallback to env_ip if provided
+        if env_ip:
+            return env_ip
+
+        return "127.0.0.1"
 
     async def _get_or_create_platform_domain_config(db: AsyncSession) -> PlatformDomainConfig:
         conf = await db.scalar(select(PlatformDomainConfig))
@@ -924,7 +964,7 @@ def create_auth_app(
     ) -> PlatformDomainConfigResponse:
         """Get current platform domain, DNS check, and SSL status."""
         conf = await _get_or_create_platform_domain_config(db)
-        server_ip = await _get_server_public_ip()
+        server_ip = await _get_server_public_ip(request)
         current_scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
 
         days_remaining = None
@@ -954,13 +994,14 @@ def create_auth_app(
     @app.post("/api/v1/auth/superadmin/domain-ssl/check-dns", response_model=CheckDnsResponse)
     async def check_domain_dns(
         payload: CheckDnsRequest,
+        request: Request,
         actor: CurrentActor = Depends(require_superadmin),
         db: AsyncSession = Depends(get_db),
     ) -> CheckDnsResponse:
         """Validate whether a domain or subdomain resolves to this VPS public IP."""
         clean_domain = payload.domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
         resolved = await _resolve_domain_ips(clean_domain)
-        server_ip = await _get_server_public_ip()
+        server_ip = await _get_server_public_ip(request, override_ip=payload.override_server_ip)
 
         is_dev = server_ip in ("127.0.0.1", "localhost")
         match = (server_ip in resolved) or (is_dev and clean_domain in ("localhost", "127.0.0.1"))
@@ -995,7 +1036,7 @@ def create_auth_app(
         """Configure platform domain and provision / enable SSL certificate state."""
         clean_domain = payload.primary_domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
         resolved = await _resolve_domain_ips(clean_domain)
-        server_ip = await _get_server_public_ip()
+        server_ip = await _get_server_public_ip(request, override_ip=payload.override_server_ip)
 
         is_dev = server_ip in ("127.0.0.1", "localhost")
         dns_match = (server_ip in resolved) or (is_dev and clean_domain in ("localhost", "127.0.0.1"))
@@ -1038,12 +1079,13 @@ def create_auth_app(
 
     @app.get("/api/v1/auth/superadmin/tenants/domains", response_model=list[TenantDomainSummary])
     async def list_tenants_domains(
+        request: Request,
         actor: CurrentActor = Depends(require_superadmin),
         db: AsyncSession = Depends(get_db),
     ) -> list[TenantDomainSummary]:
         """List all registered tenants and their custom domain mapping status."""
         tenants = (await db.scalars(select(Tenant).where(Tenant.slug != "platform").order_by(Tenant.name.asc()))).all()
-        server_ip = await _get_server_public_ip()
+        server_ip = await _get_server_public_ip(request)
         result = []
         for t in tenants:
             resolved_ip = None
@@ -1068,6 +1110,7 @@ def create_auth_app(
     async def update_tenant_custom_domain(
         tenant_id: str,
         payload: UpdateTenantCustomDomainRequest,
+        request: Request,
         actor: CurrentActor = Depends(require_superadmin),
         db: AsyncSession = Depends(get_db),
     ) -> TenantDomainSummary:
@@ -1083,7 +1126,7 @@ def create_auth_app(
         tenant.custom_domain = clean_domain
         await db.commit()
 
-        server_ip = await _get_server_public_ip()
+        server_ip = await _get_server_public_ip(request)
         resolved_ip = None
         dns_match = False
         if clean_domain:

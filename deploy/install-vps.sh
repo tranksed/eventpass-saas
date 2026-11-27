@@ -93,10 +93,12 @@ else
 fi
 
 echo "=== [3/6] Configurando secretos y puerto (${CHOSEN_PORT}) en ${ENV_FILE} ==="
+PUBLIC_IP=$(curl -fsSL --max-time 4 https://api.ipify.org 2>/dev/null || curl -fsSL --max-time 4 https://icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
 if [[ ! -f "${ENV_FILE}" ]]; then
   cat > "${ENV_FILE}" <<EOF
 ENVIRONMENT=production
 APP_HTTP_PORT=${CHOSEN_PORT}
+SERVER_PUBLIC_IP=${PUBLIC_IP}
 PII_MASTER_KEY_B64=$(openssl rand -base64 32)
 DNI_BLIND_INDEX_PEPPER=$(openssl rand -hex 32)
 PAYMENT_WEBHOOK_SECRET=$(openssl rand -hex 32)
@@ -110,6 +112,7 @@ REDIS_PASSWORD=$(openssl rand -hex 20)
 RABBITMQ_PASSWORD=$(openssl rand -hex 20)
 SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-superadmin@eventpass.pe}
 SUPERADMIN_PASSWORD=${SUPERADMIN_PASSWORD:-}
+UVICORN_WORKERS=1
 EOF
   chmod 600 "${ENV_FILE}"
   echo "    Secretos generados en ${ENV_FILE} (permisos 600)."
@@ -118,6 +121,13 @@ else
     sed -i "s/^APP_HTTP_PORT=.*/APP_HTTP_PORT=${CHOSEN_PORT}/" "${ENV_FILE}"
   else
     echo "APP_HTTP_PORT=${CHOSEN_PORT}" >> "${ENV_FILE}"
+  fi
+  if [[ -n "${PUBLIC_IP}" ]]; then
+    if grep -q '^SERVER_PUBLIC_IP=' "${ENV_FILE}"; then
+      sed -i "s|^SERVER_PUBLIC_IP=.*|SERVER_PUBLIC_IP=${PUBLIC_IP}|" "${ENV_FILE}"
+    else
+      echo "SERVER_PUBLIC_IP=${PUBLIC_IP}" >> "${ENV_FILE}"
+    fi
   fi
   echo "    ${ENV_FILE} actualizado con APP_HTTP_PORT=${CHOSEN_PORT} (secretos preservados)."
 fi
