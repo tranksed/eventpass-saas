@@ -48,14 +48,9 @@ fi
 echo "=== [1/4] Descargando últimos cambios desde GitHub (${BRANCH}) ==="
 cd "${APP_DIR}"
 git fetch origin "${BRANCH}"
-if [[ "${HARD_RESET}" -eq 1 ]]; then
+if ! git pull --ff-only origin "${BRANCH}" 2>/dev/null; then
+  echo "    Sincronizando archivos de código con origin/${BRANCH} (preservando infra/.env y bases de datos)..."
   git reset --hard "origin/${BRANCH}"
-else
-  if ! git pull --ff-only origin "${BRANCH}"; then
-    echo "[!] git pull --ff-only falló por cambios locales. Si deseas sobrescribir archivos locales (sin tocar infra/.env), usa:"
-    echo "    sudo eventpass-update --reset"
-    exit 1
-  fi
 fi
 chmod +x "${APP_DIR}/deploy/install-vps.sh" "${APP_DIR}/deploy/update-vps.sh" "${APP_DIR}/deploy/setup-ssl.sh"
 ln -sf "${APP_DIR}/deploy/setup-ssl.sh" /usr/local/bin/eventpass-ssl
