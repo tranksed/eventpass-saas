@@ -1,90 +1,209 @@
 # EventPass SaaS — Plataforma Multi-Tenant de Eventos, Taquilla y Acreditación
 
-Plataforma SaaS en Python (**FastAPI + SQLAlchemy 2.0 Async + Ed25519 + AES-256-GCM + Bootstrap 5.3**) con arquitectura de **microservicios y bases de datos independientes (*Database-per-Service*)** diseñada para ráfagas de **10,000+ usuarios en 48 horas**, acreditación privada corporativa, validación **online + contingencia offline** y analítica avanzada.
+Plataforma SaaS en Python (**FastAPI + SQLAlchemy 2.0 Async + Ed25519 + AES-256-GCM + Bootstrap 5.3 + Chart.js**) con arquitectura de **microservicios y bases de datos independientes (*Database-per-Service*)** diseñada para ráfagas de **10,000+ usuarios concurrentes**, venta de entradas e interacciones por artistas, acreditación corporativa de staff, pasarelas de pago peruanas e internacionales (Mercado Pago, Izipay, Yape), validación **online + contingencia offline** con QR firmado y asistente chatbot operativo local.
 
 ---
 
-## Arquitectura de Microservicios y Bases de Datos
+## 🏗️ Arquitectura de Microservicios y Bases de Datos
 
-| Servicio | Puerto Interno | Base de Datos | Responsabilidad |
+```text
+[ Cliente Web / Móvil / Taquilla ]
+               │
+               ▼
+   [ API Gateway (NGINX Modern TLS) ]  <─── Let's Encrypt SSL / Puertos 80 & 443
+               │
+  ┌────────────┼──────────────────────────┬────────────────────────┐
+  ▼            ▼                          ▼                        ▼
+web-portal  auth-service          registration-service   accreditation-service
+ (UI & BFF) (Ed25519 / Tenants)     (PgBouncer Pool)       (Offline QR & Sync)
+               │                          │                        │
+            auth_db                registration_db          accreditation_db
+                                          │
+                                          ▼
+                                    audit-service  (Encadenamiento SHA-256)
+                                          │
+                                       audit_db
+```
+
+| Microservicio | Puerto Interno | Base de Datos | Responsabilidad Principal |
 | :--- | :---: | :--- | :--- |
-| **`web-portal`** | `8000` | — | Aplicativo Web unificado (Bootstrap 5.3 + Chart.js), BFF de QR PNG y simulador HMAC de pasarela. |
-| **`auth-service`** | `8001` | `auth_db` | Multi-tenant por empresa, RBAC (`SUPERADMIN`, `ADMIN`, `SUPERVISOR`, `VALIDATOR`), impersonación SuperAdmin, MFA TOTP y JWT Ed25519 (`EdDSA`). |
-| **`registration-service`** | `8002` | `registration_db` (vía PgBouncer) | Eventos (`America/Lima`), catálogo (`ENTRY`, `INTERACTION`), límite configurable por DNI (`1..10`), códigos RR.PP., Guest List, envíos masivos Excel/CSV, Libro de Reclamaciones y exportación `.xlsx`. |
-| **`accreditation-service`** | `8003` | `accreditation_db` | Empresas acreditadas con link privado de staff (cupo default `6`, Supervisor hasta `10`, Admin personalizado), QR Ed25519, check-in atómico, **contingencia offline + sync** y métricas de puerta. |
-| **`audit-service`** | `8004` | `audit_db` | Bitácora inmutable (*append-only*) con **encadenamiento criptográfico SHA-256** (`verify-chain`). |
-| **`api-gateway`** | Público configurable (`8088`, `80`, etc.) | — | NGINX con rate limiting por zonas y enrutamiento unificado hacia los microservicios y portal web. |
+| **`web-portal`** | `8000` | — | Interfaz unificada responsiva (Bootstrap 5.3 + Chart.js), BFF de credenciales QR y orquestador web. |
+| **`auth-service`** | `8001` | `auth_db` | Identidad multi-tenant por empresa, RBAC (`SUPERADMIN`, `ADMIN`, `SUPERVISOR`, `VALIDATOR`), impersonación SuperAdmin, MFA TOTP, JWT Ed25519 (`EdDSA`), y gestión de dominios/SSL. |
+| **`registration-service`** | `8002` | `registration_db` (vía PgBouncer) | Eventos en zona horaria local (`America/Lima`), catálogo de entradas (`ENTRY`) e interacciones con artistas (`INTERACTION`), control de compra por DNI, pasarelas (Mercado Pago, Izipay, Yape), códigos RR.PP., Guest List, carga masiva Excel/CSV y Libro de Reclamaciones. |
+| **`accreditation-service`** | `8003` | `accreditation_db` | Enlaces privados por empresa expositora para staff con cupo en tiempo real, credenciales con firma QR Ed25519, check-in atómico y sincronización offline anti-duplicados. |
+| **`audit-service`** | `8004` | `audit_db` | Bitácora de auditoría inmutable (*append-only*) con **encadenamiento criptográfico SHA-256** (`verify-chain`). |
+| **`api-gateway`** | `80` & `443` | — | NGINX con terminación TLS moderna, rate-limiting de protección anti-DDoS y enrutamiento perimetral. |
 
 ---
 
-## Vistas del Aplicativo Web
+## 🌐 Módulos y Vistas del Sistema
 
 | Ruta | Módulo | Descripción |
 | :--- | :--- | :--- |
-| `/` | **Portal de Eventos** | Buscador de eventos publicados, flujo operativo en 3 pasos y acceso directo a todos los módulos. |
-| `/comprar` | **Taquilla, Códigos y Guest List** | Compra con control por DNI (Yape/Plin, MercadoPago/Tarjeta, PayPal), canje de códigos RR.PP./cortesías nominativas y solicitud pública de Guest List. |
-| `/validar` | **Consola de Puerta (Online / Offline)** | Acceso privado por rol, lector de QR (cámara o USB/pegado), historial de sesión, descarga de paquete Ed25519 y sincronización offline anti-duplicados. |
-| `/acreditacion` | **Portal Corporativo de Staff** | Registro mediante enlace privado por empresa expositora con control de cupo en tiempo real y descarga de credencial QR. |
-| `/admin` (`/dashboard`) | **Dashboard Organizador (Bootstrap 5)** | 8 KPIs en vivo, 4 gráficos Chart.js, exportación `.xlsx`, gestión de eventos/catálogo, códigos RR.PP., Guest List en 1 clic, carga masiva Excel/CSV, **Acreditaciones Staff**, usuarios RBAC, auditoría SHA-256 y Reclamos. |
-| `/superadmin` | **Consola SuperAdmin Global** | Acceso maestro de plataforma (`SUPERADMIN`): KPIs globales multi-tenant, alta/suspensión de empresas, impersonación 1-click hacia `/admin`, pausa de eventos globales y auditoría global. |
-| `/reclamos` | **Libro de Reclamaciones Virtual** | Registro público conforme a Perú (INDECOPI) con código de seguimiento `LR-...`. |
+| `/` | **Portal Público de Eventos** | Catálogo de eventos activos, buscador por fecha y accesos directos. |
+| `/comprar` | **Taquilla y Venta por Artista** | Compra con control por DNI, selección de entradas generales o interacciones específicas por artista/personaje (fotos, firmas, Meet & Greet), medios de pago (Mercado Pago, Izipay, Yape/Plin) y canje de códigos promocionales. |
+| `/validar` | **Consola de Puerta (Online / Offline)** | Validación de QR en puerta mediante cámara o pistola USB con soporte de contingencia offline sin internet mediante claves públicas Ed25519. |
+| `/acreditacion` | **Acreditación Corporativa Staff** | Registro de personal de stands/empresas patrocinadoras con control estricto de cupos en tiempo real. |
+| `/admin` | **Panel de Organizador (Tenant)** | 8 KPIs en tiempo real, 4 gráficos analíticos, métricas de ventas, gestión de catálogo, Guest List, carga masiva Excel y Chatbot Operativo interno. |
+| `/superadmin` | **Consola SuperAdmin Global** | Control maestro de la plataforma: provisión y suspensión de empresas (tenants), dominios personalizados, verificación DNS en tiempo real y activación de certificados SSL. |
+| `/reclamos` | **Libro de Reclamaciones Virtual** | Formulario de reclamos conforme a normativa peruana (INDECOPI) con código de seguimiento único `LR-...`. |
 
 ---
 
-## Instalación Rápida en VPS (Ubuntu 22.04/24.04 o Debian 12)
+## 🚀 Instalación en Cualquier Servidor VPS
 
-El instalador configura Docker Engine, Compose v2, Firewall UFW, genera secretos criptográficos únicos en `infra/.env`, permite elegir el puerto público y verifica todas las rutas HTTP automáticamente:
+La instalación se realiza en un servidor VPS limpio (Ubuntu 22.04 / 24.04 o Debian 12). El instalador detecta automáticamente la IP pública del servidor, genera claves criptográficas seguras y únicas, configura el firewall y levanta la plataforma con Docker:
 
 ```bash
-git clone https://github.com/tranksed/eventpass-saas.git
-cd eventpass-saas
+# 1. Clonar el repositorio en el VPS
+git clone https://github.com/tranksed/eventpass-saas.git /opt/eventpass-saas
+cd /opt/eventpass-saas
+
+# 2. Ejecutar el instalador automático
 sudo bash deploy/install-vps.sh
 ```
 
-También puedes pasar el puerto directamente sin modo interactivo (ideal para automatización o cambiar de puerto luego):
+El script permite elegir el puerto público (por defecto `8088` para pruebas o `80` si ya tienes el dominio apuntado) y configurará automáticamente:
+* Instalación de Docker Engine y Docker Compose v2.
+* Generación de secretos en `infra/.env` con permisos `600` (AES-256-GCM, blind index de DNI, contraseñas de las 4 BDs, Redis y RabbitMQ).
+* Configuración del firewall UFW (puertos 22, 80, 443).
+* Creación de los comandos globales en el sistema: `eventpass-update` y `eventpass-ssl`.
 
+---
+
+## 🔒 Dominio Universal y Certificados SSL HTTPS (Let's Encrypt)
+
+Cada servidor VPS puede configurarse con su propio dominio o subdominio (ej. `tickets.tuempresa.pe`, `entradas.midominio.com`).
+
+### Paso 1: Configurar el Registro DNS en tu proveedor
+En tu panel de DNS (Cloudflare, GoDaddy, Namecheap, Hostinger, etc.):
+* **Tipo**: `A`
+* **Nombre / Host**: `tickets` (o `@` si es el dominio raíz)
+* **Valor / Destino**: `IP_PUBLICA_DE_TU_VPS`
+* *(En Cloudflare, se recomienda inicialmente dejar el proxy en **DNS Only / Nube Gris** durante la validación inicial).*
+
+### Paso 2: Activar SSL (2 métodos disponibles)
+
+#### Método A: Desde la Consola SuperAdmin Web (Recomendado)
+1. Ingresa a `http://IP_DE_TU_VPS:PUERTO/superadmin`.
+2. Dirígete a la sección **Dominio Universal y Certificados SSL (HTTPS)**.
+3. El sistema valida en tiempo real tu registro DNS mediante resolución autoritativa global **DoH (DNS-over-HTTPS)**.
+4. Ingresa tu dominio y tu correo de contacto y haz clic en **"Guardar y Activar SSL HTTPS"**.
+
+#### Método B: Desde la Terminal SSH (Emisión instantánea)
+Ejecuta el asistente CLI de certificados:
 ```bash
-sudo bash deploy/install-vps.sh --port 8088
+sudo eventpass-ssl setup tickets.tuempresa.com admin@tuempresa.com
 ```
 
-### Actualizar una instalación existente en el VPS
+Este comando:
+1. Solicita y valida el certificado con Let's Encrypt vía ACME Challenge webroot.
+2. Vincula los certificados en `gateway/ssl/active_cert.pem` y `active_key.pem`.
+3. Configura Nginx en los puertos estándar `80` y `443` con redirección automática HTTP -> HTTPS.
+4. Instala un cronjob de auto-renovación diaria en `/etc/cron.d/eventpass-ssl-renew`.
 
-El instalador registra el comando global `eventpass-update` (que ejecuta `deploy/update-vps.sh`), el cual descarga los cambios desde GitHub, reconstruye los contenedores sin perder tus secretos (`infra/.env`) ni base de datos, y verifica HTTP `200` en todas las rutas:
+---
+
+## 💳 Configuración de Pasarelas de Pago
+
+EventPass SaaS soporta pagos con tarjeta, billeteras digitales y pasarelas peruanas e internacionales:
+
+1. Edita el archivo de configuración del entorno:
+```bash
+nano /opt/eventpass-saas/infra/.env
+```
+
+2. Añade las credenciales de tu pasarela:
+
+### Mercado Pago (Tarjetas + QR Yape / Plin)
+```env
+MERCADOPAGO_ACCESS_TOKEN=APP_USR-xxxxxxxxxxxxxxxxxxxx
+MERCADOPAGO_PUBLIC_KEY=APP_USR-xxxxxxxxxxxxxxxxxxxx
+MERCADOPAGO_WEBHOOK_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Izipay (Tarjetas + Yape Directo)
+```env
+IZIPAY_CLIENT_ID=xxxxxxxx
+IZIPAY_CLIENT_KEY=xxxxxxxx
+IZIPAY_PUBLIC_KEY=xxxxxxxx
+IZIPAY_SHA256_KEY=xxxxxxxx
+```
+
+3. Aplica los cambios reiniciando los contenedores:
+```bash
+cd /opt/eventpass-saas/infra && docker compose --env-file .env up -d
+```
+
+---
+
+## 🎭 Entradas e Interacciones con Artistas / Personajes
+
+El sistema permite segmentar y vender tanto entradas tradicionales como experiencias e interacciones nominadas por artista:
+
+* **Entradas Generales (`ENTRY`)**: General, VIP, Platinum, Preferencial.
+* **Interacciones por Artista (`INTERACTION`)**: Meet & Greet, Fotografía profesional, Firma de autógrafos, Backstage pass. Cada interacción se asocia a un artista o personaje específico, con stock independiente y precios diferenciados.
+* **En el Home de Compra (`/comprar`)**: El comprador visualiza claramente las entradas del evento y puede filtrar o seleccionar la interacción deseada con su artista favorito.
+
+---
+
+## 🤖 Chatbot Operativo Interno (IA Administrativa)
+
+La plataforma integra un asistente chatbot en el panel de administración (`/admin` y `/superadmin`) con las siguientes características:
+* **Privado y Restringido**: Exclusivo para usuarios autenticados con rol `SUPERADMIN` o `ADMIN`.
+* **Conocimiento de Base de Datos Propia**: Consulta y opera exclusivamente con el esquema y los datos reales de la plataforma (no genera información externa de internet).
+* **Operaciones Soportadas**:
+  * Consultas de ventas, recaudación y estados de stock.
+  * Creación y modificación de precios de entradas e interacciones.
+  * Búsqueda y verificación de compradores por DNI.
+  * Análisis de tasa de asistencia y check-in en puerta.
+
+---
+
+## 🏢 Arquitectura Multi-Tenant y Dominios Propios
+
+EventPass soporta múltiples empresas organizadoras sobre una misma infraestructura:
+* **Ruta Universal**: `https://tudominio.com/{slug-empresa}/...`
+* **Dominio Propio por Tenant**: Cada empresa puede tener asignado un dominio personalizado (ej. `entradas.festivalnorte.pe`). El SuperAdmin puede vincular y verificar el estado DNS de cada empresa con un solo clic.
+
+---
+
+## 🔄 Actualizaciones y Mantenimiento del VPS
+
+Para actualizar la plataforma a la última versión disponible en GitHub **sin perder tus datos ni tus claves secretas en `.env`**:
 
 ```bash
 sudo eventpass-update
 ```
 
-O manualmente dentro del repositorio:
-
+### Comandos de diagnóstico útiles:
 ```bash
-cd eventpass-saas
-sudo bash deploy/update-vps.sh
-```
+# Ver estado de los contenedores
+cd /opt/eventpass-saas/infra && docker compose --env-file .env ps
 
-> Si ya habías instalado antes de existir `eventpass-update`, ejecuta `cd eventpass-saas && git pull origin main && sudo bash deploy/update-vps.sh` una sola vez; luego ya podrás usar `sudo eventpass-update` desde cualquier directorio. También puedes configurar `SUPERADMIN_PASSWORD` en `infra/.env` o inicializar la primera cuenta directamente ingresando a `/superadmin`.
+# Ver logs en vivo de todos los microservicios
+cd /opt/eventpass-saas/infra && docker compose --env-file .env logs -f
+
+# Verificar estado de certificados SSL
+sudo eventpass-ssl status
+```
 
 ---
 
-## Desarrollo Local y Pruebas
+## 🧪 Pruebas Automatizadas y Desarrollo Local
 
-### Pruebas automatizadas (`pytest`)
+```bash
+# Crear entorno virtual e instalar dependencias
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+pip install -e .[dev]
 
-```powershell
-# Windows (PowerShell)
-.\.venv\Scripts\python.exe -m pytest -v
+# Ejecutar suite de pruebas con pytest
+pytest -v
 ```
 
-La suite valida:
-- Normalización, enmascaramiento y *blind index* HMAC-SHA256 por tenant/evento de DNI.
-- Hashing `scrypt`, firmas Ed25519 de QR y expiración.
-- Aislamiento multi-tenant, jerarquía de cupos Staff (`6` / `<=10` / personalizado), concurrencia sin sobreventa y modo contingencia offline con detección de duplicados.
-- Promotores RR.PP., canje de cortesías, Guest List en 1 clic, envíos masivos CSV/Excel, métricas + exportación `.xlsx` y Libro de Reclamaciones.
+---
 
-### Levantar en local (Windows)
+## 📄 Licencia
 
-```powershell
-.\scripts\start_local.ps1
-```
-
-Abrir en el navegador: `http://127.0.0.1:8000/` (y Dashboard en `http://127.0.0.1:8000/admin`).
+Desarrollado para despliegue empresarial de alta concurrencia. Todos los derechos reservados.

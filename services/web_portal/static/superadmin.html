@@ -1052,7 +1052,7 @@
     let cachedServerIp = "";
 
     function promptOverrideIp() {
-      const val = prompt("Ingresa la IP pública de tu VPS (ej. 169.58.74.147):", cachedServerIp || window.location.hostname);
+      const val = prompt("Ingresa la IP pública de tu VPS (ej. 203.0.113.10):", cachedServerIp || window.location.hostname);
       if (val && val.trim()) {
         cachedServerIp = val.trim();
         document.getElementById("sslServerIp").textContent = cachedServerIp;
