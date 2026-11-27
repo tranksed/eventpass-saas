@@ -2067,34 +2067,6 @@ def create_registration_app(
         )
         return res
 
-        item = await db.scalar(select(CatalogItem).where(CatalogItem.id == cc.catalog_item_id))
-        assert item is not None
-
-        order, cred_id, qr_token = await _issue_complimentary_pass(
-            db,
-            event=event,
-            catalog_item=item,
-            raw_dni=payload.dni,
-            full_name=payload.full_name,
-            email=payload.email,
-            source="CODE",
-            promoter_id=cc.promoter_id,
-            enforce_dni_limit=True,
-        )
-        cc.status = "REDEEMED"
-        cc.redeemed_by_dni_idx = order.dni_blind_index
-        cc.order_id = order.id
-        cc.credential_id = cred_id
-        cc.redeemed_at = datetime.now(timezone.utc)
-        await db.commit()
-        return {
-            "status": "REDEEMED",
-            "order_id": order.id,
-            "credential_id": cred_id,
-            "qr_token": qr_token,
-            "item_code": item.code,
-        }
-
     # ------------------------------------------------------------------
     # Guest List (Public Request + 1-Click Approval -> QR)
     # ------------------------------------------------------------------

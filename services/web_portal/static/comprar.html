@@ -682,7 +682,7 @@
         mapContainer.classList.add("d-none");
       }
 
-      new bootstrap.Modal(document.getElementById("ticketModal")).show();
+      openModal("ticketModal");
     }
 
     let currentPaymentMethods = null;
@@ -783,7 +783,7 @@
             document.getElementById("yapeQrImg").src = qrDataUrl;
           }
 
-          new bootstrap.Modal(document.getElementById("yapeModal")).show();
+          openModal("yapeModal");
           return;
         }
 
@@ -855,7 +855,7 @@
         });
 
         // Close Yape modal
-        bootstrap.Modal.getInstance(document.getElementById("yapeModal"))?.hide();
+        closeModal("yapeModal");
 
         // Show ticket
         await showIssuedTicket(

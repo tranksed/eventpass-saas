@@ -1380,7 +1380,7 @@
         if (match) match.classList.add("active");
       }
       const offcanvasEl = document.getElementById("adminSidebar");
-      if (offcanvasEl && typeof bootstrap !== "undefined") {
+      if (offcanvasEl && typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {
         const inst = bootstrap.Offcanvas.getInstance(offcanvasEl);
         if (inst) inst.hide();
       }

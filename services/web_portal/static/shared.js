@@ -413,5 +413,53 @@ const EP = {
       if (sendBtn) sendBtn.disabled = false;
       input.focus();
     }
+  },
+
+  openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+      try {
+        const inst = bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
+        inst.show();
+        return;
+      } catch (_) {}
+    }
+    el.classList.add("show");
+    el.style.display = "block";
+    document.body.classList.add("modal-open");
+    if (!document.querySelector(`.modal-backdrop[data-modal="${id}"]`)) {
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop fade show";
+      backdrop.dataset.modal = id;
+      document.body.appendChild(backdrop);
+    }
+  },
+
+  closeModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+      try {
+        const inst = bootstrap.Modal.getInstance(el);
+        if (inst) inst.hide();
+      } catch (_) {}
+    }
+    el.classList.remove("show");
+    el.style.display = "none";
+    document.body.classList.remove("modal-open");
+    const backdrop = document.querySelector(`.modal-backdrop[data-modal="${id}"]`) || document.querySelector(".modal-backdrop");
+    if (backdrop) backdrop.remove();
   }
 };
+
+window.openModal = function(id) { EP.openModal(id); };
+window.closeModal = function(id) { EP.closeModal(id); };
+
+document.addEventListener("click", function(e) {
+  const dismissBtn = e.target.closest('[data-bs-dismiss="modal"]');
+  if (dismissBtn) {
+    const modal = dismissBtn.closest(".modal");
+    if (modal) EP.closeModal(modal.id);
+  }
+});

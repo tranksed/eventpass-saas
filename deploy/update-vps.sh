@@ -104,7 +104,7 @@ fi
 
 echo "=== [2/4] Reconstruyendo e iniciando contenedores (puerto ${CHOSEN_PORT}, uvicorn workers: 1) ==="
 cd "${INFRA_DIR}"
-docker compose --env-file "${ENV_FILE}" up -d --build --remove-orphans
+docker compose --env-file "${ENV_FILE}" up -d --build --force-recreate --remove-orphans
 docker image prune -f >/dev/null 2>&1 || true
 
 echo "=== [3/4] Esperando que todos los microservicios estén HEALTHY (puerto ${CHOSEN_PORT}) ==="

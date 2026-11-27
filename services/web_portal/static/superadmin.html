@@ -653,8 +653,40 @@
         const errors = [];
         const [tenants, reg, acc, audit] = await Promise.all([
           EP.api("/api/v1/auth/superadmin/tenants"),
-          EP.api("/api/v1/registration/superadmin/overview").catch(err => { errors.push("Taquilla: " + err.message); return { total_events: 0, active_events: 0, total_orders_paid: 0, total_revenue_cents: 0, total_tickets_sold: 0, total_complaints: 0, events: [] }; }),
-          EP.api("/api/v1/accreditation/superadmin/overview").catch(err => { errors.push("Acreditación: " + err.message); return { total_credentials: 0, total_staff_used: 0, total_staff_quota: 0, total_checkins: 0 }; }),
+          EP.api("/api/v1/registration/superadmin/overview").catch(async err => {
+            errors.push("Taquilla: " + err.message);
+            try {
+              const evList = await EP.api("/api/v1/registration/events");
+              return {
+                total_events: evList.length,
+                active_events: evList.filter(e => e.is_active).length,
+                total_orders_paid: 0,
+                total_revenue_cents: 0,
+                total_tickets_sold: 0,
+                total_complaints: 0,
+                events: evList.map(e => ({
+                  id: e.id,
+                  tenant_id: e.tenant_id,
+                  name: e.name,
+                  slug: e.slug,
+                  venue: e.venue || "",
+                  is_active: e.is_active,
+                  max_purchases_per_dni: e.max_purchases_per_dni || 1,
+                  orders_paid: 0,
+                  revenue_cents: 0,
+                  tickets_sold: 0,
+                  tickets_capacity: 0,
+                  created_at: e.created_at,
+                }))
+              };
+            } catch (_) {
+              return { total_events: 0, active_events: 0, total_orders_paid: 0, total_revenue_cents: 0, total_tickets_sold: 0, total_complaints: 0, events: [] };
+            }
+          }),
+          EP.api("/api/v1/accreditation/superadmin/overview").catch(err => {
+            errors.push("Acreditación: " + err.message);
+            return { total_credentials: 0, total_staff_used: 0, total_staff_quota: 0, total_checkins: 0 };
+          }),
           EP.api("/api/v1/audit/superadmin/events?limit=50").catch(() => []),
         ]);
         if (errors.length) EP.showMsg("saGlobalMsg", "warn", `Aviso parcial al sincronizar métricas: ${errors.join(" | ")}`);
@@ -851,8 +883,7 @@
       document.getElementById("editTenantName").value = t.name;
       document.getElementById("editTenantSlug").value = t.slug;
       document.getElementById("editTenantMsg").innerHTML = "";
-      const m = new bootstrap.Modal(document.getElementById("modalEditTenant"));
-      m.show();
+      openModal("modalEditTenant");
     }
 
     async function submitEditTenant() {
@@ -865,7 +896,7 @@
           method: "PATCH",
           body: JSON.stringify({ name, slug }),
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalEditTenant"))?.hide();
+        closeModal("modalEditTenant");
         EP.toast(`Empresa actualizada: ${res.name} (${res.slug})`);
         await loadPlatformData();
       } catch (e) {
@@ -891,8 +922,7 @@
       document.getElementById("tuNewPassword").value = "";
       document.getElementById("tuNewRole").value = "ADMIN";
 
-      const m = new bootstrap.Modal(document.getElementById("modalTenantUsers"));
-      m.show();
+      openModal("modalTenantUsers");
       loadTenantUsersTable(tenantId);
     }
 
@@ -971,8 +1001,7 @@
       document.getElementById("rpUserLabel").textContent = `${userName} (${userEmail})`;
       document.getElementById("rpNewPassword").value = "";
       document.getElementById("rpMsg").innerHTML = "";
-      const m = new bootstrap.Modal(document.getElementById("modalResetPassword"));
-      m.show();
+      openModal("modalResetPassword");
     }
 
     async function submitResetPassword() {
@@ -988,7 +1017,7 @@
           method: "POST",
           body: JSON.stringify({ new_password: newPassword }),
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalResetPassword"))?.hide();
+        closeModal("modalResetPassword");
         EP.showMsg("tuGlobalMsg", "ok", res.message || "Contraseña restablecida exitosamente.");
         EP.toast("Contraseña actualizada con éxito.");
         await loadTenantUsersTable(tenantId);
@@ -1008,8 +1037,7 @@
       document.getElementById("euRole").value = role;
       document.getElementById("euIsActive").checked = !!isActive;
       document.getElementById("euMsg").innerHTML = "";
-      const m = new bootstrap.Modal(document.getElementById("modalEditTenantUser"));
-      m.show();
+      openModal("modalEditTenantUser");
     }
 
     async function submitEditTenantUser() {
@@ -1026,7 +1054,7 @@
           method: "PATCH",
           body: JSON.stringify({ full_name: fullName, email, role, is_active: isActive }),
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalEditTenantUser"))?.hide();
+        closeModal("modalEditTenantUser");
         EP.toast(`Usuario '${res.email}' actualizado.`);
         await loadTenantUsersTable(tenantId);
       } catch (e) {
@@ -1213,7 +1241,7 @@
       document.getElementById("cdInputDomain").value = currentDomain || "";
       document.getElementById("cdServerIpHint").textContent = cachedServerIp || "la IP del VPS";
       document.getElementById("cdMsg").innerHTML = "";
-      new bootstrap.Modal(document.getElementById("modalCustomDomain")).show();
+      openModal("modalCustomDomain");
     }
 
     async function submitTenantCustomDomain() {
@@ -1226,7 +1254,7 @@
           method: "PUT",
           body: JSON.stringify({ custom_domain: customDomain || null }),
         });
-        bootstrap.Modal.getInstance(document.getElementById("modalCustomDomain"))?.hide();
+        closeModal("modalCustomDomain");
         EP.toast(`Dominio personalizado actualizado para ${res.name}.`);
         await loadTenantsDomainsTable();
       } catch (err) {
