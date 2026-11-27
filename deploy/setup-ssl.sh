@@ -156,7 +156,7 @@ cmd_setup() {
     echo "✅ Certificado Let's Encrypt obtenido con éxito."
   else
     echo "--> Intentando método alternativo standalone..."
-    docker compose -f "${INFRA_DIR}/docker-compose.yml" stop api-gateway 2>/dev/null || true
+    docker compose --env-file "${ENV_FILE}" -f "${INFRA_DIR}/docker-compose.yml" stop api-gateway 2>/dev/null || true
     certbot certonly --standalone \
       -d "${domain}" \
       --email "${email}" \
@@ -164,7 +164,7 @@ cmd_setup() {
       --no-eff-email \
       --non-interactive \
       --keep-until-expiring
-    docker compose -f "${INFRA_DIR}/docker-compose.yml" start api-gateway 2>/dev/null || true
+    docker compose --env-file "${ENV_FILE}" -f "${INFRA_DIR}/docker-compose.yml" start api-gateway 2>/dev/null || true
   fi
 
   # 5. Enlazar certificados al Nginx de EventPass
@@ -206,10 +206,10 @@ cmd_setup() {
       ufw allow 443/tcp >/dev/null 2>&1 || true
     fi
 
-    # Recargar o reiniciar Nginx para vincular puertos 80 y 443 con SSL
-    echo "--> Recargando e iniciando NGINX en puertos 80 y 443..."
-    docker compose -f "${INFRA_DIR}/docker-compose.yml" --env-file "${ENV_FILE}" up -d api-gateway 2>/dev/null || \
-      docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
+    # Reiniciar NGINX para aplicar el nuevo certificado oficial en los puertos 80 y 443
+    echo "--> Reiniciando NGINX en puertos 80 y 443 con certificado oficial..."
+    docker compose --env-file "${ENV_FILE}" -f "${INFRA_DIR}/docker-compose.yml" restart api-gateway || \
+      docker compose --env-file "${ENV_FILE}" -f "${INFRA_DIR}/docker-compose.yml" up -d api-gateway
 
     echo ""
     echo "====================================================================="
@@ -239,7 +239,7 @@ cmd_renew() {
     if [[ -n "${cert_file}" && -f "${cert_file}" && -n "${key_file}" && -f "${key_file}" ]]; then
       cp -L "${cert_file}" "${SSL_DIR}/active_cert.pem"
       cp -L "${key_file}" "${SSL_DIR}/active_key.pem"
-      docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
+      docker compose --env-file "${ENV_FILE}" -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
       echo "✅ Certificados renovados y NGINX recargado."
     fi
   fi
