@@ -97,8 +97,8 @@ if [[ -n "${PUBLIC_IP}" ]]; then
   fi
 fi
 
-# Asegurar certificados SSL iniciales para arranque seguro de Nginx
-mkdir -p "${APP_DIR}/gateway/ssl"
+# Asegurar directorios de SSL y Certbot para arranque seguro de Nginx
+mkdir -p "${APP_DIR}/gateway/ssl" "${APP_DIR}/gateway/certbot_www"
 if [[ ! -f "${APP_DIR}/gateway/ssl/active_cert.pem" || ! -f "${APP_DIR}/gateway/ssl/active_key.pem" ]]; then
   echo "    Generando certificado TLS base para Nginx..."
   openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
