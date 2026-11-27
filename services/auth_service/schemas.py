@@ -126,6 +126,7 @@ class ConfigureDomainSslRequest(StrictModel):
     ssl_enabled: bool = True
     force_https_redirect: bool = True
     ssl_auto_renew: bool = True
+    force_ssl: bool = False
     override_server_ip: str | None = Field(default=None, max_length=45)
 
 

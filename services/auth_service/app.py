@@ -131,14 +131,45 @@ def create_auth_app(
                 pass
 
     async def _resolve_domain_ips(domain: str) -> list[str]:
-        """Resolve domain A records asynchronously using socket.getaddrinfo."""
+        """Resolve domain A records asynchronously using socket.getaddrinfo and DoH fallbacks."""
         clean_domain = domain.strip().lower().removeprefix("http://").removeprefix("https://").split("/")[0].split(":")[0]
+        if not clean_domain:
+            return []
+
+        resolved: set[str] = set()
+
+        # 1. Standard socket resolution
         try:
             res = await asyncio.to_thread(socket.getaddrinfo, clean_domain, None, socket.AF_INET)
-            ips = sorted(list({item[4][0] for item in res if item and len(item) > 4}))
-            return ips
+            for item in res:
+                if item and len(item) > 4 and item[4][0]:
+                    resolved.add(item[4][0])
         except Exception:
-            return []
+            pass
+
+        # 2. Direct DoH queries to authoritative public resolvers (Cloudflare & Google)
+        if not resolved:
+            doh_urls = [
+                f"https://cloudflare-dns.com/dns-query?name={clean_domain}&type=A",
+                f"https://dns.google/resolve?name={clean_domain}&type=A",
+            ]
+            for url in doh_urls:
+                try:
+                    async with httpx.AsyncClient(timeout=3.0, headers={"accept": "application/dns-json", "User-Agent": "curl/8.0"}) as client:
+                        resp = await client.get(url)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            for ans in data.get("Answer", []):
+                                if ans.get("type") == 1 and ans.get("data"):
+                                    ip_val = ans["data"].strip()
+                                    if ip_val:
+                                        resolved.add(ip_val)
+                            if resolved:
+                                break
+                except Exception:
+                    continue
+
+        return sorted(list(resolved))
 
     def _is_valid_public_ip(candidate: str | None) -> bool:
         if not candidate:
@@ -1049,7 +1080,7 @@ def create_auth_app(
         conf.last_dns_check_ip = ", ".join(resolved) if resolved else "NO_RECORDS"
         conf.last_dns_check_at = datetime.now(timezone.utc)
 
-        if dns_match or is_dev:
+        if dns_match or payload.force_ssl or is_dev:
             conf.ssl_enabled = True
             conf.ssl_status = "ACTIVE"
             conf.ssl_issued_at = datetime.now(timezone.utc)

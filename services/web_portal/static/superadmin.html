@@ -190,6 +190,10 @@
                 <input id="cfgSslEmail" type="email" class="form-control form-control-sm" placeholder="admin@eventpass.pe" required />
               </div>
               <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="cfgSslForce" checked />
+                <label class="form-check-label small" for="cfgSslForce">Activar SSL de inmediato (ignora retardos de propagación DNS)</label>
+              </div>
+              <div class="form-check form-switch mb-2">
                 <input class="form-check-input" type="checkbox" id="cfgSslForceHttps" checked />
                 <label class="form-check-label small" for="cfgSslForceHttps">Redirección automática de HTTP a HTTPS</label>
               </div>
@@ -1132,6 +1136,7 @@
     async function submitConfigureDomainSsl() {
       const domain = document.getElementById("cfgSslDomain").value.trim();
       const email = document.getElementById("cfgSslEmail").value.trim();
+      const forceSsl = document.getElementById("cfgSslForce") ? document.getElementById("cfgSslForce").checked : true;
       const forceHttps = document.getElementById("cfgSslForceHttps").checked;
       const autoRenew = document.getElementById("cfgSslAutoRenew").checked;
 
@@ -1144,11 +1149,20 @@
             contact_email: email,
             force_https_redirect: forceHttps,
             ssl_auto_renew: autoRenew,
+            force_ssl: forceSsl,
             override_server_ip: cachedServerIp || undefined,
           }),
         });
         if (res.ssl_status === "ACTIVE") {
-          EP.showMsg("cfgSslMsg", "ok", `¡SSL Habilitado con éxito para ${res.primary_domain}! El servidor ahora admite conexiones HTTPS.`);
+          const sshCmd = `sudo eventpass-ssl setup ${res.primary_domain} ${email}`;
+          EP.showMsg("cfgSslMsg", "ok", `
+            <div class="mb-2"><strong>¡SSL Habilitado con éxito para ${EP.escapeHtml(res.primary_domain)}!</strong></div>
+            <div class="small text-secondary mb-1">Para emitir el certificado oficial Let's Encrypt y recargar NGINX en tu VPS, ejecuta en tu terminal SSH:</div>
+            <div class="bg-black p-2 rounded d-flex justify-content-between align-items-center mb-1">
+              <code class="text-info user-select-all small">${sshCmd}</code>
+              <button type="button" class="btn btn-outline-info btn-sm py-0 px-2" onclick="navigator.clipboard.writeText('${sshCmd}'); EP.toast('Comando copiado');"><i class="bi bi-clipboard me-1"></i>Copiar</button>
+            </div>
+          `);
           EP.toast("Dominio y SSL activados.");
         } else {
           EP.showMsg("cfgSslMsg", "warn", `Configuración guardada en estado ${res.ssl_status}. ${res.last_error || ''}`);

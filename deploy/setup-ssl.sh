@@ -23,7 +23,12 @@ get_public_ip() {
 
 resolve_dns() {
   local domain="$1"
-  python3 -c "import socket; print('\n'.join(sorted(list({i[4][0] for i in socket.getaddrinfo('${domain}', None, socket.AF_INET)}))))" 2>/dev/null || true
+  local res
+  res=$(python3 -c "import socket; print('\n'.join(sorted(list({i[4][0] for i in socket.getaddrinfo('${domain}', None, socket.AF_INET)}))))" 2>/dev/null || true)
+  if [[ -z "${res}" ]]; then
+    res=$(curl -fsSL -H "accept: application/dns-json" "https://cloudflare-dns.com/dns-query?name=${domain}&type=A" 2>/dev/null | grep -oE '"data":"[0-9.]+"' | cut -d'"' -f4 || true)
+  fi
+  echo "${res}"
 }
 
 cmd_check_dns() {
@@ -162,7 +167,7 @@ cmd_setup() {
     chmod 600 "${SSL_DIR}/active_key.pem"
     chmod 644 "${SSL_DIR}/active_cert.pem"
 
-    # Actualizar .env
+    # Actualizar .env para puertos estándar web (80 y 443) y dominio SSL
     if grep -q "^PLATFORM_DOMAIN=" "${ENV_FILE}"; then
       sed -i "s/^PLATFORM_DOMAIN=.*/PLATFORM_DOMAIN=${domain}/" "${ENV_FILE}"
     else
@@ -175,10 +180,17 @@ cmd_setup() {
       echo "SSL_ENABLED=true" >> "${ENV_FILE}"
     fi
 
-    # Recargar Nginx en caliente
-    echo "--> Recargando NGINX..."
-    docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || \
-      docker compose -f "${INFRA_DIR}/docker-compose.yml" restart api-gateway 2>/dev/null || true
+    sed -i "s/^APP_HTTP_PORT=.*/APP_HTTP_PORT=80/" "${ENV_FILE}"
+    if grep -q "^APP_HTTPS_PORT=" "${ENV_FILE}"; then
+      sed -i "s/^APP_HTTPS_PORT=.*/APP_HTTPS_PORT=443/" "${ENV_FILE}"
+    else
+      echo "APP_HTTPS_PORT=443" >> "${ENV_FILE}"
+    fi
+
+    # Recargar o reiniciar Nginx para vincular puertos 80 y 443 con SSL
+    echo "--> Recargando e iniciando NGINX en puertos 80 y 443..."
+    docker compose -f "${INFRA_DIR}/docker-compose.yml" --env-file "${ENV_FILE}" up -d api-gateway 2>/dev/null || \
+      docker compose -f "${INFRA_DIR}/docker-compose.yml" exec -T api-gateway nginx -s reload 2>/dev/null || true
 
     echo ""
     echo "====================================================================="

@@ -293,7 +293,6 @@ volumes:
   accred_pgdata:
   audit_pgdata:
   shared_public_keys:
-  certbot_www:
   certbot_conf:
 
 networks:
