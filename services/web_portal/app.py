@@ -159,8 +159,16 @@ def create_portal_app() -> FastAPI:
 
     @app.post("/bff/qr-data-url")
     async def render_qr_data_url(payload: QRRenderRequest) -> dict[str, str]:
-        """Render a real scannable PNG QR code as a base64 data URL."""
-        img = qrcode.make(payload.qr_token)
+        """Render a high-resolution, pixel-crisp PNG QR code as a base64 data URL."""
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=12,
+            border=4,
+        )
+        qr.add_data(payload.qr_token)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         b64 = base64.b64encode(buf.getvalue()).decode("ascii")

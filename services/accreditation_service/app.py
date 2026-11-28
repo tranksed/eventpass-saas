@@ -605,6 +605,36 @@ def create_accreditation_app(
         img.save(buf, format="PNG")
         return Response(content=buf.getvalue(), media_type="image/png")
 
+    def _resolve_entitlement_target(
+        entitlements: dict[str, int],
+        redeemed: dict[str, int],
+        requested_code: str,
+    ) -> tuple[str, int, int]:
+        """Resolve requested entitlement code against credential entitlements.
+
+        Supports backward-compatibility when validator asks for 'ENTRY', but credential was
+        issued with a specific item code (e.g. {'GNRALSAB': 1}) or vice versa.
+        Returns: (effective_code, allowed, used)
+        """
+        allowed = int(entitlements.get(requested_code, 0))
+        used = int(redeemed.get(requested_code, 0))
+        if allowed > 0:
+            return requested_code, allowed, used
+
+        if requested_code == "ENTRY":
+            non_entry_exclusions = {"PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH"}
+            eligible_keys = [k for k in entitlements.keys() if k not in non_entry_exclusions]
+            for k in eligible_keys:
+                k_allowed = int(entitlements.get(k, 0))
+                k_used = int(redeemed.get(k, 0))
+                if k_allowed > k_used:
+                    return k, k_allowed, k_used
+            if eligible_keys:
+                first_k = eligible_keys[0]
+                return first_k, int(entitlements.get(first_k, 0)), int(redeemed.get(first_k, 0))
+
+        return requested_code, 0, 0
+
     # ------------------------------------------------------------------
     # Private Validator Module: Online Check-in + Offline Contingency
     # ------------------------------------------------------------------
@@ -643,8 +673,10 @@ def create_accreditation_app(
 
             entitlements: dict[str, int] = json.loads(cred.entitlements_json)
             redeemed: dict[str, int] = json.loads(cred.redeemed_json)
-            allowed = int(entitlements.get(payload.entitlement_code, 0))
-            used = int(redeemed.get(payload.entitlement_code, 0))
+
+            target_code, allowed, used = _resolve_entitlement_target(
+                entitlements, redeemed, payload.entitlement_code
+            )
 
             if allowed <= 0:
                 raise HTTPException(
@@ -654,10 +686,19 @@ def create_accreditation_app(
             if used >= allowed:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Entitlement '{payload.entitlement_code}' already fully redeemed ({used}/{allowed}).",
+                    detail=f"Entitlement '{target_code}' already fully redeemed ({used}/{allowed}).",
                 )
 
-            redeemed[payload.entitlement_code] = used + 1
+            redeemed[target_code] = used + 1
+            if target_code != payload.entitlement_code:
+                redeemed[payload.entitlement_code] = int(redeemed.get(payload.entitlement_code, 0)) + 1
+            if target_code == "ENTRY":
+                non_entry_exclusions = {"PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH", "ENTRY"}
+                for k in entitlements.keys():
+                    if k not in non_entry_exclusions and redeemed.get(k, 0) < entitlements.get(k, 0):
+                        redeemed[k] = int(redeemed.get(k, 0)) + 1
+                        break
+
             res = await db.execute(
                 update(Credential)
                 .where(Credential.id == cred.id, Credential.version == cred.version)
@@ -704,7 +745,7 @@ def create_accreditation_app(
             company_label=cred.company_label,
             dni_last4=cred.dni_last4,
             entitlement_code=payload.entitlement_code,
-            remaining_for_code=remaining_map.get(payload.entitlement_code, 0),
+            remaining_for_code=remaining_map.get(payload.entitlement_code, remaining_map.get(target_code, 0)),
             all_remaining=remaining_map,
         )
 
@@ -862,16 +903,25 @@ def create_accreditation_app(
 
                 entitlements: dict[str, int] = json.loads(cred.entitlements_json)
                 redeemed: dict[str, int] = json.loads(cred.redeemed_json)
-                allowed = int(entitlements.get(scan.entitlement_code, 0))
-                used = int(redeemed.get(scan.entitlement_code, 0))
+                target_code, allowed, used = _resolve_entitlement_target(
+                    entitlements, redeemed, scan.entitlement_code
+                )
 
                 if used < allowed:
-                    redeemed[scan.entitlement_code] = used + 1
+                    redeemed[target_code] = used + 1
+                    if target_code != scan.entitlement_code:
+                        redeemed[scan.entitlement_code] = int(redeemed.get(scan.entitlement_code, 0)) + 1
+                    if target_code == "ENTRY":
+                        non_entry_exclusions = {"PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH", "ENTRY"}
+                        for k in entitlements.keys():
+                            if k not in non_entry_exclusions and redeemed.get(k, 0) < entitlements.get(k, 0):
+                                redeemed[k] = int(redeemed.get(k, 0)) + 1
+                                break
                     cred.redeemed_json = json.dumps(redeemed)
                     cred.version += 1
                     outcome = "SYNCED_GRANTED"
                     granted += 1
-                    detail = "Offline check-in consolidated."
+                    detail = f"Offline check-in consolidated ({target_code})."
                 else:
                     outcome = "CONFLICT_DUPLICATE_OFFLINE"
                     conflicts += 1

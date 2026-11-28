@@ -623,6 +623,32 @@ async def test_physical_thermal_ticket_batches(tmp_path: Path, keys_dir: Path):
                 last_ticket = detail["tickets"][4]
                 assert last_ticket["ticket_number"] == "GAST-0005"
 
+                # 3.1 Validate the physical QR at the gate using generic 'ENTRY' entitlement
+                async with AsyncClient(transport=ASGITransport(app=accred_app), base_url="http://test") as accred_client:
+                    checkin_res = await accred_client.post(
+                        "/api/v1/accreditation/check-in",
+                        json={
+                            "qr_token": first_ticket["qr_token"],
+                            "entitlement_code": "ENTRY",
+                            "gate_id": "PUERTA_PRINCIPAL",
+                        },
+                        headers=headers,
+                    )
+                    assert checkin_res.status_code == 200, checkin_res.text
+                    assert checkin_res.json()["outcome"] == "GRANTED"
+
+                    # Double check-in must be rejected with 409
+                    dup_res = await accred_client.post(
+                        "/api/v1/accreditation/check-in",
+                        json={
+                            "qr_token": first_ticket["qr_token"],
+                            "entitlement_code": "ENTRY",
+                            "gate_id": "PUERTA_PRINCIPAL",
+                        },
+                        headers=headers,
+                    )
+                    assert dup_res.status_code == 409
+
                 # 4. Delete batch and verify stock is restored
                 del_res = await client.delete(
                     f"/api/v1/registration/physical-tickets/batches/{batch_id}",
@@ -634,3 +660,37 @@ async def test_physical_thermal_ticket_batches(tmp_path: Path, keys_dir: Path):
                 # Check stock returned
                 items_restored = await client.get(f"/api/v1/registration/events/{event_id}/items")
                 assert items_restored.json()[0]["stock_sold"] == 0
+
+                # 5. Backward Compatibility: issue a ticket with ONLY {"GNRALSAB": 1} (legacy format)
+                # and verify that validating with entitlement_code="ENTRY" succeeds seamlessly!
+                async with AsyncClient(transport=ASGITransport(app=accred_app), base_url="http://test") as accred_client:
+                    legacy_issue = await accred_client.post(
+                        "/internal/accreditation/credentials/issue",
+                        json={
+                            "tenant_id": "tenant-thermal",
+                            "event_id": event_id,
+                            "order_id": None,
+                            "holder_type": "PARTICIPANT",
+                            "holder_ref_id": "legacy-ref-001",
+                            "display_name": "Entrada Legacy GNRALSAB",
+                            "dni_last4": "1234",
+                            "entitlements": {"GNRALSAB": 1},
+                            "expires_at": (now + timedelta(days=2)).isoformat(),
+                        },
+                        headers={"X-Internal-Service-Token": accred_settings.internal_service_token},
+                    )
+                    assert legacy_issue.status_code == 201
+                    legacy_qr = legacy_issue.json()["qr_token"]
+
+                    # Scanning this legacy ticket at PUERTA_PRINCIPAL checking 'ENTRY' must SUCCEED!
+                    legacy_checkin = await accred_client.post(
+                        "/api/v1/accreditation/check-in",
+                        json={
+                            "qr_token": legacy_qr,
+                            "entitlement_code": "ENTRY",
+                            "gate_id": "PUERTA_PRINCIPAL",
+                        },
+                        headers=headers,
+                    )
+                    assert legacy_checkin.status_code == 200, legacy_checkin.text
+                    assert legacy_checkin.json()["outcome"] == "GRANTED"

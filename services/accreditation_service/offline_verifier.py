@@ -70,8 +70,25 @@ def verify_qr_in_contingency_mode(
 
     entitlements = snap.entitlements if snap is not None else claims.get("ent", {})
     allowed = int(entitlements.get(entitlement_code, 0))
-    already_redeemed = int((snap.redeemed.get(entitlement_code, 0) if snap else 0)) + int(
-        local_redeemed_counts.get(cred_id, {}).get(entitlement_code, 0)
+    target_code = entitlement_code
+    if allowed <= 0 and entitlement_code == "ENTRY":
+        non_entry_exclusions = {"PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH"}
+        eligible_keys = [k for k in entitlements.keys() if k not in non_entry_exclusions]
+        for k in eligible_keys:
+            k_allowed = int(entitlements.get(k, 0))
+            k_already = int((snap.redeemed.get(k, 0) if snap else 0)) + int(
+                local_redeemed_counts.get(cred_id, {}).get(k, 0)
+            )
+            if k_allowed > k_already:
+                target_code = k
+                allowed = k_allowed
+                break
+        if allowed <= 0 and eligible_keys:
+            target_code = eligible_keys[0]
+            allowed = int(entitlements.get(target_code, 0))
+
+    already_redeemed = int((snap.redeemed.get(target_code, 0) if snap else 0)) + int(
+        local_redeemed_counts.get(cred_id, {}).get(target_code, 0)
     )
     remaining = allowed - already_redeemed
 
@@ -88,9 +105,13 @@ def verify_qr_in_contingency_mode(
 
     # Record offline redemption in local device state
     local_redeemed_counts.setdefault(cred_id, {})
-    local_redeemed_counts[cred_id][entitlement_code] = (
-        local_redeemed_counts[cred_id].get(entitlement_code, 0) + 1
+    local_redeemed_counts[cred_id][target_code] = (
+        local_redeemed_counts[cred_id].get(target_code, 0) + 1
     )
+    if target_code != entitlement_code:
+        local_redeemed_counts[cred_id][entitlement_code] = (
+            local_redeemed_counts[cred_id].get(entitlement_code, 0) + 1
+        )
     return OfflineVerifyResult(
         True,
         "OFFLINE_GRANTED",

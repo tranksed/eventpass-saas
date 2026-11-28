@@ -341,13 +341,35 @@
         if (snap && snap.status !== "ACTIVE") throw new Error("Credencial revocada.");
 
         const ent = snap ? snap.entitlements : (claims.ent || {});
-        const allowed = Number(ent[entitlement] || 0);
-        const snapUsed = Number((snap && snap.redeemed[entitlement]) || 0);
-        const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][entitlement]) || 0);
+        let targetEnt = entitlement;
+        let allowed = Number(ent[targetEnt] || 0);
+        if (allowed <= 0 && targetEnt === "ENTRY") {
+          const exclusions = ["PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH"];
+          const eligible = Object.keys(ent).filter(k => !exclusions.includes(k));
+          for (const k of eligible) {
+            const kAllowed = Number(ent[k] || 0);
+            const kSnapUsed = Number((snap && snap.redeemed[k]) || 0);
+            const kLocUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][k]) || 0);
+            if (kAllowed - kSnapUsed - kLocUsed > 0) {
+              targetEnt = k;
+              allowed = kAllowed;
+              break;
+            }
+          }
+          if (allowed <= 0 && eligible.length > 0) {
+            targetEnt = eligible[0];
+            allowed = Number(ent[targetEnt] || 0);
+          }
+        }
+        const snapUsed = Number((snap && snap.redeemed[targetEnt]) || 0);
+        const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][targetEnt]) || 0);
         if (allowed - snapUsed - locUsed <= 0) throw new Error(`Beneficio '${entitlement}' ya consumido o no incluido.`);
 
         localRedeemed[claims.cid] = localRedeemed[claims.cid] || {};
-        localRedeemed[claims.cid][entitlement] = locUsed + 1;
+        localRedeemed[claims.cid][targetEnt] = locUsed + 1;
+        if (targetEnt !== entitlement) {
+          localRedeemed[claims.cid][entitlement] = (Number(localRedeemed[claims.cid][entitlement]) || 0) + 1;
+        }
         queue.push({
           client_scan_id: `off-${EP.uuid()}`,
           qr_token: qrToken,

@@ -383,13 +383,19 @@ def create_registration_app(
                 )
             )
 
+            entitlements = {catalog_item.code: 1}
+            if catalog_item.item_type == "ENTRY" and catalog_item.code != "ENTRY":
+                entitlements["ENTRY"] = 1
+            elif catalog_item.interaction_type and catalog_item.code != catalog_item.interaction_type:
+                entitlements[catalog_item.interaction_type] = 1
+
             cred_id, qr_token = await _issue_participant_qr(
                 event,
                 full_name,
                 dni_last4,
                 participant.id,
                 order.id,
-                {catalog_item.code: 1},
+                entitlements,
             )
             order.credential_id = cred_id
             order.qr_token = qr_token
@@ -885,9 +891,17 @@ def create_registration_app(
         participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
         assert event is not None and participant is not None
 
+        catalogs = (await db.scalars(select(CatalogItem).where(CatalogItem.event_id == event.id))).all()
+        cat_by_code = {c.code: c for c in catalogs}
+
         entitlements: dict[str, int] = defaultdict(int)
         for oi in order_items:
             entitlements[oi.item_code] += oi.quantity
+            it = cat_by_code.get(oi.item_code)
+            if it and it.item_type == "ENTRY" and oi.item_code != "ENTRY":
+                entitlements["ENTRY"] += oi.quantity
+            elif it and it.interaction_type and oi.item_code != it.interaction_type:
+                entitlements[it.interaction_type] += oi.quantity
 
         display_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
         credential_id, qr_token = await _issue_participant_qr(
@@ -1817,6 +1831,12 @@ def create_registration_app(
         db.add(batch)
         await db.flush()
 
+        batch_entitlements = {item.code: 1}
+        if item.item_type == "ENTRY" and item.code != "ENTRY":
+            batch_entitlements["ENTRY"] = 1
+        elif item.interaction_type and item.code != item.interaction_type:
+            batch_entitlements[item.interaction_type] = 1
+
         for seq in range(payload.start_sequence, end_seq + 1):
             t_num = f"{batch.prefix}-{seq:04d}"
             ticket_id = str(uuid.uuid4())
@@ -1826,7 +1846,7 @@ def create_registration_app(
                 dni_last4="----",
                 holder_ref_id=ticket_id,
                 order_id=None,
-                entitlements={item.code: 1},
+                entitlements=batch_entitlements,
             )
             pt = PhysicalTicket(
                 id=ticket_id,
@@ -2727,6 +2747,12 @@ def create_registration_app(
                 order.paid_at = datetime.now(timezone.utc)
                 if not order.credential_id:
                     entitlements = {oi.item_code: oi.quantity for oi in oitems}
+                    for oi in oitems:
+                        ci = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+                        if ci and ci.item_type == "ENTRY" and oi.item_code != "ENTRY":
+                            entitlements["ENTRY"] = entitlements.get("ENTRY", 0) + oi.quantity
+                        elif ci and ci.interaction_type and oi.item_code != ci.interaction_type:
+                            entitlements[ci.interaction_type] = entitlements.get(ci.interaction_type, 0) + oi.quantity
                     disp_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
                     cid, qr_tok = await _issue_participant_qr(
                         event, disp_name, participant.dni_last4, participant.id, order.id, entitlements
@@ -2849,6 +2875,12 @@ def create_registration_app(
 
         if not order.qr_token:
             entitlements = {oi.item_code: oi.quantity for oi in order_items}
+            for oi in order_items:
+                ci = await db.scalar(select(CatalogItem).where(CatalogItem.id == oi.catalog_item_id))
+                if ci and ci.item_type == "ENTRY" and oi.item_code != "ENTRY":
+                    entitlements["ENTRY"] = entitlements.get("ENTRY", 0) + oi.quantity
+                elif ci and ci.interaction_type and oi.item_code != ci.interaction_type:
+                    entitlements[ci.interaction_type] = entitlements.get(ci.interaction_type, 0) + oi.quantity
             display_name = pii_crypto.decrypt(participant.full_name_encrypted, aad=event.id)
             cid, qr_tok = await _issue_participant_qr(
                 event, display_name, participant.dni_last4, participant.id, order.id, entitlements

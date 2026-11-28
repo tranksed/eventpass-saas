@@ -24,16 +24,26 @@
       .thermal-ticket-print {
         page-break-after: always;
         break-after: page;
-        margin: 0 auto 20px auto;
-        padding: 12px 6px;
+        margin: 0 auto;
+        padding: 8px 4px 16px 4px;
         border-bottom: 2px dashed #000;
         font-family: 'Courier New', Courier, monospace;
         color: #000 !important;
         background: #fff !important;
         text-align: center;
       }
-      .thermal-ticket-print.w-80 { width: 76mm; }
-      .thermal-ticket-print.w-58 { width: 54mm; }
+      .thermal-ticket-print.w-80 { width: 74mm; max-width: 74mm; }
+      .thermal-ticket-print.w-58 { width: 49mm; max-width: 49mm; }
+      .thermal-ticket-print img, .thermal-ticket-card img {
+        image-rendering: pixelated !important;
+        image-rendering: -moz-crisp-edges !important;
+        image-rendering: crisp-edges !important;
+        background: #ffffff !important;
+        padding: 4px !important;
+        display: block !important;
+        margin: 6px auto !important;
+        box-sizing: content-box !important;
+      }
     }
     .thermal-preview-container {
       background: #1e293b;
@@ -52,8 +62,16 @@
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
       text-align: center;
     }
-    .thermal-80mm { width: 290px; font-size: 13px; }
-    .thermal-58mm { width: 220px; font-size: 11px; }
+    .thermal-ticket-card img {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      background: #ffffff;
+      padding: 6px;
+      display: block;
+      margin: 8px auto;
+    }
+    .thermal-80mm { width: 300px; font-size: 13px; }
+    .thermal-58mm { width: 230px; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -2604,6 +2622,8 @@
         const is80 = batch.paper_width === "80mm";
         const widthClass = is80 ? "thermal-80mm" : "thermal-58mm";
         const printWidthClass = is80 ? "w-80" : "w-58";
+        const previewQrSize = is80 ? "220px" : "175px";
+        const printQrSize = is80 ? "56mm" : "43mm";
         const priceStr = `S/ ${(batch.price_cents / 100).toFixed(2)}`;
         const dateStr = batch.starts_at ? new Date(batch.starts_at).toLocaleString() : "";
 
@@ -2621,11 +2641,11 @@
                 <div style="font-size:0.9em;font-weight:bold;">TICKET N°: ${EP.escapeHtml(t.ticket_number)}</div>
                 <div style="font-size:0.85em;">PRECIO: ${priceStr}</div>
               </div>
-              <div style="margin:10px 0;">
-                <img src="${qrDataUrl}" style="width:${is80 ? '160px' : '130px'};height:${is80 ? '160px' : '130px'};display:block;margin:0 auto;" />
+              <div style="margin:10px auto;background:#fff;padding:6px;display:inline-block;border-radius:4px;">
+                <img src="${qrDataUrl}" style="width:${previewQrSize};height:${previewQrSize};image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto;" />
               </div>
               <div style="font-size:0.75em;word-break:break-all;color:#333;">SEC: ${shortToken}</div>
-              <div style="font-size:0.75em;margin-top:4px;">*** VÁLIDO PARA 1 INGRESO ***</div>
+              <div style="font-size:0.75em;margin-top:4px;font-weight:bold;">*** VÁLIDO PARA 1 INGRESO ***</div>
               <div style="font-size:0.7em;color:#666;margin-top:2px;">EVENTPASS SAAS · ED25519 VERIFIED</div>
               <div style="margin-top:8px;font-size:0.75em;letter-spacing:2px;">- - - - - - - - - - - - - -</div>
             </div>`;
@@ -2640,8 +2660,8 @@
                 <div style="font-size:11pt;font-weight:bold;">TICKET: ${EP.escapeHtml(t.ticket_number)}</div>
                 <div style="font-size:10pt;">PRECIO: ${priceStr}</div>
               </div>
-              <div style="margin:8px 0;">
-                <img src="${qrDataUrl}" style="width:${is80 ? '170px' : '135px'};height:${is80 ? '170px' : '135px'};margin:0 auto;display:block;" />
+              <div style="margin:8px auto;background:#fff;padding:4px;display:inline-block;">
+                <img src="${qrDataUrl}" style="width:${printQrSize};height:${printQrSize};image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto;" />
               </div>
               <div style="font-size:8pt;">SEC: ${shortToken}</div>
               <div style="font-size:8pt;font-weight:bold;margin-top:4px;">*** VÁLIDO PARA 1 INGRESO ***</div>
