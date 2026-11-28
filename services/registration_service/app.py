@@ -198,6 +198,33 @@ async def _ensure_schema_columns(conn) -> None:
         except Exception:
             pass
 
+    # Synchronize tenant_id on sub-entities to match their parent event's tenant_id
+    sync_tables = [
+        "physical_ticket_batches",
+        "courtesy_codes",
+        "guest_list_entries",
+        "promoters",
+        "orders",
+    ]
+    for tbl in sync_tables:
+        try:
+            if is_pg:
+                await conn.execute(
+                    text(
+                        f"UPDATE {tbl} SET tenant_id = events.tenant_id "
+                        f"FROM events WHERE {tbl}.event_id = events.id AND {tbl}.tenant_id != events.tenant_id"
+                    )
+                )
+            else:
+                await conn.execute(
+                    text(
+                        f"UPDATE {tbl} SET tenant_id = (SELECT tenant_id FROM events WHERE events.id = {tbl}.event_id) "
+                        f"WHERE EXISTS (SELECT 1 FROM events WHERE events.id = {tbl}.event_id)"
+                    )
+                )
+        except Exception:
+            pass
+
 
 def create_registration_app(
     settings: RegistrationSettings | None = None,
@@ -1486,7 +1513,8 @@ def create_registration_app(
         prom = await db.scalar(select(Promoter).where(Promoter.id == promoter_id))
         if prom is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
-        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == prom.event_id))
+        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este promotor.")
         if payload.name is not None and payload.name.strip():
             prom.name = payload.name.strip()
@@ -1544,7 +1572,8 @@ def create_registration_app(
         prom = await db.scalar(select(Promoter).where(Promoter.id == promoter_id))
         if prom is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
-        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == prom.event_id))
+        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este promotor.")
         redeemed = await db.scalar(
             select(func.count(CourtesyCode.id)).where(
@@ -1644,7 +1673,7 @@ def create_registration_app(
         for _ in range(payload.quantity):
             code_str = f"{prefix}-{secrets.token_hex(3).upper()}"
             c = CourtesyCode(
-                tenant_id=actor.tenant_id,
+                tenant_id=event.tenant_id,
                 event_id=event_id,
                 catalog_item_id=item.id,
                 promoter_id=payload.promoter_id,
@@ -1679,14 +1708,13 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[CourtesyCodeResponse]:
+        event = await _resolve_event(event_id, actor, db)
         stmt = (
             select(CourtesyCode, CatalogItem.name, Promoter.name)
             .join(CatalogItem, CourtesyCode.catalog_item_id == CatalogItem.id)
             .outerjoin(Promoter, CourtesyCode.promoter_id == Promoter.id)
-            .where(CourtesyCode.event_id == event_id)
+            .where(CourtesyCode.event_id == event.id)
         )
-        if actor.role != Role.SUPERADMIN:
-            stmt = stmt.where(CourtesyCode.tenant_id == actor.tenant_id)
         if promoter_id:
             stmt = stmt.where(CourtesyCode.promoter_id == promoter_id)
         if code_status:
@@ -1719,7 +1747,8 @@ def create_registration_app(
         c = await db.scalar(select(CourtesyCode).where(CourtesyCode.id == code_id))
         if c is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
-        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == c.event_id))
+        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este código.")
         if payload.status is not None:
             c.status = payload.status
@@ -1752,7 +1781,8 @@ def create_registration_app(
         c = await db.scalar(select(CourtesyCode).where(CourtesyCode.id == code_id))
         if c is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
-        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == c.event_id))
+        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este código.")
         if c.status == "REDEEMED":
             raise HTTPException(
@@ -1846,7 +1876,7 @@ def create_registration_app(
         item.stock_sold += payload.quantity
         end_seq = payload.start_sequence + payload.quantity - 1
         batch = PhysicalTicketBatch(
-            tenant_id=actor.tenant_id,
+            tenant_id=event.tenant_id,
             event_id=event.id,
             catalog_item_id=item.id,
             batch_name=payload.batch_name.strip(),
@@ -1879,7 +1909,7 @@ def create_registration_app(
             pt = PhysicalTicket(
                 id=ticket_id,
                 batch_id=batch.id,
-                tenant_id=actor.tenant_id,
+                tenant_id=event.tenant_id,
                 event_id=event.id,
                 catalog_item_id=item.id,
                 sequence_number=seq,
@@ -1915,8 +1945,6 @@ def create_registration_app(
     ) -> list[PhysicalBatchResponse]:
         event = await _resolve_event(event_id, actor, db)
         b_query = select(PhysicalTicketBatch).where(PhysicalTicketBatch.event_id == event.id)
-        if actor.role != Role.SUPERADMIN:
-            b_query = b_query.where(PhysicalTicketBatch.tenant_id == actor.tenant_id)
         batches = (await db.scalars(b_query.order_by(PhysicalTicketBatch.created_at.desc()))).all()
         return [
             PhysicalBatchResponse(
@@ -1946,9 +1974,9 @@ def create_registration_app(
         batch = await db.scalar(select(PhysicalTicketBatch).where(PhysicalTicketBatch.id == batch_id))
         if batch is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
-        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este lote.")
         event = await db.scalar(select(Event).where(Event.id == batch.event_id))
+        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este lote.")
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
         assert event is not None and item is not None
 
@@ -2009,7 +2037,8 @@ def create_registration_app(
         batch = await db.scalar(select(PhysicalTicketBatch).where(PhysicalTicketBatch.id == batch_id))
         if batch is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
-        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == batch.event_id))
+        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este lote.")
 
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
@@ -2173,9 +2202,8 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[GuestListEntryResponse]:
-        g_query = select(GuestListEntry).where(GuestListEntry.event_id == event_id)
-        if actor.role != Role.SUPERADMIN:
-            g_query = g_query.where(GuestListEntry.tenant_id == actor.tenant_id)
+        event = await _resolve_event(event_id, actor, db)
+        g_query = select(GuestListEntry).where(GuestListEntry.event_id == event.id)
         rows = (await db.scalars(g_query.order_by(GuestListEntry.created_at.desc()))).all()
         return [
             GuestListEntryResponse(
@@ -2203,7 +2231,8 @@ def create_registration_app(
         entry = await db.scalar(select(GuestListEntry).where(GuestListEntry.id == entry_id))
         if entry is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest list entry not found.")
-        if actor.role != Role.SUPERADMIN and entry.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == entry.event_id))
+        if actor.role != Role.SUPERADMIN and entry.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta invitación.")
         if entry.status != "PENDING":
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Entry already {entry.status}.")
@@ -2712,8 +2741,6 @@ def create_registration_app(
         ).all()
 
         batch_query = select(PhysicalTicketBatch).where(PhysicalTicketBatch.event_id == event.id)
-        if actor.role != Role.SUPERADMIN:
-            batch_query = batch_query.where(PhysicalTicketBatch.tenant_id == actor.tenant_id)
         physical_batches = (
             await db.scalars(batch_query.order_by(PhysicalTicketBatch.created_at.desc()).limit(100))
         ).all()
@@ -2809,10 +2836,9 @@ def create_registration_app(
         order = await db.scalar(select(Order).where(Order.id == order_id))
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
-        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta orden")
-
         event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta orden")
         participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
         if not event or not participant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento o participante no encontrado")
@@ -2880,7 +2906,8 @@ def create_registration_app(
         order = await db.scalar(select(Order).where(Order.id == order_id))
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
-        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
+        event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta orden")
 
         # Restore catalog item stock
@@ -2956,10 +2983,9 @@ def create_registration_app(
         order = await db.scalar(select(Order).where(Order.id == order_id))
         if not order:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden no encontrada")
-        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
-
         event = await db.scalar(select(Event).where(Event.id == order.event_id))
+        if actor.role != Role.SUPERADMIN and order.tenant_id != actor.tenant_id and (not event or event.tenant_id != actor.tenant_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
         participant = await db.scalar(select(Participant).where(Participant.id == order.participant_id))
         if not event or not participant:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Datos de orden incompletos")

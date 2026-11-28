@@ -1969,27 +1969,33 @@
 
     async function loadEventsAndItemsTable() {
       if (!EP.getSession().token) return;
-      try {
-        const eid = currentEventId();
-        const fetches = [EP.api("/api/v1/registration/events")];
-        if (eid) {
-          fetches.push(EP.api(`/api/v1/registration/events/${eid}/items`, { auth: false }));
-          fetches.push(EP.api(`/api/v1/registration/events/${eid}/orders`));
-        }
+      const eid = currentEventId();
 
-        const [events, items, orders] = await Promise.all(fetches);
+      try {
+        const events = await EP.api("/api/v1/registration/events");
         adminEventsCache = Object.fromEntries(events.map(e => [e.id, e]));
         renderEventsTable(events);
+      } catch (err) {
+        console.error("Error loading events:", err);
+      }
 
-        if (items) {
+      if (eid) {
+        try {
+          const items = await EP.api(`/api/v1/registration/events/${eid}/items`, { auth: false });
           adminItemsCache = Object.fromEntries(items.map(i => [i.id, i]));
           renderItemsTable(items);
+        } catch (err) {
+          const el = document.getElementById("eventItemsTable");
+          if (el) el.innerHTML = `<tr><td colspan="6" class="text-danger small">${EP.escapeHtml(err.message)}</td></tr>`;
         }
-        if (orders) {
+
+        try {
+          const orders = await EP.api(`/api/v1/registration/events/${eid}/orders`);
           renderOrdersTable(orders);
+        } catch (err) {
+          const el = document.getElementById("ordersListTable");
+          if (el) el.innerHTML = `<tr><td colspan="10" class="text-danger small">${EP.escapeHtml(err.message)}</td></tr>`;
         }
-      } catch (err) {
-        console.error("Error loading events and items in parallel:", err);
       }
     }
 
@@ -1999,14 +2005,14 @@
       const tbody = document.getElementById("ordersListTable");
       if (!tbody) return;
       if (!eid) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-secondary">Selecciona un evento</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-secondary">Selecciona un evento</td></tr>`;
         return;
       }
       try {
         const orders = await EP.api(`/api/v1/registration/events/${eid}/orders`);
         renderOrdersTable(orders);
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-danger small">${EP.escapeHtml(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-danger small">${EP.escapeHtml(err.message)}</td></tr>`;
       }
     }
 
