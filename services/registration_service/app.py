@@ -273,6 +273,7 @@ def create_registration_app(
         holder_ref_id: str,
         order_id: str | None,
         entitlements: dict[str, int],
+        short_code: str | None = None,
     ) -> tuple[str, str]:
         payload = {
             "tenant_id": event.tenant_id,
@@ -282,6 +283,7 @@ def create_registration_app(
             "holder_ref_id": holder_ref_id,
             "display_name": display_name,
             "dni_last4": dni_last4,
+            "short_code": short_code,
             "entitlements": entitlements,
             "expires_at": _as_utc(event.ends_at).isoformat(),
         }
@@ -321,6 +323,28 @@ def create_registration_app(
         except Exception:
             pass
         return {}
+
+    async def _fetch_staff_monitor(event_id: str) -> list[dict[str, Any]]:
+        headers = {"X-Internal-Service-Token": cfg.internal_service_token}
+        try:
+            if accreditation_client_factory is not None:
+                async with accreditation_client_factory() as acc_cli:
+                    resp = await acc_cli.get(
+                        f"/internal/accreditation/events/{event_id}/staff-monitor",
+                        headers=headers,
+                        timeout=3.0,
+                    )
+            else:
+                async with httpx.AsyncClient(base_url=cfg.accreditation_service_url, timeout=3.0) as acc_cli:
+                    resp = await acc_cli.get(
+                        f"/internal/accreditation/events/{event_id}/staff-monitor",
+                        headers=headers,
+                    )
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return []
 
     async def _upsert_participant(
         db: AsyncSession,
@@ -1905,6 +1929,7 @@ def create_registration_app(
                 holder_ref_id=ticket_id,
                 order_id=None,
                 entitlements=batch_entitlements,
+                short_code=t_num,
             )
             pt = PhysicalTicket(
                 id=ticket_id,
@@ -3093,6 +3118,290 @@ def create_registration_app(
             await _delete_event_cascade(db, ev.id)
         await db.commit()
         return {"deleted_events": len(events)}
+
+    @app.get("/api/v1/registration/events/{event_id}/tickets-monitor")
+    async def get_tickets_monitor(
+        event_id: str,
+        actor: CurrentActor = Depends(require_admin_or_supervisor),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, Any]:
+        """Consolidated ticket control and validation monitor across all channels for the active event."""
+        event = await _resolve_event(event_id, actor, db)
+
+        # 1. Fetch scan status and staff credentials from accreditation service
+        scan_status = await _fetch_credentials_scan_status(event.id)
+        staff_list = await _fetch_staff_monitor(event.id)
+
+        # 2. Pre-fetch catalog items for name/type lookup
+        catalog_items = {
+            i.id: i
+            for i in (await db.scalars(select(CatalogItem).where(CatalogItem.event_id == event.id))).all()
+        }
+        item_code_map = {i.code: i for i in catalog_items.values()}
+
+        all_tickets: list[dict[str, Any]] = []
+
+        # 3. Channel: Online Orders / Ventas Online
+        orders = (
+            await db.scalars(
+                select(Order)
+                .where(Order.event_id == event.id)
+                .order_by(Order.created_at.desc())
+            )
+        ).all()
+        order_ids = [o.id for o in orders]
+        order_items_by_order: dict[str, list[OrderItem]] = defaultdict(list)
+        if order_ids:
+            all_ois = (
+                await db.scalars(select(OrderItem).where(OrderItem.order_id.in_(order_ids)))
+            ).all()
+            for oi in all_ois:
+                order_items_by_order[oi.order_id].append(oi)
+
+        part_ids = list({o.participant_id for o in orders if o.participant_id})
+        participants_by_id: dict[str, Participant] = {}
+        if part_ids:
+            all_parts = (
+                await db.scalars(select(Participant).where(Participant.id.in_(part_ids)))
+            ).all()
+            participants_by_id = {p.id: p for p in all_parts}
+
+        for ord_obj in orders:
+            p = participants_by_id.get(ord_obj.participant_id)
+            buyer_name = "Anónimo"
+            buyer_dni = "----"
+            if p:
+                try:
+                    buyer_name = pii_crypto.decrypt(p.full_name_encrypted, aad=event.id)
+                except Exception:
+                    buyer_name = "Cliente"
+                buyer_dni = p.dni_last4
+
+            ois = order_items_by_order.get(ord_obj.id, [])
+            items_desc_list = []
+            has_interaction = False
+            for oi in ois:
+                ci = catalog_items.get(oi.catalog_item_id)
+                ci_name = ci.name if ci else oi.item_code
+                if ci and ci.item_type != "ENTRY":
+                    has_interaction = True
+                items_desc_list.append(f"{oi.quantity}x {ci_name}")
+            items_desc = ", ".join(items_desc_list) or "Entrada General"
+
+            scan_info = scan_status.get(ord_obj.credential_id or "", {})
+            is_scanned = bool(scan_info.get("is_redeemed", False))
+            short_code = scan_info.get("short_code") or (f"EP-{ord_obj.id[:8].upper()}" if ord_obj.credential_id else "SIN-QR")
+
+            all_tickets.append(
+                {
+                    "id": f"ord_{ord_obj.id}",
+                    "channel": "VENTAS_ONLINE",
+                    "channel_label": "Venta Online",
+                    "channel_badge": "primary",
+                    "holder_name": buyer_name,
+                    "holder_id": buyer_dni,
+                    "item_name": items_desc,
+                    "item_type": "INTERACTION" if has_interaction else "ENTRY",
+                    "short_code": short_code,
+                    "issue_status": ord_obj.status,
+                    "is_redeemed": is_scanned,
+                    "scan_status_label": "CANJEADO" if is_scanned else ("EMITIDO" if ord_obj.status == "PAID" else "PENDIENTE"),
+                    "scanned_at": scan_info.get("scanned_at"),
+                    "gate_id": scan_info.get("gate_id"),
+                    "created_at": _as_utc(ord_obj.created_at).isoformat(),
+                    "qr_token": ord_obj.qr_token,
+                    "amount_cents": ord_obj.total_cents,
+                }
+            )
+
+        # 4. Channel: Physical Tickets / Taquilla Física
+        batches = (
+            await db.scalars(
+                select(PhysicalTicketBatch)
+                .where(PhysicalTicketBatch.event_id == event.id)
+                .order_by(PhysicalTicketBatch.created_at.desc())
+            )
+        ).all()
+        batch_ids = [b.id for b in batches]
+        if batch_ids:
+            ptickets = (
+                await db.scalars(
+                    select(PhysicalTicket)
+                    .where(PhysicalTicket.batch_id.in_(batch_ids))
+                    .order_by(PhysicalTicket.sequence_number.asc())
+                )
+            ).all()
+            batch_map = {b.id: b for b in batches}
+            for pt in ptickets:
+                b = batch_map.get(pt.batch_id)
+                b_item = catalog_items.get(b.catalog_item_id) if b else None
+                item_label = b_item.name if b_item else (b.batch_name if b else "Entrada Física")
+                scan_info = scan_status.get(pt.credential_id or "", {})
+                is_scanned = bool(scan_info.get("is_redeemed", False))
+                short_code = pt.ticket_number or scan_info.get("short_code") or f"TICK-{pt.sequence_number:04d}"
+
+                all_tickets.append(
+                    {
+                        "id": f"pt_{pt.id}",
+                        "channel": "TAQUILLA_FISICA",
+                        "channel_label": "Taquilla Física",
+                        "channel_badge": "warning",
+                        "holder_name": f"Ticket #{pt.ticket_number}",
+                        "holder_id": b.prefix if b else "TAQ",
+                        "item_name": item_label,
+                        "item_type": "ENTRY",
+                        "short_code": short_code,
+                        "issue_status": pt.status,
+                        "is_redeemed": is_scanned,
+                        "scan_status_label": "CANJEADO" if is_scanned else "EMITIDO",
+                        "scanned_at": scan_info.get("scanned_at"),
+                        "gate_id": scan_info.get("gate_id"),
+                        "created_at": _as_utc(pt.created_at).isoformat(),
+                        "qr_token": pt.qr_token,
+                        "amount_cents": 0,
+                    }
+                )
+
+        # 5. Channel: Courtesy Codes / Códigos RR.PP.
+        courtesy_codes = (
+            await db.scalars(
+                select(CourtesyCode)
+                .where(CourtesyCode.event_id == event.id)
+                .order_by(CourtesyCode.created_at.desc())
+            )
+        ).all()
+        promoter_ids = list({c.promoter_id for c in courtesy_codes if c.promoter_id})
+        promoters_map: dict[str, Promoter] = {}
+        if promoter_ids:
+            all_proms = (
+                await db.scalars(select(Promoter).where(Promoter.id.in_(promoter_ids)))
+            ).all()
+            promoters_map = {pr.id: pr for pr in all_proms}
+
+        for cc in courtesy_codes:
+            prom = promoters_map.get(cc.promoter_id)
+            prom_label = f"RR.PP. ({prom.name})" if prom else "Cortesía Directa"
+            is_scanned = (cc.status == "REDEEMED")
+            holder_label = f"Canjeado: {cc.redeemed_by_name}" if cc.redeemed_by_name else f"Código Cortesía ({cc.code})"
+            holder_id = cc.redeemed_by_dni_last4 or "----"
+            ci = item_code_map.get(cc.item_code)
+            item_label = ci.name if ci else cc.item_code
+
+            all_tickets.append(
+                {
+                    "id": f"cc_{cc.id}",
+                    "channel": "CORTESIAS_RRPP",
+                    "channel_label": prom_label,
+                    "channel_badge": "success",
+                    "holder_name": holder_label,
+                    "holder_id": holder_id,
+                    "item_name": item_label,
+                    "item_type": "ENTRY",
+                    "short_code": cc.code,
+                    "issue_status": cc.status,
+                    "is_redeemed": is_scanned,
+                    "scan_status_label": "CANJEADO" if is_scanned else ("ACTIVO" if cc.status == "ACTIVE" else "EXPIRADO"),
+                    "scanned_at": _as_utc(cc.redeemed_at).isoformat() if cc.redeemed_at else None,
+                    "gate_id": "ONLINE_REDEMPTION" if is_scanned else None,
+                    "created_at": _as_utc(cc.created_at).isoformat(),
+                    "qr_token": "",
+                    "amount_cents": 0,
+                }
+            )
+
+        # 6. Channel: Accredited Staff
+        for stf in staff_list:
+            is_scanned = bool(stf.get("is_redeemed", False))
+            company_lbl = stf.get("company_label") or "Organización"
+            all_tickets.append(
+                {
+                    "id": f"stf_{stf['credential_id']}",
+                    "channel": "ACREDITACION_STAFF",
+                    "channel_label": f"Staff ({company_lbl})",
+                    "channel_badge": "info",
+                    "holder_name": stf.get("display_name") or "Staff",
+                    "holder_id": stf.get("dni_last4") or "----",
+                    "item_name": f"Acreditación Staff ({company_lbl})",
+                    "item_type": "STAFF",
+                    "short_code": stf.get("short_code") or f"STF-{stf['credential_id'][:8].upper()}",
+                    "issue_status": stf.get("status") or "ACTIVE",
+                    "is_redeemed": is_scanned,
+                    "scan_status_label": "VALIDADO" if is_scanned else "ACTIVO",
+                    "scanned_at": stf.get("scanned_at"),
+                    "gate_id": stf.get("gate_id"),
+                    "created_at": stf.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                    "qr_token": stf.get("qr_token", ""),
+                    "amount_cents": 0,
+                }
+            )
+
+        # 7. Channel: VIP Guest List
+        guests = (
+            await db.scalars(
+                select(GuestListEntry)
+                .where(GuestListEntry.event_id == event.id)
+                .order_by(GuestListEntry.created_at.desc())
+            )
+        ).all()
+        for g in guests:
+            scan_info = scan_status.get(g.credential_id or "", {}) if g.credential_id else {}
+            is_scanned = bool(scan_info.get("is_redeemed", False))
+            short_code = scan_info.get("short_code") or (f"GST-{g.id[:8].upper()}" if g.credential_id else "PENDIENTE")
+
+            all_tickets.append(
+                {
+                    "id": f"gst_{g.id}",
+                    "channel": "GUEST_LIST",
+                    "channel_label": f"Guest List ({g.affiliation})",
+                    "channel_badge": "secondary",
+                    "holder_name": g.full_name,
+                    "holder_id": g.dni_last4,
+                    "item_name": f"Invitado VIP ({g.affiliation})",
+                    "item_type": "VIP",
+                    "short_code": short_code,
+                    "issue_status": g.status,
+                    "is_redeemed": is_scanned,
+                    "scan_status_label": "CANJEADO" if is_scanned else g.status,
+                    "scanned_at": scan_info.get("scanned_at"),
+                    "gate_id": scan_info.get("gate_id"),
+                    "created_at": _as_utc(g.created_at).isoformat(),
+                    "qr_token": g.qr_token or "",
+                    "amount_cents": 0,
+                }
+            )
+
+        # 8. Compute global KPIs
+        total_tickets = len(all_tickets)
+        total_scanned = sum(1 for t in all_tickets if t["is_redeemed"])
+        total_pending = total_tickets - total_scanned
+        scan_rate_pct = round((total_scanned / total_tickets * 100), 1) if total_tickets > 0 else 0.0
+
+        by_channel = {
+            "VENTAS_ONLINE": {"total": 0, "scanned": 0},
+            "TAQUILLA_FISICA": {"total": 0, "scanned": 0},
+            "CORTESIAS_RRPP": {"total": 0, "scanned": 0},
+            "ACREDITACION_STAFF": {"total": 0, "scanned": 0},
+            "GUEST_LIST": {"total": 0, "scanned": 0},
+        }
+        for t in all_tickets:
+            ch = t["channel"]
+            if ch in by_channel:
+                by_channel[ch]["total"] += 1
+                if t["is_redeemed"]:
+                    by_channel[ch]["scanned"] += 1
+
+        return {
+            "event_id": event.id,
+            "event_name": event.name,
+            "summary": {
+                "total_tickets": total_tickets,
+                "total_scanned": total_scanned,
+                "total_pending": total_pending,
+                "scan_rate_pct": scan_rate_pct,
+                "by_channel": by_channel,
+            },
+            "tickets": all_tickets,
+        }
 
     return app
 

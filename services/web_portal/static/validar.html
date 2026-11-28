@@ -112,20 +112,28 @@
 
             <div class="mb-3">
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <label class="form-label small mb-0">Lectura de QR (Cámara o Lector USB / Pegado)</label>
+                <label class="form-label small mb-0 fw-semibold">Escaneo de QR o Código Corto Manual</label>
                 <button class="btn btn-link btn-sm p-0 text-info text-decoration-none" onclick="loadLastGeneratedQr()">Cargar último QR emitido</button>
               </div>
-              <textarea id="valQrInput" rows="2" class="form-control mono" placeholder="Escanea con la cámara o lector USB..."></textarea>
+              <div class="input-group">
+                <input type="text" id="valQrInput" class="form-control mono" placeholder="Apunta la cámara o escribe código (ej. EP-9F4K-2B7A o TICK-0001)" onkeydown="if(event.key==='Enter') lookupAndPreview()">
+                <button class="btn btn-primary fw-semibold px-3" id="btnLookup" onclick="lookupAndPreview()">
+                  <i class="bi bi-search me-1"></i>Buscar / Inspeccionar
+                </button>
+              </div>
+              <div class="form-text small text-secondary">
+                En caso la cámara no lea el QR por brillo o papel arrugado, ingresa los 8-10 caracteres del código corto impreso en el ticket.
+              </div>
             </div>
 
             <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-success fw-semibold flex-grow-1" onclick="validateQr()">
-                <i class="bi bi-check-lg me-1"></i>Validar Acceso
-              </button>
-              <button class="btn btn-outline-info" id="camToggleBtn" onclick="toggleCamera()">
-                <i class="bi bi-camera-video me-1"></i>Cámara
+              <button class="btn btn-outline-info flex-grow-1" id="camToggleBtn" onclick="toggleCamera()">
+                <i class="bi bi-camera-video me-1"></i>Activar Cámara del Celular / Tablet
               </button>
             </div>
+
+            <!-- Two-Step Inspection & Validation Preview Card -->
+            <div id="previewCard" class="d-none mt-3 p-3 rounded-3 border bg-dark"></div>
 
             <!-- Responsive Mobile-Ready Scanner Viewport -->
             <div id="cameraScannerContainer" class="d-none mt-3 position-relative overflow-hidden rounded-3 border border-info bg-black text-center" style="min-height: 260px; max-height: 380px;">
@@ -304,41 +312,130 @@
         </div>`;
     }
 
-    async function validateQr() {
-      const qrToken = document.getElementById("valQrInput").value.trim();
+    let pendingValidationCode = null;
+
+    function cancelPreview() {
+      pendingValidationCode = null;
+      const card = document.getElementById("previewCard");
+      if (card) {
+        card.innerHTML = "";
+        card.classList.add("d-none");
+      }
+      document.getElementById("valQrInput").value = "";
+    }
+
+    async function lookupAndPreview() {
+      const code = document.getElementById("valQrInput").value.trim();
+      if (!code) return showScanBanner("warn", "Lector vacío", "Escanea un QR o escribe el código corto antes de buscar.");
+      await previewCredential(code);
+    }
+
+    async function previewCredential(rawCode) {
+      const code = rawCode.trim();
+      if (!code) return;
+      pendingValidationCode = code;
       const entitlement = document.getElementById("valEntitlement").value;
       const gateId = document.getElementById("valGateId").value;
-      if (!qrToken) return showScanBanner("warn", "Lector vacío", "Escanea o pega un código QR antes de validar.");
+      const eventId = document.getElementById("valEventSelect").value;
+      const previewCard = document.getElementById("previewCard");
+      previewCard.classList.remove("d-none");
+      previewCard.innerHTML = `<div class="text-center py-3 text-secondary"><div class="spinner-border spinner-border-sm me-2 text-info"></div>Buscando credencial...</div>`;
+
+      // Play short detection beep
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.12;
+        osc.start();
+        setTimeout(() => { osc.stop(); audioCtx.close(); }, 120);
+      } catch (e) {}
 
       if (!offlineMode) {
         try {
-          const res = await EP.api("/api/v1/accreditation/check-in", {
+          const res = await EP.api("/api/v1/accreditation/lookup-credential", {
             method: "POST",
-            body: JSON.stringify({ qr_token: qrToken, entitlement_code: entitlement, gate_id: gateId }),
+            body: JSON.stringify({ code: code, event_id: eventId, gate_id: gateId }),
           });
-          scansCount += 1;
-          refreshUI();
-          addSessionLog(`${res.display_name} (${res.dni_last4})`, gateId, "ONLINE", res.outcome, true);
-          showScanBanner("ok", "ACCESO APROBADO",
-            `Titular: ${res.display_name} (${res.dni_last4}) · ${res.holder_type}` +
-            (res.company_label ? `\nEmpresa: ${res.company_label}` : "") +
-            `\nBeneficio redimido: ${res.entitlement_code} · Restantes: ${JSON.stringify(res.all_remaining)}`
-          );
+
+          const isOk = res.can_redeem && !res.is_already_redeemed;
+          const statusBadge = isOk
+            ? `<span class="badge text-bg-success px-3 py-2 fs-6"><i class="bi bi-check-circle me-1"></i>ENTRADA VÁLIDA / LISTA PARA INGRESO</span>`
+            : res.is_already_redeemed
+            ? `<span class="badge text-bg-danger px-3 py-2 fs-6"><i class="bi bi-exclamation-octagon me-1"></i>YA CANJEADA PREVIAMENTE</span>`
+            : `<span class="badge text-bg-warning px-3 py-2 fs-6"><i class="bi bi-shield-x me-1"></i>ESTADO: ${EP.escapeHtml(res.status)}</span>`;
+
+          const entitlementsHtml = Object.entries(res.entitlements || {}).map(([k, qty]) => {
+            const used = (res.redeemed && res.redeemed[k]) || 0;
+            const rem = Math.max(0, qty - used);
+            const badgeClass = rem > 0 ? "text-bg-info" : "text-bg-secondary";
+            return `<span class="badge ${badgeClass} me-1 mb-1">${EP.escapeHtml(k)}: ${rem} disp. (${used}/${qty})</span>`;
+          }).join("");
+
+          previewCard.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary pb-2">
+              ${statusBadge}
+              <span class="badge bg-black border border-info text-info mono fs-6">${EP.escapeHtml(res.short_code)}</span>
+            </div>
+            <div class="mb-2">
+              <div class="text-secondary small">Titular / Identificación:</div>
+              <div class="h5 fw-bold text-white mb-0">${EP.escapeHtml(res.display_name)} <span class="badge text-bg-dark border border-secondary text-secondary ms-1">DNI: ****${EP.escapeHtml(res.dni_last4)}</span></div>
+              <div class="small text-info">${EP.escapeHtml(res.holder_type)}${res.company_label ? ` · <span class="text-white">${EP.escapeHtml(res.company_label)}</span>` : ""}</div>
+            </div>
+            <div class="mb-3">
+              <div class="text-secondary small mb-1">Beneficios / Accesos de la Credencial:</div>
+              <div>${entitlementsHtml || '<span class="text-secondary small">General</span>'}</div>
+            </div>
+            ${res.last_scanned_at ? `
+              <div class="alert alert-warning py-2 px-3 small mb-3">
+                <i class="bi bi-clock-history me-1"></i>Primer escaneo registrado: <strong>${new Date(res.last_scanned_at).toLocaleString()}</strong> en <em>${EP.escapeHtml(res.last_gate_id || "Puerta")}</em>
+              </div>` : ""}
+            <div class="mt-3">
+              ${isOk ? `
+                <button class="btn btn-success btn-lg w-100 fw-bold py-3 shadow" id="btnConfirmCheckIn" onclick="confirmCheckIn()">
+                  <i class="bi bi-check-circle-fill me-2 fs-4"></i>VALIDAR / CANJEAR INGRESO
+                </button>
+              ` : `
+                <button class="btn btn-danger w-100 fw-bold py-2" disabled>
+                  <i class="bi bi-slash-circle me-2"></i>NO SE PUEDE CANJEAR NUEVAMENTE
+                </button>
+              `}
+              <button class="btn btn-outline-secondary w-100 mt-2" onclick="cancelPreview()">
+                <i class="bi bi-x-circle me-1"></i>Descartar / Siguiente
+              </button>
+            </div>
+          `;
         } catch (e) {
-          addSessionLog("QR Rechazado", gateId, "ONLINE", "DENEGADO", false);
-          let msg = e.message;
-          if (msg.includes("404")) msg = "Entrada no encontrada en la base de datos (posiblemente emitida en un evento eliminado o de prueba). Emite una nueva entrada en /comprar.";
-          showScanBanner("err", "ACCESO DENEGADO", msg);
+          previewCard.innerHTML = `
+            <div class="alert alert-danger mb-2">
+              <i class="bi bi-x-octagon-fill me-2"></i><strong>No encontrada:</strong> ${EP.escapeHtml(e.message)}
+            </div>
+            <button class="btn btn-outline-secondary w-100 btn-sm" onclick="cancelPreview()">Volver a intentar</button>
+          `;
         }
         return;
       }
 
-      if (!bundle) return showScanBanner("err", "Sin paquete offline", "Descarga primero el paquete offline del evento.");
+      // Offline mode preview
+      if (!bundle) {
+        previewCard.innerHTML = `<div class="alert alert-danger mb-0">Descarga previamente el paquete offline del evento.</div>`;
+        return;
+      }
       try {
-        const claims = await EP.verifyEd25519Jws(qrToken, bundle.qr_public_key_pem);
-        if (claims.eid !== bundle.event_id) throw new Error("El QR corresponde a otro evento.");
-        const snap = bundle.credentials.find(c => c.credential_id === claims.cid);
-        if (snap && snap.status !== "ACTIVE") throw new Error("Credencial revocada.");
+        let claims = null;
+        let snap = null;
+        if (code.includes(".")) {
+          claims = await EP.verifyEd25519Jws(code, bundle.qr_public_key_pem);
+          if (claims.eid !== bundle.event_id) throw new Error("El QR corresponde a otro evento.");
+          snap = bundle.credentials.find(c => c.credential_id === claims.cid);
+        } else {
+          snap = bundle.credentials.find(c => (c.short_code && c.short_code.toUpperCase() === code.toUpperCase()) || c.credential_id === code);
+          if (!snap) throw new Error("Código no encontrado en el paquete offline.");
+          claims = { cid: snap.credential_id, d4: snap.dni_last4, ent: snap.entitlements };
+        }
 
         const ent = snap ? snap.entitlements : (claims.ent || {});
         let targetEnt = entitlement;
@@ -363,16 +460,147 @@
         }
         const snapUsed = Number((snap && snap.redeemed[targetEnt]) || 0);
         const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][targetEnt]) || 0);
-        if (allowed - snapUsed - locUsed <= 0) throw new Error(`Beneficio '${entitlement}' ya consumido o no incluido.`);
+        const rem = allowed - snapUsed - locUsed;
+        const isOk = rem > 0;
+
+        previewCard.innerHTML = `
+          <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary pb-2">
+            ${isOk ? '<span class="badge text-bg-warning px-3 py-2 fs-6">LISTA PARA CONTINGENCIA OFFLINE</span>' : '<span class="badge text-bg-danger px-3 py-2 fs-6">YA CANJEADA OFFLINE</span>'}
+            <span class="badge bg-black border border-warning text-warning mono fs-6">${EP.escapeHtml((snap && snap.short_code) || "OFFLINE")}</span>
+          </div>
+          <div class="mb-2">
+            <div class="text-secondary small">Titular / Identificación:</div>
+            <div class="h5 fw-bold text-white mb-0">${EP.escapeHtml(snap ? snap.display_name : "Credencial Ed25519")} <span class="badge text-bg-dark border border-secondary text-secondary ms-1">DNI: ****${EP.escapeHtml(claims.d4)}</span></div>
+            <div class="small text-info">${EP.escapeHtml((snap && snap.holder_type) || "PARTICIPANT")}</div>
+          </div>
+          <div class="mb-3">
+            <div class="text-secondary small mb-1">Beneficio a redimir:</div>
+            <span class="badge ${isOk ? 'text-bg-warning' : 'text-bg-secondary'}">${EP.escapeHtml(targetEnt)}: ${rem} disponibles</span>
+          </div>
+          <div class="mt-3">
+            ${isOk ? `
+              <button class="btn btn-warning btn-lg w-100 fw-bold py-3 shadow text-dark" id="btnConfirmCheckIn" onclick="confirmCheckIn()">
+                <i class="bi bi-check-circle-fill me-2 fs-4"></i>VALIDAR / CANJEAR INGRESO (OFFLINE)
+              </button>
+            ` : `
+              <button class="btn btn-danger w-100 fw-bold py-2" disabled>
+                <i class="bi bi-slash-circle me-2"></i>BENEFICIO YA CONSUMIDO
+              </button>
+            `}
+            <button class="btn btn-outline-secondary w-100 mt-2" onclick="cancelPreview()">
+              <i class="bi bi-x-circle me-1"></i>Descartar / Siguiente
+            </button>
+          </div>
+        `;
+      } catch (e) {
+        previewCard.innerHTML = `
+          <div class="alert alert-danger mb-2">
+            <i class="bi bi-x-octagon-fill me-2"></i><strong>Rechazado Offline:</strong> ${EP.escapeHtml(e.message)}
+          </div>
+          <button class="btn btn-outline-secondary w-100 btn-sm" onclick="cancelPreview()">Volver a intentar</button>
+        `;
+      }
+    }
+
+    async function confirmCheckIn() {
+      const tokenOrCode = pendingValidationCode || document.getElementById("valQrInput").value.trim();
+      const entitlement = document.getElementById("valEntitlement").value;
+      const gateId = document.getElementById("valGateId").value;
+      if (!tokenOrCode) return showScanBanner("warn", "Sin código", "Selecciona una credencial para validar.");
+
+      const btn = document.getElementById("btnConfirmCheckIn");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Registrando ingreso...`;
+      }
+
+      if (!offlineMode) {
+        try {
+          const res = await EP.api("/api/v1/accreditation/check-in", {
+            method: "POST",
+            body: JSON.stringify({ code: tokenOrCode, qr_token: tokenOrCode, entitlement_code: entitlement, gate_id: gateId }),
+          });
+          scansCount += 1;
+          refreshUI();
+          addSessionLog(`${res.display_name} (${res.dni_last4})`, gateId, "ONLINE", res.outcome, true);
+          showScanBanner("ok", "ACCESO APROBADO",
+            `Titular: ${res.display_name} (${res.dni_last4}) · ${res.holder_type}` +
+            (res.company_label ? `\nEmpresa: ${res.company_label}` : "") +
+            `\nCódigo: ${res.short_code || "-"}` +
+            `\nBeneficio redimido: ${res.entitlement_code} · Restantes: ${JSON.stringify(res.all_remaining)}`
+          );
+          cancelPreview();
+
+          // Play success chime
+          try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.frequency.value = 1174;
+            gain.gain.value = 0.2;
+            osc.start();
+            setTimeout(() => { osc.frequency.value = 1567; }, 100);
+            setTimeout(() => { osc.stop(); audioCtx.close(); }, 250);
+          } catch (e) {}
+
+        } catch (e) {
+          addSessionLog("QR Rechazado", gateId, "ONLINE", "DENEGADO", false);
+          let msg = e.message;
+          if (msg.includes("404")) msg = "Entrada no encontrada en la base de datos (posiblemente emitida en un evento eliminado o de prueba).";
+          showScanBanner("err", "ACCESO DENEGADO", msg);
+          if (btn) { btn.disabled = false; btn.innerHTML = `<i class="bi bi-check-circle-fill me-2 fs-4"></i>Reintentar Validación`; }
+        }
+        return;
+      }
+
+      // Offline redemption
+      try {
+        let claims = null;
+        let snap = null;
+        if (tokenOrCode.includes(".")) {
+          claims = await EP.verifyEd25519Jws(tokenOrCode, bundle.qr_public_key_pem);
+          snap = bundle.credentials.find(c => c.credential_id === claims.cid);
+        } else {
+          snap = bundle.credentials.find(c => (c.short_code && c.short_code.toUpperCase() === tokenOrCode.toUpperCase()) || c.credential_id === tokenOrCode);
+          claims = { cid: snap.credential_id, d4: snap.dni_last4, ent: snap.entitlements };
+        }
+
+        const ent = snap ? snap.entitlements : (claims.ent || {});
+        let targetEnt = entitlement;
+        let allowed = Number(ent[targetEnt] || 0);
+        if (allowed <= 0 && targetEnt === "ENTRY") {
+          const exclusions = ["PHOTO", "SIGNATURE", "STAFF_ACCESS", "MERCH"];
+          const eligible = Object.keys(ent).filter(k => !exclusions.includes(k));
+          for (const k of eligible) {
+            const kAllowed = Number(ent[k] || 0);
+            const kSnapUsed = Number((snap && snap.redeemed[k]) || 0);
+            const kLocUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][k]) || 0);
+            if (kAllowed - kSnapUsed - kLocUsed > 0) {
+              targetEnt = k;
+              allowed = kAllowed;
+              break;
+            }
+          }
+          if (allowed <= 0 && eligible.length > 0) {
+            targetEnt = eligible[0];
+            allowed = Number(ent[targetEnt] || 0);
+          }
+        }
+        const snapUsed = Number((snap && snap.redeemed[targetEnt]) || 0);
+        const locUsed = Number((localRedeemed[claims.cid] && localRedeemed[claims.cid][targetEnt]) || 0);
+        if (allowed - snapUsed - locUsed <= 0) throw new Error(`Beneficio '${entitlement}' ya consumido.`);
 
         localRedeemed[claims.cid] = localRedeemed[claims.cid] || {};
         localRedeemed[claims.cid][targetEnt] = locUsed + 1;
         if (targetEnt !== entitlement) {
           localRedeemed[claims.cid][entitlement] = (Number(localRedeemed[claims.cid][entitlement]) || 0) + 1;
         }
+
         queue.push({
           client_scan_id: `off-${EP.uuid()}`,
-          qr_token: qrToken,
+          qr_token: (snap && snap.credential_id) || tokenOrCode,
           entitlement_code: entitlement,
           gate_id: gateId,
           device_id: "PUERTA_OFFLINE_01",
@@ -382,9 +610,11 @@
         localStorage.setItem("ep_offline_redeemed", JSON.stringify(localRedeemed));
         localStorage.setItem("ep_offline_queue", JSON.stringify(queue));
         refreshUI();
+
         const holderLabel = `${snap ? snap.display_name : "Ed25519 OK"} (${claims.d4})`;
         addSessionLog(holderLabel, gateId, "OFFLINE", "EN COLA", true);
         showScanBanner("warn", "APROBADO EN CONTINGENCIA OFFLINE", `Titular: ${holderLabel}\nPendiente de sincronización.`);
+        cancelPreview();
       } catch (e) {
         addSessionLog("QR Inválido", gateId, "OFFLINE", "RECHAZADO", false);
         showScanBanner("err", "RECHAZADO OFFLINE", e.message);
@@ -552,21 +782,7 @@
                 isScanning = false;
                 document.getElementById("valQrInput").value = detectedQr.trim();
                 stopCamera();
-
-                // Sonido breve de confirmación de lectura
-                try {
-                  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                  const osc = audioCtx.createOscillator();
-                  const gain = audioCtx.createGain();
-                  osc.connect(gain);
-                  gain.connect(audioCtx.destination);
-                  osc.frequency.value = 880;
-                  gain.gain.value = 0.15;
-                  osc.start();
-                  setTimeout(() => { osc.stop(); audioCtx.close(); }, 120);
-                } catch (e) {}
-
-                await validateQr();
+                await previewCredential(detectedQr.trim());
                 return;
               }
             }

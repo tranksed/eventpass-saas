@@ -85,6 +85,7 @@ class Credential(Base):
     display_name: Mapped[str] = mapped_column(String(150), nullable=False)
     company_label: Mapped[str | None] = mapped_column(String(160), nullable=True)
     dni_last4: Mapped[str] = mapped_column(String(8), nullable=False)
+    short_code: Mapped[str | None] = mapped_column(String(24), nullable=True, index=True)
     entitlements_json: Mapped[str] = mapped_column(Text, nullable=False)
     redeemed_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE", nullable=False, index=True)

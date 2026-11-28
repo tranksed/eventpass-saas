@@ -263,6 +263,7 @@ def sign_qr_credential(
     dni_last4: str,
     entitlements: dict[str, int],
     expires_at: datetime,
+    short_code: str | None = None,
 ) -> str:
     """Sign a compact JWS QR credential verifiable offline using only the Ed25519 public key."""
     now = datetime.now(timezone.utc)
@@ -276,6 +277,8 @@ def sign_qr_credential(
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
     }
+    if short_code:
+        payload["sc"] = short_code
     return jwt.encode(payload, private_key, algorithm="EdDSA")
 
 

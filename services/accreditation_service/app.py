@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 import jwt
 import qrcode
 from fastapi import Depends, FastAPI, HTTPException, Response, status
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from services.accreditation_service.config import AccreditationSettings
@@ -35,6 +35,8 @@ from services.accreditation_service.schemas import (
     AccreditedCompanyResponse,
     CheckInRequest,
     CheckInResponse,
+    CredentialLookupRequest,
+    CredentialLookupResponse,
     CreateAccreditedCompanyRequest,
     IssueInternalCredentialRequest,
     OfflineBundleResponse,
@@ -79,11 +81,24 @@ async def _ensure_accreditation_schema_columns(conn: AsyncConnection) -> None:
     try:
         if is_pg:
             await conn.execute(text("ALTER TABLE accredited_companies ADD COLUMN IF NOT EXISTS invite_token_encrypted VARCHAR(512)"))
+            await conn.execute(text("ALTER TABLE credentials ADD COLUMN IF NOT EXISTS short_code VARCHAR(24)"))
         else:
             async with conn.begin_nested():
                 await conn.execute(text("ALTER TABLE accredited_companies ADD COLUMN invite_token_encrypted VARCHAR(512)"))
+            async with conn.begin_nested():
+                await conn.execute(text("ALTER TABLE credentials ADD COLUMN short_code VARCHAR(24)"))
     except Exception:
         pass
+
+
+SHORT_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+
+
+def _generate_short_code(prefix: str = "EP") -> str:
+    """Generate an unambiguous human-friendly alphanumeric short code (e.g. EP-9F4K-2B7A)."""
+    p1 = "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(4))
+    p2 = "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(4))
+    return f"{prefix}-{p1}-{p2}"
 
 
 def create_accreditation_app(
@@ -148,6 +163,7 @@ def create_accreditation_app(
         _: None = Depends(require_internal),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, str]:
+        short_code = (payload.short_code or _generate_short_code("EP")).strip().upper()
         cred = Credential(
             tenant_id=payload.tenant_id,
             event_id=payload.event_id,
@@ -156,6 +172,7 @@ def create_accreditation_app(
             holder_ref_id=payload.holder_ref_id,
             display_name=payload.display_name,
             dni_last4=payload.dni_last4,
+            short_code=short_code,
             entitlements_json=json.dumps(payload.entitlements),
             redeemed_json="{}",
             status="ACTIVE",
@@ -174,10 +191,11 @@ def create_accreditation_app(
             dni_last4=cred.dni_last4,
             entitlements=payload.entitlements,
             expires_at=_as_utc(payload.expires_at),
+            short_code=short_code,
         )
         cred.qr_token = qr_token
         await db.commit()
-        return {"credential_id": cred.id, "qr_token": qr_token}
+        return {"credential_id": cred.id, "qr_token": qr_token, "short_code": short_code}
 
     # ------------------------------------------------------------------
     # Represented Company & Private Staff Accreditation Link Management
@@ -522,6 +540,7 @@ def create_accreditation_app(
             await db.flush()
 
             staff_entitlements = {"ENTRY": 1, "STAFF_ACCESS": 1}
+            short_code = _generate_short_code("STF")
             cred = Credential(
                 tenant_id=company.tenant_id,
                 event_id=company.event_id,
@@ -531,6 +550,7 @@ def create_accreditation_app(
                 display_name=payload.full_name,
                 company_label=company.company_name,
                 dni_last4=dni_last4,
+                short_code=short_code,
                 entitlements_json=json.dumps(staff_entitlements),
                 redeemed_json="{}",
                 status="ACTIVE",
@@ -549,6 +569,7 @@ def create_accreditation_app(
                 dni_last4=dni_last4,
                 entitlements=staff_entitlements,
                 expires_at=_as_utc(cred.expires_at),
+                short_code=short_code,
             )
             staff.credential_id = cred.id
             await db.commit()
@@ -562,6 +583,7 @@ def create_accreditation_app(
             dni_last4=dni_last4,
             credential_id=cred.id,
             qr_token=cred.qr_token,
+            short_code=cred.short_code,
             remaining_quota=max(0, company.staff_quota - company.staff_used),
         )
 
@@ -640,27 +662,132 @@ def create_accreditation_app(
     # ------------------------------------------------------------------
     # Private Validator Module: Online Check-in + Offline Contingency
     # ------------------------------------------------------------------
+    @app.post("/api/v1/accreditation/lookup-credential", response_model=CredentialLookupResponse)
+    async def lookup_credential(
+        payload: CredentialLookupRequest,
+        actor: CurrentActor = Depends(require_validator_module),
+        db: AsyncSession = Depends(get_db),
+    ) -> CredentialLookupResponse:
+        """Lookup and preview credential status before physical gate validation/redemption."""
+        raw_code = payload.code.strip()
+        cred: Credential | None = None
+        if "." in raw_code:
+            try:
+                claims = verify_qr_credential(raw_code, qr_pub_key)
+            except jwt.ExpiredSignatureError as exc:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="El código QR ha expirado.") from exc
+            except jwt.InvalidTokenError as exc:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Firma de código QR inválida.") from exc
+
+            if actor.role != Role.SUPERADMIN and claims.get("tid") != actor.tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="El código QR pertenece a otra organización.",
+                )
+            query = select(Credential).where(Credential.id == claims["cid"])
+            if actor.role != Role.SUPERADMIN:
+                query = query.where(Credential.tenant_id == actor.tenant_id)
+            cred = await db.scalar(query)
+        else:
+            clean_code = raw_code.upper()
+            query = select(Credential).where(
+                (func.upper(Credential.short_code) == clean_code)
+                | (Credential.holder_ref_id == raw_code)
+                | (Credential.id == raw_code)
+            )
+            if actor.role != Role.SUPERADMIN:
+                query = query.where(Credential.tenant_id == actor.tenant_id)
+            cred = await db.scalar(query)
+
+        if cred is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Entrada o credencial no encontrada para '{raw_code}'.",
+            )
+
+        if payload.event_id and cred.event_id != payload.event_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Esta credencial corresponde a un evento distinto al seleccionado.",
+            )
+
+        entitlements: dict[str, int] = json.loads(cred.entitlements_json or "{}")
+        redeemed: dict[str, int] = json.loads(cred.redeemed_json or "{}")
+
+        last_log = await db.scalar(
+            select(CheckInLog)
+            .where(CheckInLog.credential_id == cred.id, CheckInLog.outcome.in_(["GRANTED", "SYNCED_GRANTED"]))
+            .order_by(CheckInLog.scanned_at.desc())
+            .limit(1)
+        )
+
+        is_already_redeemed = any(int(v) >= int(entitlements.get(k, 1)) for k, v in redeemed.items() if k in entitlements)
+        can_redeem = (cred.status == "ACTIVE") and not (
+            all(int(redeemed.get(k, 0)) >= int(qty) for k, qty in entitlements.items())
+        )
+
+        display_short_code = cred.short_code or f"EP-{cred.id[:8].upper()}"
+
+        return CredentialLookupResponse(
+            found=True,
+            credential_id=cred.id,
+            qr_token=cred.qr_token,
+            short_code=display_short_code,
+            display_name=cred.display_name,
+            dni_last4=cred.dni_last4,
+            holder_type=cred.holder_type,
+            company_label=cred.company_label,
+            status=cred.status,
+            entitlements=entitlements,
+            redeemed=redeemed,
+            is_already_redeemed=is_already_redeemed,
+            can_redeem=can_redeem,
+            last_scanned_at=_as_utc(last_log.scanned_at).isoformat() if last_log else None,
+            last_gate_id=last_log.gate_id if last_log else None,
+        )
+
     @app.post("/api/v1/accreditation/check-in", response_model=CheckInResponse)
     async def online_check_in(
         payload: CheckInRequest,
         actor: CurrentActor = Depends(require_validator_module),
         db: AsyncSession = Depends(get_db),
     ) -> CheckInResponse:
-        """Private online check-in validating Ed25519 QR signature and atomically redeeming entitlement."""
-        try:
-            claims = verify_qr_credential(payload.qr_token, qr_pub_key)
-        except jwt.ExpiredSignatureError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="QR credential expired.") from exc
-        except jwt.InvalidTokenError as exc:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid QR signature.") from exc
+        """Private online check-in validating Ed25519 QR signature or short code and atomically redeeming entitlement."""
+        token_or_code = (payload.code or payload.qr_token or "").strip()
+        if not token_or_code:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Token QR o código requerido.")
 
-        if actor.role != Role.SUPERADMIN and claims.get("tid") != actor.tenant_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cross-tenant QR rejected: credential belongs to a different organization.",
+        if "." in token_or_code:
+            try:
+                claims = verify_qr_credential(token_or_code, qr_pub_key)
+            except jwt.ExpiredSignatureError as exc:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="QR credential expired.") from exc
+            except jwt.InvalidTokenError as exc:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid QR signature.") from exc
+
+            if actor.role != Role.SUPERADMIN and claims.get("tid") != actor.tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cross-tenant QR rejected: credential belongs to a different organization.",
+                )
+            cred_id = claims["cid"]
+        else:
+            clean_code = token_or_code.upper()
+            cred_query = select(Credential).where(
+                (func.upper(Credential.short_code) == clean_code)
+                | (Credential.holder_ref_id == token_or_code)
+                | (Credential.id == token_or_code)
             )
+            if actor.role != Role.SUPERADMIN:
+                cred_query = cred_query.where(Credential.tenant_id == actor.tenant_id)
+            found_cred = await db.scalar(cred_query)
+            if found_cred is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No se encontró ninguna credencial con el código '{token_or_code}'.",
+                )
+            cred_id = found_cred.id
 
-        cred_id = claims["cid"]
         scan_id = payload.client_scan_id or f"online-{secrets.token_hex(12)}"
 
         async with credential_locks[cred_id]:
@@ -749,6 +876,7 @@ def create_accreditation_app(
             entitlement_code=payload.entitlement_code,
             remaining_for_code=remaining_map.get(payload.entitlement_code, remaining_map.get(target_code, 0)),
             all_remaining=remaining_map,
+            short_code=cred.short_code,
         )
 
     @app.get(
@@ -774,6 +902,7 @@ def create_accreditation_app(
                 company_label=c.company_label,
                 dni_last4=c.dni_last4,
                 status=c.status,
+                short_code=c.short_code,
                 entitlements=json.loads(c.entitlements_json),
                 redeemed=json.loads(c.redeemed_json),
             )
@@ -1086,8 +1215,59 @@ def create_accreditation_app(
                 "scanned_at": _as_utc(first_log.scanned_at).isoformat() if first_log else None,
                 "gate_id": first_log.gate_id if first_log else None,
                 "created_at": _as_utc(c.created_at).isoformat(),
+                "short_code": c.short_code or f"EP-{c.id[:8].upper()}",
             }
         return status_map
+
+    @app.get("/internal/accreditation/events/{event_id}/staff-monitor")
+    async def get_event_staff_monitor_internal(
+        event_id: str,
+        _: None = Depends(require_internal),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict]:
+        """Internal endpoint returning all accredited staff credentials for the central monitor."""
+        creds = (
+            await db.scalars(
+                select(Credential).where(Credential.event_id == event_id, Credential.holder_type == "STAFF")
+            )
+        ).all()
+        logs = (
+            await db.scalars(
+                select(CheckInLog)
+                .where(CheckInLog.event_id == event_id, CheckInLog.outcome.in_(["GRANTED", "SYNCED_GRANTED"]))
+                .order_by(CheckInLog.scanned_at.asc())
+            )
+        ).all()
+        logs_by_cred: dict[str, CheckInLog] = {}
+        for l in logs:
+            if l.credential_id not in logs_by_cred:
+                logs_by_cred[l.credential_id] = l
+
+        res = []
+        for c in creds:
+            first_log = logs_by_cred.get(c.id)
+            red = json.loads(c.redeemed_json or "{}")
+            ent = json.loads(c.entitlements_json or "{}")
+            is_redeemed = any(int(v) > 0 for v in red.values())
+            res.append(
+                {
+                    "credential_id": c.id,
+                    "holder_ref_id": c.holder_ref_id,
+                    "display_name": c.display_name,
+                    "company_label": c.company_label,
+                    "dni_last4": c.dni_last4,
+                    "short_code": c.short_code or f"STF-{c.id[:8].upper()}",
+                    "status": c.status,
+                    "is_redeemed": is_redeemed,
+                    "scanned_at": _as_utc(first_log.scanned_at).isoformat() if first_log else None,
+                    "gate_id": first_log.gate_id if first_log else None,
+                    "created_at": _as_utc(c.created_at).isoformat(),
+                    "entitlements": ent,
+                    "redeemed": red,
+                    "qr_token": c.qr_token,
+                }
+            )
+        return res
 
     @app.get("/api/v1/accreditation/events/{event_id}/check-ins")
     async def list_event_checkins(

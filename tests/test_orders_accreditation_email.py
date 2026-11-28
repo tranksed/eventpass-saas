@@ -694,3 +694,87 @@ async def test_physical_thermal_ticket_batches(tmp_path: Path, keys_dir: Path):
                     )
                     assert legacy_checkin.status_code == 200, legacy_checkin.text
                     assert legacy_checkin.json()["outcome"] == "GRANTED"
+
+                # 6. Centralized Tickets Monitor & Two-Step Short Code Validation:
+                # Create a physical ticket batch so tickets exist in the active event
+                new_batch_res = await client.post(
+                    f"/api/v1/registration/events/{event_id}/physical-tickets/batches",
+                    json={
+                        "catalog_item_id": item_id,
+                        "batch_name": "Lote Monitor Taquilla",
+                        "quantity": 3,
+                        "prefix": "MON",
+                        "start_sequence": 1,
+                        "paper_width": "80mm",
+                    },
+                    headers=headers,
+                )
+                assert new_batch_res.status_code == 201
+
+                monitor_res = await client.get(
+                    f"/api/v1/registration/events/{event_id}/tickets-monitor",
+                    headers=headers,
+                )
+                assert monitor_res.status_code == 200, monitor_res.text
+                monitor_data = monitor_res.json()
+                assert "summary" in monitor_data
+                assert "tickets" in monitor_data
+                assert monitor_data["summary"]["total_tickets"] == 3
+                assert monitor_data["summary"]["by_channel"]["TAQUILLA_FISICA"]["total"] == 3
+
+                # Issue a new ticket with short code
+                async with AsyncClient(transport=ASGITransport(app=accred_app), base_url="http://test") as accred_client:
+                    short_issue = await accred_client.post(
+                        "/internal/accreditation/credentials/issue",
+                        json={
+                            "tenant_id": "tenant-thermal",
+                            "event_id": event_id,
+                            "order_id": None,
+                            "holder_type": "PARTICIPANT",
+                            "holder_ref_id": "short-ref-001",
+                            "display_name": "Juan Perez",
+                            "dni_last4": "5678",
+                            "short_code": "EP-9F4K-2B",
+                            "entitlements": {"ENTRY": 1},
+                            "expires_at": (now + timedelta(days=2)).isoformat(),
+                        },
+                        headers={"X-Internal-Service-Token": accred_settings.internal_service_token},
+                    )
+                    assert short_issue.status_code == 201
+                    assert short_issue.json()["short_code"] == "EP-9F4K-2B"
+
+                    # Two-step: Step 1 Pre-validation lookup with short code
+                    lookup_res = await accred_client.post(
+                        "/api/v1/accreditation/lookup-credential",
+                        json={"code": "EP-9F4K-2B", "event_id": event_id},
+                        headers=headers,
+                    )
+                    assert lookup_res.status_code == 200, lookup_res.text
+                    lookup_data = lookup_res.json()
+                    assert lookup_data["found"] is True
+                    assert lookup_data["display_name"] == "Juan Perez"
+                    assert lookup_data["can_redeem"] is True
+                    assert lookup_data["is_already_redeemed"] is False
+
+                    # Two-step: Step 2 Operator confirms check-in via short code
+                    checkin_short = await accred_client.post(
+                        "/api/v1/accreditation/check-in",
+                        json={
+                            "code": "EP-9F4K-2B",
+                            "entitlement_code": "ENTRY",
+                            "gate_id": "PUERTA_SUR",
+                        },
+                        headers=headers,
+                    )
+                    assert checkin_short.status_code == 200, checkin_short.text
+                    assert checkin_short.json()["outcome"] == "GRANTED"
+                    assert checkin_short.json()["short_code"] == "EP-9F4K-2B"
+
+                    # Subsequent lookup shows is_already_redeemed is True / cannot redeem again
+                    lookup_again = await accred_client.post(
+                        "/api/v1/accreditation/lookup-credential",
+                        json={"code": "EP-9F4K-2B", "event_id": event_id},
+                        headers=headers,
+                    )
+                    assert lookup_again.status_code == 200
+                    assert lookup_again.json()["can_redeem"] is False

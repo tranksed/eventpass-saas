@@ -188,41 +188,44 @@
             <button type="button" class="ep-nav-btn" data-tab="events" onclick="switchTab('events', this)">
               <i class="bi bi-calendar-event text-primary"></i> 2. Eventos y Entradas
             </button>
+            <button type="button" class="ep-nav-btn" data-tab="tickets" onclick="switchTab('tickets', this)">
+              <i class="bi bi-qr-code text-warning"></i> 3. Monitor de Tickets
+            </button>
           </div>
 
           <div class="ep-section-label">Comercial y Acceso</div>
           <div class="d-grid gap-1">
             <button type="button" class="ep-nav-btn" data-tab="codes" onclick="switchTab('codes', this)">
-              <i class="bi bi-ticket-perforated text-warning"></i> 3. Códigos y RR.PP.
+              <i class="bi bi-ticket-perforated text-warning"></i> 4. Códigos y RR.PP.
             </button>
             <button type="button" class="ep-nav-btn" data-tab="guestlist" onclick="switchTab('guestlist', this)">
-              <i class="bi bi-person-check text-success"></i> 4. Guest List
+              <i class="bi bi-person-check text-success"></i> 5. Guest List
             </button>
             <button type="button" class="ep-nav-btn" data-tab="bulk" onclick="switchTab('bulk', this)">
-              <i class="bi bi-file-earmark-spreadsheet text-info"></i> 5. Envíos Masivos Excel
+              <i class="bi bi-file-earmark-spreadsheet text-info"></i> 6. Envíos Masivos Excel
             </button>
             <button type="button" class="ep-nav-btn" data-tab="thermal" onclick="switchTab('thermal', this)">
-              <i class="bi bi-printer text-warning"></i> 6. Impresión Térmica & Físicos
+              <i class="bi bi-printer text-warning"></i> 7. Impresión Térmica & Físicos
             </button>
           </div>
 
           <div class="ep-section-label">Acreditación y Seguridad</div>
           <div class="d-grid gap-1">
             <button type="button" class="ep-nav-btn" data-tab="staff" onclick="switchTab('staff', this)">
-              <i class="bi bi-building-check text-primary"></i> 7. Acreditaciones Staff
+              <i class="bi bi-building-check text-primary"></i> 8. Acreditaciones Staff
             </button>
             <button type="button" class="ep-nav-btn" data-tab="team" onclick="switchTab('team', this)">
-              <i class="bi bi-shield-lock text-danger"></i> 8. Equipo, Auditoría y Reclamos
+              <i class="bi bi-shield-lock text-danger"></i> 9. Equipo, Auditoría y Reclamos
             </button>
           </div>
 
           <div class="ep-section-label">Finanzas y Configuración</div>
           <div class="d-grid gap-1">
             <button type="button" class="ep-nav-btn" data-tab="payments" onclick="switchTab('payments', this)">
-              <i class="bi bi-credit-card-2-front text-warning"></i> 9. Pasarelas de Pago
+              <i class="bi bi-credit-card-2-front text-warning"></i> 10. Pasarelas de Pago
             </button>
             <button type="button" class="ep-nav-btn" data-tab="smtp" onclick="switchTab('smtp', this)">
-              <i class="bi bi-envelope-at text-info"></i> 10. Configuración SMTP
+              <i class="bi bi-envelope-at text-info"></i> 11. Configuración SMTP
             </button>
           </div>
         </div>
@@ -480,7 +483,110 @@
           </div>
         </section>
 
-        <!-- TAB 3: CODIGOS, CORTESIAS Y RRPP -->
+        <!-- TAB: CONTROL Y MONITOR DE TICKETS -->
+        <section id="tab-tickets" class="ep-tab d-none">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+              <h2 class="h4 fw-bold mb-0"><i class="bi bi-qr-code text-warning me-2"></i>Control y Monitor de Tickets</h2>
+              <small class="text-secondary">Monitoreo centralizado de todas las entradas emitidas, taquilla física, cortesías, staff e ingresos a puerta.</small>
+            </div>
+            <div class="d-flex gap-2">
+              <a href="/validar" target="_blank" class="btn btn-outline-info btn-sm">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Abrir Validador Puerta
+              </a>
+              <button class="btn btn-outline-light btn-sm" onclick="loadTicketsMonitor()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+            </div>
+          </div>
+
+          <!-- KPI Summary Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-md-3 col-sm-6">
+              <div class="ep-kpi">
+                <div class="ep-kpi-title"><i class="bi bi-ticket-detailed text-primary me-1"></i>Total Entradas / Pases</div>
+                <div class="ep-kpi-val text-white" id="kpiMonitorTotal">0</div>
+                <div class="small text-secondary" id="kpiMonitorBreakdown">0 ventas · 0 staff · 0 cortesías</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <div class="ep-kpi">
+                <div class="ep-kpi-title"><i class="bi bi-check-circle text-success me-1"></i>Ingresos Validados</div>
+                <div class="ep-kpi-val text-success" id="kpiMonitorScanned">0</div>
+                <div class="small text-secondary" id="kpiMonitorRate">0.0% de asistencia a puerta</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <div class="ep-kpi">
+                <div class="ep-kpi-title"><i class="bi bi-clock-history text-warning me-1"></i>Pendientes de Ingreso</div>
+                <div class="ep-kpi-val text-warning" id="kpiMonitorPending">0</div>
+                <div class="small text-secondary">Aún por ingresar al recinto</div>
+              </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+              <div class="ep-kpi">
+                <div class="ep-kpi-title"><i class="bi bi-shield-check text-info me-1"></i>Seguridad de Puerta</div>
+                <div class="ep-kpi-val text-info fs-5">Ed25519 + Manual</div>
+                <div class="small text-secondary">Criptografía offline & código corto</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Channel Filter Badges & Search Filter Bar -->
+          <div class="ep-card p-3 mb-3">
+            <div class="row g-2 align-items-center">
+              <div class="col-lg-4 col-md-6">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                  <input type="text" id="filterTicketsSearch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Buscar por Nombre, DNI, Código Corto (ej. EP- / TICK-)..." oninput="filterTicketsTable()">
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6">
+                <select id="filterTicketsChannel" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="filterTicketsTable()">
+                  <option value="">Todos los Canales / Orígenes</option>
+                  <option value="VENTAS_ONLINE">Ventas Online (Web)</option>
+                  <option value="TAQUILLA_FISICA">Taquilla Física (Térmica)</option>
+                  <option value="CORTESIAS_RRPP">Cortesías y RR.PP.</option>
+                  <option value="ACREDITACION_STAFF">Staff Acreditado (Empresas)</option>
+                  <option value="GUEST_LIST">Guest List (VIP)</option>
+                </select>
+              </div>
+              <div class="col-lg-3 col-md-6">
+                <select id="filterTicketsScanStatus" class="form-select form-select-sm bg-dark text-white border-secondary" onchange="filterTicketsTable()">
+                  <option value="">Todos los Estados de Ingreso</option>
+                  <option value="REDEEMED">Validados / Canjeados</option>
+                  <option value="PENDING">Pendientes de Ingreso</option>
+                </select>
+              </div>
+              <div class="col-lg-2 col-md-6 text-end">
+                <span class="badge text-bg-secondary" id="filteredTicketsCount">0 tickets</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tickets Monitor Table -->
+          <div class="ep-card p-3">
+            <div class="table-responsive">
+              <table class="table table-dark table-hover table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Canal / Origen</th>
+                    <th>Titular / Identificación</th>
+                    <th>Entrada / Ítem / Beneficio</th>
+                    <th>Código Corto Manual</th>
+                    <th>Emisión</th>
+                    <th>Ingreso en Puerta</th>
+                    <th>Fecha Registro</th>
+                    <th class="text-end">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="ticketsMonitorTableBody">
+                  <tr><td colspan="8" class="text-secondary text-center py-4">Selecciona un evento activo o haz clic en Actualizar</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 4: CODIGOS, CORTESIAS Y RRPP -->
         <section id="tab-codes" class="ep-tab d-none">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
@@ -1130,6 +1236,11 @@
           <div class="position-relative d-inline-block bg-white p-2 rounded-3 mb-2 shadow">
             <img id="qrModalImg" class="d-block" style="width:200px;height:200px;" alt="QR" />
           </div>
+          <div class="my-2" id="qrModalShortCodeBox">
+            <div class="small text-secondary mb-1">Código Corto Manual para Ingreso:</div>
+            <span class="badge bg-black border border-info text-info mono fs-5 px-3 py-2" id="qrModalShortCode">-</span>
+            <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="EP.copyToClipboard(document.getElementById('qrModalShortCode').textContent, 'Código copiado')"><i class="bi bi-clipboard me-1"></i>Copiar</button>
+          </div>
           <p class="small text-secondary mb-1" id="qrModalInfo"></p>
           <textarea id="qrModalToken" class="form-control form-control-sm mono" rows="3" readonly></textarea>
         </div>
@@ -1469,6 +1580,7 @@
       }
       if (tabName === "dashboard") loadDashboardMetrics();
       if (tabName === "events") loadEventsAndItemsTable();
+      if (tabName === "tickets") loadTicketsMonitor();
       if (tabName === "codes") loadCodesModule();
       if (tabName === "guestlist") loadGuestList();
       if (tabName === "bulk") loadBulkJobs();
@@ -1566,6 +1678,7 @@
       const tab = activeBtn ? activeBtn.dataset.tab : "dashboard";
       if (tab === "dashboard") await loadDashboardMetrics();
       else if (tab === "events") await loadEventsAndItemsTable();
+      else if (tab === "tickets") await loadTicketsMonitor();
       else if (tab === "codes") await loadCodesModule();
       else if (tab === "guestlist") await loadGuestList();
       else if (tab === "bulk") await loadBulkJobs();
@@ -1953,6 +2066,144 @@
       } catch (err) {
         EP.toast("Error al enviar correo: " + err.message, "err");
       }
+    }
+
+    let cachedTicketsMonitor = [];
+
+    async function loadTicketsMonitor() {
+      const eid = currentEventId();
+      if (!eid) return;
+      const tbody = document.getElementById("ticketsMonitorTableBody");
+      tbody.innerHTML = `<tr><td colspan="8" class="text-secondary text-center py-4"><span class="spinner-border spinner-border-sm me-2 text-warning"></span>Cargando tickets y validaciones de puerta...</td></tr>`;
+
+      try {
+        const data = await EP.api(`/api/v1/registration/events/${eid}/tickets-monitor`);
+        const summary = data.summary || {};
+        cachedTicketsMonitor = data.tickets || [];
+
+        // KPI Updates
+        document.getElementById("kpiMonitorTotal").textContent = summary.total_tickets || 0;
+        const byCh = summary.by_channel || {};
+        const vOnline = byCh.VENTAS_ONLINE ? byCh.VENTAS_ONLINE.total : 0;
+        const vStaff = byCh.ACREDITACION_STAFF ? byCh.ACREDITACION_STAFF.total : 0;
+        const vCodes = byCh.CORTESIAS_RRPP ? byCh.CORTESIAS_RRPP.total : 0;
+        const vTherm = byCh.TAQUILLA_FISICA ? byCh.TAQUILLA_FISICA.total : 0;
+        const vGuest = byCh.GUEST_LIST ? byCh.GUEST_LIST.total : 0;
+        document.getElementById("kpiMonitorBreakdown").textContent = `${vOnline} online · ${vTherm} taquilla · ${vStaff} staff · ${vCodes} cortesías · ${vGuest} VIP`;
+
+        document.getElementById("kpiMonitorScanned").textContent = summary.total_scanned || 0;
+        document.getElementById("kpiMonitorRate").textContent = `${summary.scan_rate_pct || 0}% de asistencia a puerta`;
+        document.getElementById("kpiMonitorPending").textContent = summary.total_pending || 0;
+
+        filterTicketsTable();
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-3"><i class="bi bi-exclamation-triangle-fill me-1"></i>Error al cargar monitor: ${EP.escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function filterTicketsTable() {
+      const search = (document.getElementById("filterTicketsSearch").value || "").trim().toLowerCase();
+      const channel = document.getElementById("filterTicketsChannel").value;
+      const scanStatus = document.getElementById("filterTicketsScanStatus").value;
+
+      const filtered = cachedTicketsMonitor.filter(t => {
+        if (channel && t.channel !== channel) return false;
+        if (scanStatus === "REDEEMED" && !t.is_redeemed) return false;
+        if (scanStatus === "PENDING" && t.is_redeemed) return false;
+        if (search) {
+          const matchName = (t.holder_name || "").toLowerCase().includes(search);
+          const matchId = (t.holder_id || "").toLowerCase().includes(search);
+          const matchCode = (t.short_code || "").toLowerCase().includes(search);
+          const matchItem = (t.item_name || "").toLowerCase().includes(search);
+          if (!matchName && !matchId && !matchCode && !matchItem) return false;
+        }
+        return true;
+      });
+
+      document.getElementById("filteredTicketsCount").textContent = `${filtered.length} tickets listados`;
+
+      const tbody = document.getElementById("ticketsMonitorTableBody");
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-secondary text-center py-4">No se encontraron tickets con los filtros seleccionados</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(t => {
+        let channelBadge = "bg-primary";
+        if (t.channel === "TAQUILLA_FISICA") channelBadge = "bg-warning text-dark";
+        else if (t.channel === "CORTESIAS_RRPP") channelBadge = "bg-success";
+        else if (t.channel === "ACREDITACION_STAFF") channelBadge = "bg-info text-dark";
+        else if (t.channel === "GUEST_LIST") channelBadge = "bg-secondary";
+
+        let issueBadge = "text-bg-secondary";
+        if (t.issue_status === "PAID" || t.issue_status === "ACTIVE" || t.issue_status === "ISSUED" || t.issue_status === "APPROVED") {
+          issueBadge = "text-bg-success";
+        } else if (t.issue_status === "CANCELLED" || t.issue_status === "EXPIRED" || t.issue_status === "REJECTED") {
+          issueBadge = "text-bg-danger";
+        }
+
+        const scanBadge = t.is_redeemed
+          ? `<div>
+              <span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i>CANJEADO</span>
+              <div class="small text-secondary mono" style="font-size:0.75rem;">${t.scanned_at ? EP.formatDateTime(t.scanned_at) : ''} (${EP.escapeHtml(t.gate_id || "Puerta")})</div>
+            </div>`
+          : `<span class="badge text-bg-secondary"><i class="bi bi-hourglass me-1"></i>Pendiente</span>`;
+
+        const shortCodeHtml = `
+          <div class="d-flex align-items-center gap-1">
+            <span class="badge bg-black border border-info text-info mono fs-6">${EP.escapeHtml(t.short_code)}</span>
+            <button type="button" class="btn btn-sm btn-link p-0 text-secondary" title="Copiar código" onclick="EP.copyToClipboard('${t.short_code}', 'Código copiado')">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+        `;
+
+        const actionBtn = t.qr_token
+          ? `<button class="btn btn-outline-info btn-sm py-0 px-2" onclick="showTicketQrModal('${t.qr_token}', '${t.short_code}', '${EP.escapeHtml(t.holder_name)}', '${EP.escapeHtml(t.item_name)}')" title="Ver Credencial QR y Código"><i class="bi bi-qr-code me-1"></i>Ver QR</button>`
+          : `<button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="EP.copyToClipboard('${t.short_code}', 'Código copiado')" title="Copiar Código Corto"><i class="bi bi-clipboard me-1"></i>Copiar</button>`;
+
+        return `
+          <tr>
+            <td><span class="badge ${channelBadge} fw-semibold">${EP.escapeHtml(t.channel_label)}</span></td>
+            <td>
+              <div class="fw-bold text-white">${EP.escapeHtml(t.holder_name)}</div>
+              <small class="text-secondary mono">ID: ${EP.escapeHtml(t.holder_id)}</small>
+            </td>
+            <td>
+              <div class="small fw-semibold text-light">${EP.escapeHtml(t.item_name)}</div>
+              <span class="badge text-bg-dark border border-secondary" style="font-size:0.7rem;">${t.item_type}</span>
+            </td>
+            <td>${shortCodeHtml}</td>
+            <td><span class="badge ${issueBadge}">${EP.escapeHtml(t.issue_status)}</span></td>
+            <td>${scanBadge}</td>
+            <td class="small text-secondary">${EP.formatDateTime(t.created_at)}</td>
+            <td class="text-end text-nowrap">${actionBtn}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function showTicketQrModal(qrToken, shortCode, holderName, itemName) {
+      const qrImg = document.getElementById("qrModalImg");
+      const qrInfo = document.getElementById("qrModalInfo");
+      const qrTok = document.getElementById("qrModalToken");
+      const qrCodeBadge = document.getElementById("qrModalShortCode");
+      
+      if (qrCodeBadge) qrCodeBadge.textContent = shortCode || "-";
+      if (qrInfo) qrInfo.innerHTML = `<strong>${EP.escapeHtml(holderName)}</strong> · <span class="text-info">${EP.escapeHtml(itemName)}</span>`;
+      if (qrTok) qrTok.value = qrToken || shortCode || "";
+
+      if (qrToken) {
+        try {
+          const dataUrl = await EP.renderQrDataUrl(qrToken);
+          if (qrImg) qrImg.src = dataUrl;
+        } catch (e) {
+          if (qrImg) qrImg.src = "";
+        }
+      } else {
+        if (qrImg) qrImg.src = "";
+      }
+      openModal("qrModal");
     }
 
     async function loadItemsOnly() {
@@ -2754,7 +3005,8 @@
               <div style="margin:10px auto;background:#fff;padding:6px;display:inline-block;border-radius:4px;">
                 <img src="${qrDataUrl}" style="width:${previewQrSize};height:${previewQrSize};image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto;" />
               </div>
-              <div style="font-size:0.75em;word-break:break-all;color:#333;">SEC: ${shortToken}</div>
+              <div style="margin-top:4px;font-size:0.9em;font-weight:bold;letter-spacing:1px;background:#f1f5f9;padding:3px 6px;border-radius:4px;border:1px solid #cbd5e1;display:inline-block;">CÓDIGO MANUAL: ${EP.escapeHtml(t.ticket_number)}</div>
+              <div style="font-size:0.75em;word-break:break-all;color:#555;margin-top:3px;">SEC: ${shortToken}</div>
               <div style="font-size:0.75em;color:#555;margin-top:2px;">EMISIÓN: ${EP.formatDateTime(t.created_at || batch.created_at)}</div>
               ${t.is_scanned
                 ? `<div style="font-size:0.75em;color:#15803d;font-weight:bold;margin-top:2px;">✅ CANJEADO: ${EP.formatDateTime(t.scanned_at)} (${EP.escapeHtml(t.gate_id || "Puerta")})</div>`
@@ -2777,7 +3029,8 @@
               <div style="margin:8px auto;background:#fff;padding:4px;display:inline-block;">
                 <img src="${qrDataUrl}" style="width:${printQrSize};height:${printQrSize};image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto;" />
               </div>
-              <div style="font-size:8pt;">SEC: ${shortToken}</div>
+              <div style="margin-top:4px;font-size:10pt;font-weight:bold;letter-spacing:1px;border:1px solid #000;padding:2px 4px;display:inline-block;">CÓDIGO MANUAL: ${EP.escapeHtml(t.ticket_number)}</div>
+              <div style="font-size:8pt;margin-top:2px;">SEC: ${shortToken}</div>
               <div style="font-size:8pt;font-weight:bold;margin-top:4px;">*** VÁLIDO PARA 1 INGRESO ***</div>
               <div style="font-size:7pt;margin-top:2px;">EVENTPASS SAAS · ED25519 VERIFIED</div>
             </div>`;

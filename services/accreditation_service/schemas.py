@@ -49,6 +49,7 @@ class StaffCredentialResponse(BaseModel):
     dni_last4: str
     credential_id: str
     qr_token: str
+    short_code: str | None = None
     remaining_quota: int
 
 
@@ -60,16 +61,43 @@ class IssueInternalCredentialRequest(StrictModel):
     holder_ref_id: str = Field(min_length=1, max_length=36)
     display_name: str = Field(min_length=1, max_length=150)
     dni_last4: str = Field(min_length=4, max_length=8)
+    short_code: str | None = Field(default=None, max_length=24)
     entitlements: dict[str, int] = Field(min_length=1)
     expires_at: datetime
 
 
 class CheckInRequest(StrictModel):
-    qr_token: str = Field(min_length=20, max_length=4096)
+    qr_token: str = Field(default="", max_length=4096)
+    code: str | None = Field(default=None, max_length=4096)
     entitlement_code: str = Field(default="ENTRY", min_length=1, max_length=40)
     gate_id: str = Field(default="MAIN_GATE", min_length=1, max_length=64)
     device_id: str = Field(default="SCANNER_01", min_length=1, max_length=120)
     client_scan_id: str | None = Field(default=None, max_length=120)
+
+
+class CredentialLookupRequest(StrictModel):
+    code: str = Field(min_length=3, max_length=4096)
+    event_id: str | None = Field(default=None, max_length=36)
+    gate_id: str | None = Field(default=None, max_length=64)
+
+
+class CredentialLookupResponse(BaseModel):
+    found: bool
+    credential_id: str
+    qr_token: str
+    short_code: str
+    display_name: str
+    dni_last4: str
+    holder_type: str
+    company_label: str | None = None
+    status: str
+    entitlements: dict[str, int]
+    redeemed: dict[str, int]
+    is_already_redeemed: bool
+    can_redeem: bool
+    last_scanned_at: str | None = None
+    last_gate_id: str | None = None
+    item_name: str | None = None
 
 
 class CheckInResponse(BaseModel):
@@ -82,6 +110,7 @@ class CheckInResponse(BaseModel):
     entitlement_code: str
     remaining_for_code: int
     all_remaining: dict[str, int]
+    short_code: str | None = None
 
 
 class OfflineCredentialSnapshot(BaseModel):
@@ -91,6 +120,7 @@ class OfflineCredentialSnapshot(BaseModel):
     company_label: str | None = None
     dni_last4: str
     status: str
+    short_code: str | None = None
     entitlements: dict[str, int]
     redeemed: dict[str, int]
 
