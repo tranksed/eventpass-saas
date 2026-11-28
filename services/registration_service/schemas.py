@@ -47,6 +47,7 @@ class UpdateEventDetailsRequest(StrictModel):
     logo_url: str | None = Field(default=None, max_length=5000000)
     map_coordinates: str | None = Field(default=None, max_length=255)
     max_purchases_per_dni: int | None = Field(default=None, ge=1, le=10)
+    timezone_name: str | None = Field(default=None, max_length=60)
     is_active: bool | None = None
 
 
@@ -247,6 +248,10 @@ class PhysicalTicketResponse(BaseModel):
     item_name: str
     item_code: str
     price_cents: int
+    created_at: datetime | None = None
+    is_scanned: bool = False
+    scanned_at: datetime | None = None
+    gate_id: str | None = None
 
 
 class PhysicalBatchResponse(BaseModel):

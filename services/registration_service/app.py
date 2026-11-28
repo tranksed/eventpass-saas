@@ -218,10 +218,12 @@ def create_registration_app(
         async for sess in get_db_session(session_factory):
             yield sess
 
-    require_admin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN)
-    require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
+    require_admin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN)
+    require_admin_or_supervisor = make_role_dependency(
+        lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN, Role.SUPERVISOR
+    )
     require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
-    require_admin_or_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERADMIN)
+    require_admin_or_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -270,6 +272,28 @@ def create_registration_app(
             )
         data = resp.json()
         return data["credential_id"], data["qr_token"]
+
+    async def _fetch_credentials_scan_status(event_id: str) -> dict[str, dict[str, Any]]:
+        headers = {"X-Internal-Service-Token": cfg.internal_service_token}
+        try:
+            if accreditation_client_factory is not None:
+                async with accreditation_client_factory() as acc_cli:
+                    resp = await acc_cli.get(
+                        f"/internal/accreditation/events/{event_id}/credentials-scan-status",
+                        headers=headers,
+                        timeout=3.0,
+                    )
+            else:
+                async with httpx.AsyncClient(base_url=cfg.accreditation_service_url, timeout=3.0) as acc_cli:
+                    resp = await acc_cli.get(
+                        f"/internal/accreditation/events/{event_id}/credentials-scan-status",
+                        headers=headers,
+                    )
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return {}
 
     async def _upsert_participant(
         db: AsyncSession,
@@ -490,6 +514,8 @@ def create_registration_app(
             event.map_coordinates = payload.map_coordinates
         if payload.max_purchases_per_dni is not None:
             event.max_purchases_per_dni = payload.max_purchases_per_dni
+        if payload.timezone_name is not None and payload.timezone_name.strip():
+            event.timezone_name = payload.timezone_name.strip()
         if payload.is_active is not None:
             event.is_active = payload.is_active
 
@@ -1457,11 +1483,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> PromoterStatsResponse:
-        prom = await db.scalar(
-            select(Promoter).where(Promoter.id == promoter_id, Promoter.tenant_id == actor.tenant_id)
-        )
+        prom = await db.scalar(select(Promoter).where(Promoter.id == promoter_id))
         if prom is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
+        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este promotor.")
         if payload.name is not None and payload.name.strip():
             prom.name = payload.name.strip()
         if payload.email is not None and payload.email.strip():
@@ -1515,11 +1541,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, str]:
-        prom = await db.scalar(
-            select(Promoter).where(Promoter.id == promoter_id, Promoter.tenant_id == actor.tenant_id)
-        )
+        prom = await db.scalar(select(Promoter).where(Promoter.id == promoter_id))
         if prom is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promoter not found.")
+        if actor.role != Role.SUPERADMIN and prom.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este promotor.")
         redeemed = await db.scalar(
             select(func.count(CourtesyCode.id)).where(
                 CourtesyCode.promoter_id == prom.id, CourtesyCode.status == "REDEEMED"
@@ -1657,8 +1683,10 @@ def create_registration_app(
             select(CourtesyCode, CatalogItem.name, Promoter.name)
             .join(CatalogItem, CourtesyCode.catalog_item_id == CatalogItem.id)
             .outerjoin(Promoter, CourtesyCode.promoter_id == Promoter.id)
-            .where(CourtesyCode.event_id == event_id, CourtesyCode.tenant_id == actor.tenant_id)
+            .where(CourtesyCode.event_id == event_id)
         )
+        if actor.role != Role.SUPERADMIN:
+            stmt = stmt.where(CourtesyCode.tenant_id == actor.tenant_id)
         if promoter_id:
             stmt = stmt.where(CourtesyCode.promoter_id == promoter_id)
         if code_status:
@@ -1688,11 +1716,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> CourtesyCodeResponse:
-        c = await db.scalar(
-            select(CourtesyCode).where(CourtesyCode.id == code_id, CourtesyCode.tenant_id == actor.tenant_id)
-        )
+        c = await db.scalar(select(CourtesyCode).where(CourtesyCode.id == code_id))
         if c is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
+        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este código.")
         if payload.status is not None:
             c.status = payload.status
         if payload.valid_day is not None:
@@ -1721,11 +1749,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, str]:
-        c = await db.scalar(
-            select(CourtesyCode).where(CourtesyCode.id == code_id, CourtesyCode.tenant_id == actor.tenant_id)
-        )
+        c = await db.scalar(select(CourtesyCode).where(CourtesyCode.id == code_id))
         if c is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Courtesy code not found.")
+        if actor.role != Role.SUPERADMIN and c.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este código.")
         if c.status == "REDEEMED":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -1886,13 +1914,10 @@ def create_registration_app(
         db: AsyncSession = Depends(get_db),
     ) -> list[PhysicalBatchResponse]:
         event = await _resolve_event(event_id, actor, db)
-        batches = (
-            await db.scalars(
-                select(PhysicalTicketBatch)
-                .where(PhysicalTicketBatch.event_id == event.id, PhysicalTicketBatch.tenant_id == actor.tenant_id)
-                .order_by(PhysicalTicketBatch.created_at.desc())
-            )
-        ).all()
+        b_query = select(PhysicalTicketBatch).where(PhysicalTicketBatch.event_id == event.id)
+        if actor.role != Role.SUPERADMIN:
+            b_query = b_query.where(PhysicalTicketBatch.tenant_id == actor.tenant_id)
+        batches = (await db.scalars(b_query.order_by(PhysicalTicketBatch.created_at.desc()))).all()
         return [
             PhysicalBatchResponse(
                 id=b.id,
@@ -1918,13 +1943,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> PhysicalBatchDetailResponse:
-        batch = await db.scalar(
-            select(PhysicalTicketBatch).where(
-                PhysicalTicketBatch.id == batch_id, PhysicalTicketBatch.tenant_id == actor.tenant_id
-            )
-        )
+        batch = await db.scalar(select(PhysicalTicketBatch).where(PhysicalTicketBatch.id == batch_id))
         if batch is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este lote.")
         event = await db.scalar(select(Event).where(Event.id == batch.event_id))
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
         assert event is not None and item is not None
@@ -1937,6 +1960,7 @@ def create_registration_app(
             )
         ).all()
 
+        scan_status_map = await _fetch_credentials_scan_status(batch.event_id)
         t_res = [
             PhysicalTicketResponse(
                 id=t.id,
@@ -1948,6 +1972,10 @@ def create_registration_app(
                 item_name=item.name,
                 item_code=item.code,
                 price_cents=item.price_cents,
+                created_at=t.created_at,
+                is_scanned=bool(scan_status_map.get(t.credential_id, {}).get("is_redeemed", False)),
+                scanned_at=scan_status_map.get(t.credential_id, {}).get("scanned_at"),
+                gate_id=scan_status_map.get(t.credential_id, {}).get("gate_id"),
             )
             for t in tickets
         ]
@@ -1978,13 +2006,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, str]:
-        batch = await db.scalar(
-            select(PhysicalTicketBatch).where(
-                PhysicalTicketBatch.id == batch_id, PhysicalTicketBatch.tenant_id == actor.tenant_id
-            )
-        )
+        batch = await db.scalar(select(PhysicalTicketBatch).where(PhysicalTicketBatch.id == batch_id))
         if batch is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found.")
+        if actor.role != Role.SUPERADMIN and batch.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para este lote.")
 
         item = await db.scalar(select(CatalogItem).where(CatalogItem.id == batch.catalog_item_id))
         if item is not None:
@@ -2147,13 +2173,10 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> list[GuestListEntryResponse]:
-        rows = (
-            await db.scalars(
-                select(GuestListEntry)
-                .where(GuestListEntry.event_id == event_id, GuestListEntry.tenant_id == actor.tenant_id)
-                .order_by(GuestListEntry.created_at.desc())
-            )
-        ).all()
+        g_query = select(GuestListEntry).where(GuestListEntry.event_id == event_id)
+        if actor.role != Role.SUPERADMIN:
+            g_query = g_query.where(GuestListEntry.tenant_id == actor.tenant_id)
+        rows = (await db.scalars(g_query.order_by(GuestListEntry.created_at.desc()))).all()
         return [
             GuestListEntryResponse(
                 id=r.id,
@@ -2177,11 +2200,11 @@ def create_registration_app(
         actor: CurrentActor = Depends(require_admin_or_supervisor),
         db: AsyncSession = Depends(get_db),
     ) -> GuestListEntryResponse:
-        entry = await db.scalar(
-            select(GuestListEntry).where(GuestListEntry.id == entry_id, GuestListEntry.tenant_id == actor.tenant_id)
-        )
+        entry = await db.scalar(select(GuestListEntry).where(GuestListEntry.id == entry_id))
         if entry is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guest list entry not found.")
+        if actor.role != Role.SUPERADMIN and entry.tenant_id != actor.tenant_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para esta invitación.")
         if entry.status != "PENDING":
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Entry already {entry.status}.")
 
@@ -2391,10 +2414,16 @@ def create_registration_app(
         codes = (await db.scalars(select(CourtesyCode).where(CourtesyCode.event_id == event.id))).all()
         guests = (await db.scalars(select(GuestListEntry).where(GuestListEntry.event_id == event.id))).all()
         proms = (await db.scalars(select(Promoter).where(Promoter.event_id == event.id))).all()
+        batches = (await db.scalars(select(PhysicalTicketBatch).where(PhysicalTicketBatch.event_id == event.id))).all()
 
         paid_orders = [o for o in orders if o.status == "PAID"]
         pending_orders = [o for o in orders if o.status == "PENDING"]
-        revenue_cents = sum(o.total_cents for o in paid_orders)
+        item_by_id = {i.id: i for i in items}
+        physical_revenue_cents = sum(
+            b.quantity * (item_by_id[b.catalog_item_id].price_cents if b.catalog_item_id in item_by_id else 0)
+            for b in batches
+        )
+        revenue_cents = sum(o.total_cents for o in paid_orders) + physical_revenue_cents
 
         by_source: dict[str, int] = defaultdict(int)
         by_hour: dict[str, dict[str, int]] = defaultdict(lambda: {"orders": 0, "revenue_cents": 0})
@@ -2403,6 +2432,13 @@ def create_registration_app(
             hour_label = _as_utc(o.paid_at or o.created_at).strftime("%Y-%m-%d %H:00")
             by_hour[hour_label]["orders"] += 1
             by_hour[hour_label]["revenue_cents"] += o.total_cents
+
+        for b in batches:
+            by_source["TAQUILLA_FISICA"] += 1
+            b_total = b.quantity * (item_by_id[b.catalog_item_id].price_cents if b.catalog_item_id in item_by_id else 0)
+            hour_label = _as_utc(b.created_at).strftime("%Y-%m-%d %H:00")
+            by_hour[hour_label]["orders"] += 1
+            by_hour[hour_label]["revenue_cents"] += b_total
 
         items_breakdown = [
             {
@@ -2439,7 +2475,7 @@ def create_registration_app(
             "event_id": event.id,
             "event_name": event.name,
             "total_revenue_cents": revenue_cents,
-            "orders_paid": len(paid_orders),
+            "orders_paid": len(paid_orders) + len(batches),
             "orders_pending": len(pending_orders),
             "tickets_sold": sum(i.stock_sold for i in items),
             "tickets_capacity": sum(i.stock_total for i in items),
@@ -2670,15 +2706,29 @@ def create_registration_app(
         """List registered purchases/orders for an event (Admin/Supervisor)."""
         event = await _resolve_event(event_id, actor, db)
         orders = (
-            await db.scalars(select(Order).where(Order.event_id == event.id).order_by(Order.created_at.desc()).limit(200))
+            await db.scalars(
+                select(Order).where(Order.event_id == event.id).order_by(Order.created_at.desc()).limit(200)
+            )
         ).all()
-        if not orders:
-            return []
+
+        batch_query = select(PhysicalTicketBatch).where(PhysicalTicketBatch.event_id == event.id)
+        if actor.role != Role.SUPERADMIN:
+            batch_query = batch_query.where(PhysicalTicketBatch.tenant_id == actor.tenant_id)
+        physical_batches = (
+            await db.scalars(batch_query.order_by(PhysicalTicketBatch.created_at.desc()).limit(100))
+        ).all()
+
+        catalogs = (await db.scalars(select(CatalogItem).where(CatalogItem.event_id == event.id))).all()
+        cat_by_id = {c.id: c for c in catalogs}
+        scan_status_map = await _fetch_credentials_scan_status(event.id)
+
         part_ids = list({o.participant_id for o in orders})
-        parts = (await db.scalars(select(Participant).where(Participant.id.in_(part_ids)))).all()
+        parts = (await db.scalars(select(Participant).where(Participant.id.in_(part_ids)))).all() if part_ids else []
         part_map = {p.id: p for p in parts}
         order_ids = [o.id for o in orders]
-        oitems = (await db.scalars(select(OrderItem).where(OrderItem.order_id.in_(order_ids)))).all()
+        oitems = (
+            (await db.scalars(select(OrderItem).where(OrderItem.order_id.in_(order_ids)))).all() if order_ids else []
+        )
         items_by_order: dict[str, list[str]] = defaultdict(list)
         for oi in oitems:
             items_by_order[oi.order_id].append(f"{oi.quantity}x {oi.item_code}")
@@ -2688,6 +2738,7 @@ def create_registration_app(
             p = part_map.get(o.participant_id)
             full_name = pii_crypto.decrypt(p.full_name_encrypted, aad=event.id) if p else "-"
             email = pii_crypto.decrypt(p.email_encrypted, aad=event.id) if p else "-"
+            sc_info = scan_status_map.get(o.credential_id or "", {})
             result.append(
                 {
                     "order_id": o.id,
@@ -2701,8 +2752,50 @@ def create_registration_app(
                     "status": o.status,
                     "created_at": _as_utc(o.created_at).isoformat(),
                     "paid_at": _as_utc(o.paid_at).isoformat() if o.paid_at else None,
+                    "is_physical_batch": False,
+                    "is_scanned": bool(sc_info.get("is_redeemed", False)),
+                    "scanned_at": sc_info.get("scanned_at"),
+                    "gate_id": sc_info.get("gate_id"),
                 }
             )
+
+        for b in physical_batches:
+            ci = cat_by_id.get(b.catalog_item_id)
+            ci_name = ci.name if ci else "Entrada General"
+            ci_code = ci.code if ci else "TICK"
+            ci_price = ci.price_cents if ci else 0
+            b_total_cents = b.quantity * ci_price
+
+            ptickets = (await db.scalars(select(PhysicalTicket).where(PhysicalTicket.batch_id == b.id))).all()
+            b_scanned_count = sum(
+                1 for pt in ptickets if scan_status_map.get(pt.credential_id, {}).get("is_redeemed", False)
+            )
+
+            result.append(
+                {
+                    "order_id": f"batch-{b.id}",
+                    "batch_id": b.id,
+                    "full_name": f"Taquilla: {b.batch_name}",
+                    "email": f"Rollo {b.paper_width}",
+                    "dni_last4": b.prefix,
+                    "items_summary": f"{b.quantity}x {ci_code} ({ci_name}) [{b.prefix}-{b.start_sequence:04d} a {b.prefix}-{b.end_sequence:04d}]",
+                    "total_cents": b_total_cents,
+                    "payment_method": "TAQUILLA_POS",
+                    "source": "TAQUILLA_FISICA",
+                    "status": "PAID",
+                    "created_at": _as_utc(b.created_at).isoformat(),
+                    "paid_at": _as_utc(b.created_at).isoformat(),
+                    "is_physical_batch": True,
+                    "paper_width": b.paper_width,
+                    "batch_quantity": b.quantity,
+                    "scanned_count": b_scanned_count,
+                    "is_scanned": b_scanned_count > 0,
+                    "scanned_at": None,
+                    "gate_id": None,
+                }
+            )
+
+        result.sort(key=lambda x: x["created_at"], reverse=True)
         return result
 
     @app.patch("/api/v1/registration/orders/{order_id}")

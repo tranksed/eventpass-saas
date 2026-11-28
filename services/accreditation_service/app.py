@@ -106,7 +106,9 @@ def create_accreditation_app(
         async for sess in get_db_session(session_factory):
             yield sess
 
-    require_admin_or_supervisor = make_role_dependency(lambda: jwt_pub_key, Role.ADMIN, Role.SUPERVISOR)
+    require_admin_or_supervisor = make_role_dependency(
+        lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN, Role.SUPERVISOR
+    )
     require_superadmin = make_role_dependency(lambda: jwt_pub_key, Role.SUPERADMIN)
     require_validator_module = make_role_dependency(
         lambda: jwt_pub_key, Role.SUPERADMIN, Role.ADMIN, Role.SUPERVISOR, Role.VALIDATOR
@@ -1053,6 +1055,82 @@ def create_accreditation_app(
                 ],
             },
         }
+
+    @app.get("/internal/accreditation/events/{event_id}/credentials-scan-status")
+    async def get_credentials_scan_status_internal(
+        event_id: str,
+        _: None = Depends(require_internal),
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, dict]:
+        """Internal endpoint mapping each credential's redemption and scan timestamps."""
+        creds = (await db.scalars(select(Credential).where(Credential.event_id == event_id))).all()
+        logs = (
+            await db.scalars(
+                select(CheckInLog)
+                .where(CheckInLog.event_id == event_id, CheckInLog.outcome.in_(["GRANTED", "SYNCED_GRANTED"]))
+                .order_by(CheckInLog.scanned_at.asc())
+            )
+        ).all()
+        logs_by_cred: dict[str, CheckInLog] = {}
+        for l in logs:
+            if l.credential_id not in logs_by_cred:
+                logs_by_cred[l.credential_id] = l
+
+        status_map: dict[str, dict] = {}
+        for c in creds:
+            red = json.loads(c.redeemed_json or "{}")
+            is_redeemed = any(int(v) > 0 for v in red.values())
+            first_log = logs_by_cred.get(c.id)
+            status_map[c.id] = {
+                "is_redeemed": is_redeemed,
+                "scanned_at": _as_utc(first_log.scanned_at).isoformat() if first_log else None,
+                "gate_id": first_log.gate_id if first_log else None,
+                "created_at": _as_utc(c.created_at).isoformat(),
+            }
+        return status_map
+
+    @app.get("/api/v1/accreditation/events/{event_id}/check-ins")
+    async def list_event_checkins(
+        event_id: str,
+        actor: AuthenticatedActor = Depends(require_validator_module),
+        db: AsyncSession = Depends(get_db),
+    ) -> list[dict]:
+        """List chronological check-in scan events for gate verification auditing."""
+        c_query = select(Credential).where(Credential.event_id == event_id)
+        l_query = (
+            select(CheckInLog)
+            .where(CheckInLog.event_id == event_id)
+            .order_by(CheckInLog.scanned_at.desc())
+            .limit(200)
+        )
+        if actor.role != Role.SUPERADMIN:
+            c_query = c_query.where(Credential.tenant_id == actor.tenant_id)
+            l_query = l_query.where(CheckInLog.tenant_id == actor.tenant_id)
+
+        creds = {c.id: c for c in (await db.scalars(c_query)).all()}
+        logs = (await db.scalars(l_query)).all()
+
+        res = []
+        for l in logs:
+            c = creds.get(l.credential_id)
+            res.append(
+                {
+                    "id": l.id,
+                    "credential_id": l.credential_id,
+                    "display_name": c.display_name if c else "-",
+                    "dni_last4": c.dni_last4 if c else "----",
+                    "company_label": c.company_label if c else None,
+                    "holder_type": c.holder_type if c else "-",
+                    "entitlement_code": l.entitlement_code,
+                    "gate_id": l.gate_id,
+                    "device_id": l.device_id,
+                    "mode": l.mode,
+                    "outcome": l.outcome,
+                    "scanned_at": _as_utc(l.scanned_at).isoformat(),
+                    "created_at": _as_utc(c.created_at).isoformat() if c else None,
+                }
+            )
+        return res
 
     @app.get("/api/v1/accreditation/superadmin/overview")
     async def superadmin_accreditation_overview(

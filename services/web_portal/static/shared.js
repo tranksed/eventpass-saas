@@ -75,6 +75,27 @@ const EP = {
     el.innerHTML = `<div class="alert ${cls} py-2 px-3 small mb-0 mt-2">${this.escapeHtml(text)}</div>`;
   },
 
+  formatDateTime(isoStr, timeZone) {
+    if (!isoStr) return "-";
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return String(isoStr);
+      const tz = timeZone || window.currentEventTimezone || "America/Lima";
+      return new Intl.DateTimeFormat("es-PE", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }).format(d);
+    } catch (_) {
+      return new Date(isoStr).toLocaleString();
+    }
+  },
+
   toast(text, kind = "ok") {
     let container = document.getElementById("epToastContainer");
     if (!container) {

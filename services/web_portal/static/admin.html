@@ -338,7 +338,31 @@
                       </label>
                     </div>
                   </div>
-                  <div class="col-md-5"><label class="form-label small">Zona Horaria</label><input id="evTz" class="form-control form-control-sm" value="America/Lima" /></div>
+                  <div class="col-md-5">
+                    <label class="form-label small">Zona Horaria</label>
+                    <select id="evTz" class="form-select form-select-sm">
+                      <option value="America/Lima" selected>America/Lima (Perú, Colombia, Ecuador - UTC-5)</option>
+                      <option value="America/Bogota">America/Bogota (Colombia - UTC-5)</option>
+                      <option value="America/Guayaquil">America/Guayaquil (Ecuador - UTC-5)</option>
+                      <option value="America/Santiago">America/Santiago (Chile - UTC-3/4)</option>
+                      <option value="America/Buenos_Aires">America/Buenos_Aires (Argentina - UTC-3)</option>
+                      <option value="America/Montevideo">America/Montevideo (Uruguay - UTC-3)</option>
+                      <option value="America/La_Paz">America/La_Paz (Bolivia - UTC-4)</option>
+                      <option value="America/Asuncion">America/Asuncion (Paraguay - UTC-3/4)</option>
+                      <option value="America/Caracas">America/Caracas (Venezuela - UTC-4)</option>
+                      <option value="America/Mexico_City">America/Mexico_City (México Central - UTC-6)</option>
+                      <option value="America/Cancun">America/Cancun (México Este - UTC-5)</option>
+                      <option value="America/Panama">America/Panama (Panamá - UTC-5)</option>
+                      <option value="America/Costa_Rica">America/Costa_Rica (Costa Rica - UTC-6)</option>
+                      <option value="America/Guatemala">America/Guatemala (Guatemala - UTC-6)</option>
+                      <option value="America/New_York">America/New_York (EE.UU. Este - UTC-5)</option>
+                      <option value="America/Chicago">America/Chicago (EE.UU. Centro - UTC-6)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (EE.UU. Pacífico - UTC-8)</option>
+                      <option value="America/Sao_Paulo">America/Sao_Paulo (Brasil - UTC-3)</option>
+                      <option value="Europe/Madrid">Europe/Madrid (España - UTC+1/+2)</option>
+                      <option value="UTC">UTC (Universal Coordinated Time)</option>
+                    </select>
+                  </div>
                   <div class="col-md-7"><label class="form-label small">Descripción corta</label><input id="evDesc" class="form-control form-control-sm" placeholder="Detalles clave del evento" /></div>
                 </div>
                 <button type="submit" id="btnCreateEvent" class="btn btn-primary btn-sm mt-3"><i class="bi bi-plus-circle me-1"></i>Crear Evento</button>
@@ -449,8 +473,8 @@
             </div>
             <div class="table-responsive">
               <table class="table table-dark table-sm align-middle mb-0">
-                <thead><tr><th>Titular</th><th>DNI</th><th>Correo</th><th>Ítems</th><th>Método</th><th>Total</th><th>Estado</th><th>Fecha</th><th class="text-end">Acciones</th></tr></thead>
-                <tbody id="ordersListTable"><tr><td colspan="9" class="text-secondary">Sin órdenes registradas</td></tr></tbody>
+                <thead><tr><th>Titular</th><th>DNI / Ref</th><th>Contacto / Detalle</th><th>Ítems</th><th>Canal / Método</th><th>Total</th><th>Estado</th><th>Fecha Emisión</th><th>Ingreso en Puerta</th><th class="text-end">Acciones</th></tr></thead>
+                <tbody id="ordersListTable"><tr><td colspan="10" class="text-secondary">Sin órdenes registradas</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -721,6 +745,22 @@
                 <h5 class="h6 fw-bold mb-3">Usuarios de la Organización</h5>
                 <div class="table-responsive" style="max-height:240px;"><table class="table table-dark table-sm align-middle mb-0"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead><tbody id="usersTable"></tbody></table></div>
               </div>
+            </div>
+          </div>
+
+          <div class="ep-card p-3 mb-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <div>
+                <h5 class="h6 fw-bold mb-0"><i class="bi bi-upc-scan text-info me-2"></i>Historial de Escaneos y Control de Acceso en Puertas</h5>
+                <small class="text-secondary">Registro en tiempo real de ingresos validados, canjes físicos y rechazos con zona y horario sincronizado.</small>
+              </div>
+              <button class="btn btn-outline-info btn-sm" onclick="loadCheckInLogs()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar Escaneos</button>
+            </div>
+            <div class="table-responsive" style="max-height:300px;">
+              <table class="table table-dark table-sm align-middle mb-0">
+                <thead><tr><th>Hora Escaneo</th><th>Titular / Asistente</th><th>DNI / Ref</th><th>Tipo / Rol</th><th>Puerta</th><th>Modo</th><th>Resultado</th><th>Fecha Emisión QR</th></tr></thead>
+                <tbody id="checkInsTable"><tr><td colspan="8" class="text-secondary">Cargando lecturas de puerta...</td></tr></tbody>
+              </table>
             </div>
           </div>
 
@@ -1165,6 +1205,31 @@
               </div>
 
               <div class="col-12">
+                <label class="form-label small">Zona Horaria Oficial del Evento</label>
+                <select id="editEvTz" class="form-select form-select-sm">
+                  <option value="America/Lima">America/Lima (Perú, Colombia, Ecuador - UTC-5)</option>
+                  <option value="America/Bogota">America/Bogota (Colombia - UTC-5)</option>
+                  <option value="America/Guayaquil">America/Guayaquil (Ecuador - UTC-5)</option>
+                  <option value="America/Santiago">America/Santiago (Chile - UTC-3/4)</option>
+                  <option value="America/Buenos_Aires">America/Buenos_Aires (Argentina - UTC-3)</option>
+                  <option value="America/Montevideo">America/Montevideo (Uruguay - UTC-3)</option>
+                  <option value="America/La_Paz">America/La_Paz (Bolivia - UTC-4)</option>
+                  <option value="America/Asuncion">America/Asuncion (Paraguay - UTC-3/4)</option>
+                  <option value="America/Caracas">America/Caracas (Venezuela - UTC-4)</option>
+                  <option value="America/Mexico_City">America/Mexico_City (México Central - UTC-6)</option>
+                  <option value="America/Cancun">America/Cancun (México Este - UTC-5)</option>
+                  <option value="America/Panama">America/Panama (Panamá - UTC-5)</option>
+                  <option value="America/Costa_Rica">America/Costa_Rica (Costa Rica - UTC-6)</option>
+                  <option value="America/Guatemala">America/Guatemala (Guatemala - UTC-6)</option>
+                  <option value="America/New_York">America/New_York (EE.UU. Este - UTC-5)</option>
+                  <option value="America/Chicago">America/Chicago (EE.UU. Centro - UTC-6)</option>
+                  <option value="America/Los_Angeles">America/Los_Angeles (EE.UU. Pacífico - UTC-8)</option>
+                  <option value="America/Sao_Paulo">America/Sao_Paulo (Brasil - UTC-3)</option>
+                  <option value="Europe/Madrid">Europe/Madrid (España - UTC+1/+2)</option>
+                  <option value="UTC">UTC (Universal Coordinated Time)</option>
+                </select>
+              </div>
+              <div class="col-12">
                 <label class="form-label small">Descripción</label>
                 <textarea id="editEvDesc" class="form-control form-control-sm" rows="2"></textarea>
               </div>
@@ -1409,7 +1474,7 @@
       if (tabName === "bulk") loadBulkJobs();
       if (tabName === "thermal") loadThermalBatches();
       if (tabName === "staff") loadCompanies();
-      if (tabName === "team") { loadTeamUsers(); loadAuditLogs(); loadComplaints(); }
+      if (tabName === "team") { loadTeamUsers(); loadAuditLogs(); loadComplaints(); loadCheckInLogs(); }
       if (tabName === "payments") loadPaymentGatewayConfig();
       if (tabName === "smtp") loadEmailConfig();
     }
@@ -1610,8 +1675,10 @@
           sel.innerHTML = `<option value="">-- Crea tu primer evento --</option>`;
           return true;
         }
-        sel.innerHTML = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)} (DNI ${e.max_purchases_per_dni})</option>`).join("");
+        sel.innerHTML = events.map(e => `<option value="${e.id}">${EP.escapeHtml(e.name)} (${EP.escapeHtml(e.timezone_name || 'America/Lima')})</option>`).join("");
         if (prev && events.some(e => e.id === prev)) sel.value = prev;
+        const cur = events.find(e => e.id === sel.value);
+        window.currentEventTimezone = cur ? (cur.timezone_name || "America/Lima") : "America/Lima";
         return true;
       } catch (e) {
         if (String(e.message).startsWith("401:")) {
@@ -1636,7 +1703,10 @@
               <div class="d-flex align-items-center gap-2">
                 ${e.logo_url ? `<img src="${EP.escapeHtml(e.logo_url)}" class="rounded-circle border border-secondary bg-white p-1" style="width:28px;height:28px;object-fit:contain;" />` : ''}
                 <div>
-                  <div>${EP.escapeHtml(e.name)}</div>
+                  <div class="d-flex align-items-center gap-1">
+                    <span>${EP.escapeHtml(e.name)}</span>
+                    <span class="badge text-bg-dark border border-secondary" style="font-size:0.65rem;"><i class="bi bi-clock me-1"></i>${EP.escapeHtml(e.timezone_name || 'America/Lima')}</span>
+                  </div>
                   <div class="small mono text-secondary">${EP.escapeHtml(e.slug)}</div>
                 </div>
               </div>
@@ -1765,23 +1835,55 @@
       orders.forEach(o => { adminOrdersCache[o.order_id] = o; });
 
       tbody.innerHTML = orders.length
-        ? orders.map(o => `
-          <tr>
-            <td><strong>${EP.escapeHtml(o.full_name || "-")}</strong></td>
-            <td class="mono">${EP.escapeHtml(o.dni_last4 || "----")}</td>
-            <td class="small text-secondary">${EP.escapeHtml(o.email || "-")}</td>
-            <td class="small">${EP.escapeHtml(o.items_summary || "-")}</td>
-            <td><span class="badge text-bg-secondary">${EP.escapeHtml(o.payment_method || "-")}</span></td>
-            <td class="fw-bold text-success">S/ ${((o.total_cents || 0) / 100).toFixed(2)}</td>
-            <td><span class="badge ${o.status === 'PAID' ? 'text-bg-success' : o.status === 'CANCELLED' ? 'text-bg-danger' : 'text-bg-warning'}">${EP.escapeHtml(o.status)}</span></td>
-            <td class="small text-secondary">${o.created_at ? new Date(o.created_at).toLocaleString() : "-"}</td>
-            <td class="text-end text-nowrap">
-              <button class="btn btn-outline-info btn-sm py-0 px-2 me-1" onclick="openEditOrderModal('${o.order_id}')" title="Editar comprador o estado"><i class="bi bi-pencil"></i></button>
-              <button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" onclick="sendOrderTicketEmail('${o.order_id}')" title="Enviar / Reenviar correo con tickets QR"><i class="bi bi-envelope"></i></button>
-              <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="confirmDeleteOrder('${o.order_id}', '${EP.escapeHtml(o.full_name)}', '${EP.escapeHtml(o.items_summary)}')" title="Eliminar orden permanentemente"><i class="bi bi-trash3"></i></button>
-            </td>
-          </tr>`).join("")
-        : `<tr><td colspan="9" class="text-secondary">Sin órdenes registradas para este evento</td></tr>`;
+        ? orders.map(o => {
+          if (o.is_physical_batch) {
+            return `
+              <tr class="table-dark">
+                <td>
+                  <span class="badge text-bg-warning me-1">LOTE FÍSICO</span>
+                  <strong>${EP.escapeHtml(o.full_name || "-")}</strong>
+                </td>
+                <td><span class="badge bg-secondary mono">${EP.escapeHtml(o.dni_last4 || "-")}</span></td>
+                <td class="small text-secondary">${EP.escapeHtml(o.email || "-")}</td>
+                <td class="small fw-semibold text-warning">${EP.escapeHtml(o.items_summary || "-")}</td>
+                <td><span class="badge text-bg-dark border border-warning text-warning"><i class="bi bi-printer me-1"></i>TAQUILLA (POS)</span></td>
+                <td class="fw-bold text-success">S/ ${((o.total_cents || 0) / 100).toFixed(2)}</td>
+                <td><span class="badge text-bg-success">PAGADO (STOCK)</span></td>
+                <td class="small text-secondary">${EP.formatDateTime(o.created_at)}</td>
+                <td>
+                  ${o.scanned_count > 0
+                    ? `<span class="badge text-bg-info"><i class="bi bi-qr-code-scan me-1"></i>${o.scanned_count} / ${o.batch_quantity} canjeados</span>`
+                    : `<span class="badge text-bg-secondary">0 / ${o.batch_quantity} canjeados</span>`}
+                </td>
+                <td class="text-end text-nowrap">
+                  <button class="btn btn-warning btn-sm py-0 px-2 me-1" onclick="viewThermalBatch('${o.batch_id}')" title="Ver e Imprimir Lote Físico"><i class="bi bi-printer me-1"></i>Imprimir</button>
+                  <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="deleteThermalBatch('${o.batch_id}')" title="Eliminar Lote y liberar stock"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>`;
+          }
+          return `
+            <tr>
+              <td><strong>${EP.escapeHtml(o.full_name || "-")}</strong></td>
+              <td class="mono">${EP.escapeHtml(o.dni_last4 || "----")}</td>
+              <td class="small text-secondary">${EP.escapeHtml(o.email || "-")}</td>
+              <td class="small">${EP.escapeHtml(o.items_summary || "-")}</td>
+              <td><span class="badge text-bg-secondary">${EP.escapeHtml(o.payment_method || "-")}</span></td>
+              <td class="fw-bold text-success">S/ ${((o.total_cents || 0) / 100).toFixed(2)}</td>
+              <td><span class="badge ${o.status === 'PAID' ? 'text-bg-success' : o.status === 'CANCELLED' ? 'text-bg-danger' : 'text-bg-warning'}">${EP.escapeHtml(o.status)}</span></td>
+              <td class="small text-secondary">${EP.formatDateTime(o.created_at)}</td>
+              <td>
+                ${o.is_scanned
+                  ? `<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>${EP.formatDateTime(o.scanned_at)} (${EP.escapeHtml(o.gate_id || "Puerta")})</span>`
+                  : `<span class="badge text-bg-secondary"><i class="bi bi-hourglass me-1"></i>Sin validar</span>`}
+              </td>
+              <td class="text-end text-nowrap">
+                <button class="btn btn-outline-info btn-sm py-0 px-2 me-1" onclick="openEditOrderModal('${o.order_id}')" title="Editar comprador o estado"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-outline-warning btn-sm py-0 px-2 me-1" onclick="sendOrderTicketEmail('${o.order_id}')" title="Enviar / Reenviar correo con tickets QR"><i class="bi bi-envelope"></i></button>
+                <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="confirmDeleteOrder('${o.order_id}', '${EP.escapeHtml(o.full_name)}', '${EP.escapeHtml(o.items_summary)}')" title="Eliminar orden permanentemente"><i class="bi bi-trash3"></i></button>
+              </td>
+            </tr>`;
+        }).join("")
+        : `<tr><td colspan="10" class="text-secondary">Sin órdenes registradas para este evento</td></tr>`;
     }
 
     function openEditOrderModal(orderId) {
@@ -2167,6 +2269,7 @@
       document.getElementById("editEvCoords").value = ev.map_coordinates || "";
       document.getElementById("editEvBrandColor").value = ev.brand_color || "#7c3aed";
       document.getElementById("editEvMaxDniVal").value = ev.max_purchases_per_dni || 4;
+      document.getElementById("editEvTz").value = ev.timezone_name || "America/Lima";
       document.getElementById("editEvDesc").value = ev.description || "";
       document.getElementById("editEvLogoUrl").value = ev.logo_url || "";
       document.getElementById("editEvBannerUrl").value = ev.banner_image_url || "";
@@ -2203,6 +2306,7 @@
             map_coordinates: document.getElementById("editEvCoords").value.trim(),
             brand_color: document.getElementById("editEvBrandColor").value,
             max_purchases_per_dni: Math.min(10, Math.max(1, maxDni)),
+            timezone_name: document.getElementById("editEvTz").value,
             description: document.getElementById("editEvDesc").value.trim(),
             logo_url: document.getElementById("editEvLogoUrl").value.trim(),
             banner_image_url: document.getElementById("editEvBannerUrl").value.trim(),
@@ -2645,6 +2749,10 @@
                 <img src="${qrDataUrl}" style="width:${previewQrSize};height:${previewQrSize};image-rendering:pixelated;image-rendering:crisp-edges;display:block;margin:0 auto;" />
               </div>
               <div style="font-size:0.75em;word-break:break-all;color:#333;">SEC: ${shortToken}</div>
+              <div style="font-size:0.75em;color:#555;margin-top:2px;">EMISIÓN: ${EP.formatDateTime(t.created_at || batch.created_at)}</div>
+              ${t.is_scanned
+                ? `<div style="font-size:0.75em;color:#15803d;font-weight:bold;margin-top:2px;">✅ CANJEADO: ${EP.formatDateTime(t.scanned_at)} (${EP.escapeHtml(t.gate_id || "Puerta")})</div>`
+                : `<div style="font-size:0.7em;color:#888;margin-top:1px;">⏳ ESTADO: ACTIVO / SIN ESCANEAR</div>`}
               <div style="font-size:0.75em;margin-top:4px;font-weight:bold;">*** VÁLIDO PARA 1 INGRESO ***</div>
               <div style="font-size:0.7em;color:#666;margin-top:2px;">EVENTPASS SAAS · ED25519 VERIFIED</div>
               <div style="margin-top:8px;font-size:0.75em;letter-spacing:2px;">- - - - - - - - - - - - - -</div>
@@ -2955,6 +3063,32 @@
           ? rows.map(c => `<tr><td class="mono fw-bold">${EP.escapeHtml(c.complaint_code)}</td><td><span class="badge ${c.claim_type === "RECLAMO" ? "text-bg-danger" : "text-bg-warning"}">${c.claim_type}</span></td><td><span class="badge text-bg-secondary">${EP.escapeHtml(c.status || "REGISTERED")}</span></td><td class="mono">****${EP.escapeHtml(c.dni_last4)}</td><td class="small">${EP.escapeHtml(c.detail)}</td><td class="small">${new Date(c.created_at).toLocaleString()}</td></tr>`).join("")
           : `<tr><td colspan="6" class="text-secondary">Sin reclamos</td></tr>`;
       } catch {}
+    }
+
+    async function loadCheckInLogs() {
+      const eid = currentEventId();
+      const tbody = document.getElementById("checkInsTable");
+      if (!tbody || !eid) return;
+      try {
+        const res = await EP.api(`/api/v1/accreditation/events/${eid}/check-ins?limit=100`);
+        const logs = res.logs || [];
+        tbody.innerHTML = logs.length
+          ? logs.map(l => `
+            <tr>
+              <td class="small fw-bold ${l.outcome === 'ACCEPTED' ? 'text-success' : 'text-danger'}">${EP.formatDateTime(l.scanned_at)}</td>
+              <td><strong>${EP.escapeHtml(l.attendee_name || "-")}</strong></td>
+              <td class="mono small">${EP.escapeHtml(l.dni || "-")}</td>
+              <td><span class="badge text-bg-secondary">${EP.escapeHtml(l.holder_type || "-")}</span></td>
+              <td><span class="badge text-bg-dark border border-secondary">${EP.escapeHtml(l.gate_id || "Puerta")}</span></td>
+              <td><span class="badge ${l.mode === 'ONLINE' ? 'text-bg-success' : 'text-bg-warning'}">${EP.escapeHtml(l.mode || "ONLINE")}</span></td>
+              <td><span class="badge ${l.outcome === 'ACCEPTED' ? 'text-bg-success' : 'text-bg-danger'}">${EP.escapeHtml(l.outcome || "-")}</span></td>
+              <td class="small text-secondary">${EP.formatDateTime(l.issued_at)}</td>
+            </tr>
+          `).join("")
+          : `<tr><td colspan="8" class="text-secondary">No hay escaneos registrados aún en las puertas para este evento.</td></tr>`;
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-warning">Aviso: ${EP.escapeHtml(e.message)}</td></tr>`;
+      }
     }
 
     refreshSession();
